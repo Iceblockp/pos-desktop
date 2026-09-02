@@ -1,0 +1,49 @@
+{
+  "name": "store-pos-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Offline-first Store POS desktop app for Windows and macOS.",
+  "main": "dist/electron/main/main.js",
+  "scripts": {
+    "dev": "npm run build:electron && concurrently -k \"vite --host 127.0.0.1\" \"tsc -p tsconfig.electron.json --watch\" \"wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
+    "build": "npm run build:electron && vite build",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "start": "npm run build && electron .",
+    "package": "npm run build && electron-builder --win nsis --mac dmg"
+  },
+  "build": {
+    "appId": "com.storepos.desktop",
+    "productName": "Store POS",
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "npmRebuild": true,
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.business"
+    }
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.90.2",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^43.0.0",
+    "electron-builder": "^26.0.12",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.6",
+    "wait-on": "^9.0.3"
+  }
+}

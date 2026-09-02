@@ -1,0 +1,74 @@
+import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { CartLine, Product, Receipt } from '../shared/models';
+
+type Page = 'counter' | 'products' | 'customers' | 'money' | 'settings';
+const money = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
+
+export function App() {
+  const [page, setPage] = useState<Page>('counter');
+  const [cart, setCart] = useState<CartLine[]>([]);
+  const [notice, setNotice] = useState<string | null>(null);
+  const client = useQueryClient();
+  const dashboard = useQuery({ queryKey: ['dashboard'], queryFn: () => window.storePos.pos.dashboard() });
+  const add = (product: Product) => setCart((current) => {
+    const existing = current.find((line) => line.productId === product.id);
+    if (existing) return current.map((line) => line.productId === product.id ? { ...line, quantity: line.quantity + 1 } : line);
+    return [...current, { productId: product.id, name: product.name, unit: product.unit, quantity: 1, unitPrice: product.price, unitCost: product.cost, discount: 0 }];
+  });
+  const afterSale = () => { setCart([]); void client.invalidateQueries({ queryKey: ['dashboard'] }); };
+  return <div className="app-shell">
+    <aside><div className="brand">Store <b>POS</b><small>Desktop</small></div>{([
+      ['counter', 'Counter'], ['products', 'Products & stock'], ['customers', 'Customers & debts'], ['money', 'Money & reports'], ['settings', 'Settings'],
+    ] as [Page, string][]).map(([key, label]) => <button className={page === key ? 'nav active' : 'nav'} key={key} onClick={() => setPage(key)}>{label}</button>)}<div className="side-note">Offline-first<br />Cloud sync is optional</div></aside>
+    <main>
+      {notice && <div className="notice" onClick={() => setNotice(null)}>{notice}</div>}
+      {page === 'counter' && <Counter cart={cart} setCart={setCart} add={add} afterSale={afterSale} notify={setNotice} />}
+      {page === 'products' && <Products add={add} notify={setNotice} />}
+      {page === 'customers' && <Customers notify={setNotice} />}
+      {page === 'money' && <Money dashboard={dashboard.data} />}
+      {page === 'settings' && <Settings notify={setNotice} />}
+    </main>
+  </div>;
+}
+
+function Counter({ cart, setCart, add, afterSale, notify }: { cart: CartLine[]; setCart: (next: CartLine[]) => void; add: (p: Product) => void; afterSale: () => void; notify: (s: string) => void }) {
+  const [search, setSearch] = useState(''); const [method, setMethod] = useState('cash'); const [tendered, setTendered] = useState(''); const [receipt, setReceipt] = useState<Receipt | null>(null);
+  const products = useQuery({ queryKey: ['products', search], queryFn: () => window.storePos.pos.products(search) });
+  const total = useMemo(() => cart.reduce((sum, line) => sum + line.quantity * line.unitPrice - line.discount, 0), [cart]);
+  const checkout = useMutation({ mutationFn: () => window.storePos.pos.checkout({ lines: cart, paymentMethod: method, amountTendered: tendered ? Number(tendered) : null }), onSuccess: (result) => { setReceipt(result); afterSale(); notify(`Sale saved: ${result.voucherId}`); }, onError: (error: Error) => notify(error.message) });
+  const buffer = useRef(''); const firstAt = useRef(0); const timer = useRef<number>();
+  useEffect(() => {
+    const scan = async (event: globalThis.KeyboardEvent) => {
+      if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) { if (!buffer.current) firstAt.current = Date.now(); buffer.current += event.key; window.clearTimeout(timer.current); timer.current = window.setTimeout(() => { buffer.current = ''; }, 160); return; }
+      if (event.key !== 'Enter' || buffer.current.length < 3 || Date.now() - firstAt.current > 350) return;
+      const code = buffer.current; buffer.current = ''; const product = await window.storePos.pos.findByBarcode(code); if (product) { event.preventDefault(); add(product); notify(`${product.name} added`); } else notify(`No product found for barcode ${code}`);
+    };
+    window.addEventListener('keydown', scan); return () => window.removeEventListener('keydown', scan);
+  }, [add, notify]);
+  const edit = (id: string, patch: Partial<CartLine>) => setCart(cart.map((line) => line.productId === id ? { ...line, ...patch } : line));
+  return <section className="counter"><header><div><h1>Counter</h1><p>Scan a barcode or search products. Scanner input is detected automatically.</p></div><span className="shortcut">F2 Search · Enter scan</span></header><div className="counter-grid"><div className="catalog"><input autoFocus placeholder="Search name or barcode" value={search} onChange={(e) => setSearch(e.target.value)} /> <div className="product-grid">{products.data?.map((product) => <button className="product-card" key={product.id} onClick={() => add(product)}><b>{product.name}</b><span>{money.format(product.price)} / {product.unit}</span><small>{product.quantity} in stock {product.barcode ? `· ${product.barcode}` : ''}</small></button>)}</div></div><div className="cart"><h2>Current sale</h2>{cart.length === 0 ? <p className="empty">Scan or select products to start.</p> : cart.map((line) => <div className="cart-line" key={line.productId}><div><b>{line.name}</b><small>{money.format(line.unitPrice)} / {line.unit}</small></div><div className="quantity"><button onClick={() => edit(line.productId, { quantity: Math.max(0.001, line.quantity - 1) })}>−</button><input value={line.quantity} inputMode="decimal" onChange={(e) => edit(line.productId, { quantity: Number(e.target.value) || 0 })} /><button onClick={() => edit(line.productId, { quantity: line.quantity + 1 })}>+</button></div><b>{money.format(line.quantity * line.unitPrice - line.discount)}</b><button className="icon" onClick={() => setCart(cart.filter((item) => item.productId !== line.productId))}>×</button></div>)}<div className="total"><span>Total</span><b>{money.format(total)}</b></div><div className="payment"><select value={method} onChange={(e) => setMethod(e.target.value)}><option value="cash">Cash</option><option value="card">Card</option><option value="transfer">Transfer</option><option value="debt">Customer debt</option></select><input placeholder="Cash received" inputMode="decimal" value={tendered} onChange={(e) => setTendered(e.target.value)} /></div><button className="primary" disabled={!cart.length || checkout.isPending} onClick={() => checkout.mutate()}>{checkout.isPending ? 'Saving…' : `Checkout ${money.format(total)}`}</button>{receipt && <button className="secondary" onClick={() => window.storePos.printer.printReceipt(receipt).catch((e) => notify(e.message))}>Print last receipt</button>}</div></div></section>;
+}
+
+function Products({ add, notify }: { add: (p: Product) => void; notify: (s: string) => void }) {
+  const [form, setForm] = useState({ name: '', barcode: '', price: '', cost: '', quantity: '', minStock: '', unit: 'pcs' }); const client = useQueryClient();
+  const products = useQuery({ queryKey: ['products', 'all'], queryFn: () => window.storePos.pos.products() });
+  const save = useMutation({ mutationFn: () => window.storePos.pos.saveProduct({ name: form.name, barcode: form.barcode || null, price: Number(form.price), cost: Number(form.cost || 0), quantity: Number(form.quantity || 0), minStock: Number(form.minStock || 0), unit: form.unit, isActive: true }), onSuccess: (p) => { setForm({ name: '', barcode: '', price: '', cost: '', quantity: '', minStock: '', unit: 'pcs' }); void client.invalidateQueries({ queryKey: ['products'] }); notify(`${p.name} saved`); }, onError: (e: Error) => notify(e.message) });
+  const submit = (e: FormEvent) => { e.preventDefault(); save.mutate(); };
+  return <section><header><h1>Products & stock</h1><p>Catalog, categories, suppliers, stock history, and price levels share the same offline data model as mobile.</p></header><div className="workspace"><form className="panel form" onSubmit={submit}><h2>Add product</h2>{(['name', 'barcode', 'price', 'cost', 'quantity', 'minStock', 'unit'] as const).map((field) => <label key={field}>{field === 'minStock' ? 'Low-stock level' : field}<input required={field === 'name' || field === 'price'} value={form[field]} inputMode={['price', 'cost', 'quantity', 'minStock'].includes(field) ? 'decimal' : undefined} onChange={(e) => setForm({ ...form, [field]: e.target.value })} /></label>)}<button className="primary">Save product</button></form><div className="panel table"><h2>Current catalog</h2>{products.data?.map((p) => <div className="row" key={p.id}><span><b>{p.name}</b><small>{p.barcode ?? 'No barcode'} · {p.quantity} {p.unit}</small></span><b>{money.format(p.price)}</b><button onClick={() => add(p)}>Add to sale</button></div>)}</div></div></section>;
+}
+
+function Customers({ notify }: { notify: (s: string) => void }) {
+  const [name, setName] = useState(''); const [phone, setPhone] = useState(''); const client = useQueryClient(); const customers = useQuery({ queryKey: ['customers'], queryFn: () => window.storePos.pos.customers() });
+  const save = useMutation({ mutationFn: () => window.storePos.pos.saveCustomer({ name, phone }), onSuccess: () => { setName(''); setPhone(''); void client.invalidateQueries({ queryKey: ['customers'] }); notify('Customer saved'); }, onError: (e: Error) => notify(e.message) });
+  return <section><header><h1>Customers & debts</h1><p>Customer records are ready for sales, debt collection, debt receipts, and cross-device sync.</p></header><div className="workspace"><form className="panel form" onSubmit={(e) => { e.preventDefault(); save.mutate(); }}><h2>Add customer</h2><label>Name<input required value={name} onChange={(e) => setName(e.target.value)} /></label><label>Phone<input value={phone} onChange={(e) => setPhone(e.target.value)} /></label><button className="primary">Save customer</button></form><div className="panel table"><h2>Customers</h2>{customers.data?.map((c) => <div className="row" key={c.id}><span><b>{c.name}</b><small>{c.phone ?? 'No phone'}</small></span></div>)}</div></div></section>;
+}
+
+function Money({ dashboard }: { dashboard?: { salesToday: number; revenueToday: number; lowStock: number; pendingSync: number } }) { return <section><header><h1>Money & reports</h1><p>Cash sessions, expenses, activity, returns, and day-end use the same local ledger/sync tables as mobile.</p></header><div className="metrics">{[['Today’s sales', dashboard?.salesToday ?? 0], ['Today’s revenue', money.format(dashboard?.revenueToday ?? 0)], ['Low stock', dashboard?.lowStock ?? 0], ['Waiting to sync', dashboard?.pendingSync ?? 0]].map(([label, value]) => <div className="metric" key={String(label)}><span>{label}</span><b>{value}</b></div>)}</div><div className="panel"><h2>Next desktop workspaces</h2><p>Cash opening/closing, expenses, debt collection, return vouchers, activity history, stock adjustment, suppliers, categories, payment methods, price levels, and reports are already represented in the local schema and sync registry. Their detailed desktop screens follow this checkout foundation.</p></div></section>; }
+
+function Settings({ notify }: { notify: (s: string) => void }) {
+  const [apiUrl, setApiUrl] = useState(import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api'); const [phone, setPhone] = useState(''); const [password, setPassword] = useState(''); const [deviceName, setDeviceName] = useState('Desktop counter'); const [printers, setPrinters] = useState<{ name: string; displayName: string }[]>([]); const cloud = useQuery({ queryKey: ['cloud'], queryFn: () => window.storePos.cloud.state() }); const printer = useQuery({ queryKey: ['printer'], queryFn: () => window.storePos.printer.settings() }); const client = useQueryClient();
+  const refresh = () => void client.invalidateQueries({ queryKey: ['cloud'] });
+  const login = useMutation({ mutationFn: async () => { await window.storePos.cloud.setApiUrl(apiUrl); return window.storePos.cloud.login({ phone, password, deviceName }); }, onSuccess: () => { setPassword(''); refresh(); notify('Desktop paired and synced'); }, onError: (e: Error) => notify(e.message) });
+  return <section><header><h1>Settings</h1><p>Cloud sync, paired device, subscription state, printer, and shop preferences.</p></header><div className="workspace three"><div className="panel form"><h2>Cloud account</h2><label>API URL<input value={apiUrl} onChange={(e) => setApiUrl(e.target.value)} /></label><label>Shop phone<input value={phone} onChange={(e) => setPhone(e.target.value)} /></label><label>Password<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></label><label>Device name<input value={deviceName} onChange={(e) => setDeviceName(e.target.value)} /></label><button className="primary" onClick={() => login.mutate()}>{login.isPending ? 'Connecting…' : 'Pair desktop'}</button><button className="secondary" onClick={() => window.storePos.cloud.syncNow().then(() => { refresh(); notify('Sync finished'); }).catch((e) => notify(e.message))}>Sync now</button><small>Status: {cloud.data?.status ?? 'loading'} · {cloud.data?.pending ?? 0} pending</small></div><div className="panel form"><h2>Receipt printer</h2><button className="secondary" onClick={() => window.storePos.printer.list().then(setPrinters).catch((e) => notify(e.message))}>Find installed printers</button><label>Printer<select value={printer.data?.deviceName ?? ''} onChange={(e) => printer.data && window.storePos.printer.saveSettings({ ...printer.data, deviceName: e.target.value || null }).then(() => client.invalidateQueries({ queryKey: ['printer'] }))}><option value="">Choose printer</option>{printers.map((item) => <option key={item.name} value={item.name}>{item.displayName}</option>)}</select></label><label>Paper width<select value={printer.data?.paperWidth ?? 80} onChange={(e) => printer.data && window.storePos.printer.saveSettings({ ...printer.data, paperWidth: Number(e.target.value) as 58 | 80 }).then(() => client.invalidateQueries({ queryKey: ['printer'] }))}><option value={58}>58 mm</option><option value={80}>80 mm</option></select></label><label className="check"><input type="checkbox" checked={printer.data?.autoPrint ?? false} onChange={(e) => printer.data && window.storePos.printer.saveSettings({ ...printer.data, autoPrint: e.target.checked }).then(() => client.invalidateQueries({ queryKey: ['printer'] }))} />Auto-print after sale</label><small>USB, Bluetooth, and Wi‑Fi printers appear after they are installed in Windows or macOS.</small></div><div className="panel"><h2>Desktop security</h2><p>Local SQLite, access tokens, and printer control stay in the native process. Tokens use operating-system encryption; React receives only narrow, typed actions.</p><p>Platform staff/admin features remain in the admin web app, not at a shop counter.</p></div></div></section>;
+}
