@@ -9,6 +9,7 @@ import type {
   ReturnableLine,
   SaleDraft,
   SaleSummary,
+  StockMovement,
 } from '../shared/models';
 
 type SyncTable = {
@@ -47,11 +48,13 @@ const now = () => new Date().toISOString();
  */
 export class PosDatabase {
   readonly sqlite: DatabaseSync;
+  private lastMovementAt = '';
 
   constructor(filename: string) {
     this.sqlite = new DatabaseSync(filename);
     this.sqlite.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = OFF;');
     this.migrate();
+    this.lastMovementAt = (this.sqlite.prepare('SELECT MAX(occurredAt) AS occurredAt FROM stock_movements').get() as any)?.occurredAt ?? '';
   }
 
   private migrate(): void {
@@ -118,7 +121,7 @@ export class PosDatabase {
     // absolute value. An opening amount is therefore an explicit movement.
     const openingQuantity = old ? 0 : Number(input.quantity ?? 0);
     if (openingQuantity) {
-      this.writeLocal('stock_movements', { id: randomUUID(), productId: id, type: 'opening', quantityDelta: openingQuantity, unitCost: row.cost, referenceId: null, supplierId: null, referenceNumber: null, reason: 'Initial desktop inventory', occurredAt: now() });
+      this.writeLocal('stock_movements', { id: randomUUID(), productId: id, type: 'opening', quantityDelta: openingQuantity, unitCost: row.cost, referenceId: null, supplierId: null, referenceNumber: null, reason: 'Initial desktop inventory', occurredAt: this.nextMovementAt() });
       this.sqlite.prepare('UPDATE products SET quantity = ? WHERE id = ?').run(openingQuantity, id);
     }
     return this.findProduct(id)!;
@@ -127,6 +130,33 @@ export class PosDatabase {
   private findProduct(id: string): Product | null {
     const row = this.sqlite.prepare('SELECT id, name, barcode, categoryId, price, cost, quantity, minStock, unit, isActive FROM products WHERE id = ?').get(id);
     return row ? toProduct(row) : null;
+  }
+
+  listStockHistory(productId: string): StockMovement[] {
+    const product = this.findProduct(productId); if (!product) throw new Error('Product not found');
+    const rows = this.sqlite.prepare('SELECT id, productId, type, quantityDelta, unitCost, reason, occurredAt FROM stock_movements WHERE productId = ? AND deletedAt IS NULL ORDER BY occurredAt DESC, id DESC LIMIT 200').all(productId) as any[];
+    let balance = product.quantity;
+    return rows.map((row) => {
+      const quantityDelta = Number(row.quantityDelta); const movement = { id: String(row.id), productId: String(row.productId), type: String(row.type) as StockMovement['type'], quantityDelta, unitCost: row.unitCost == null ? null : Number(row.unitCost), reason: row.reason ?? null, occurredAt: String(row.occurredAt), balance: round(balance) };
+      balance -= quantityDelta;
+      return movement;
+    });
+  }
+
+  adjustStock(productId: string, quantityDelta: number, type: 'stock_in' | 'waste' | 'adjustment', reason?: string): Product {
+    const product = this.findProduct(productId); if (!product) throw new Error('Product not found');
+    if (!['stock_in', 'waste', 'adjustment'].includes(type)) throw new Error('Invalid stock action');
+    if (!Number.isFinite(quantityDelta) || quantityDelta === 0) throw new Error('Enter a non-zero stock quantity');
+    if (type === 'stock_in' && quantityDelta < 0) throw new Error('Received stock must be positive');
+    if (type === 'waste' && quantityDelta > 0) throw new Error('Waste stock must be negative');
+    if (product.quantity + quantityDelta < -0.0001) throw new Error('This would make stock negative');
+    const occurredAt = this.nextMovementAt();
+    this.transaction(() => {
+      this.writeLocal('stock_movements', { id: randomUUID(), productId, type, quantityDelta, unitCost: product.cost, referenceId: null, supplierId: null, referenceNumber: null, reason: reason?.trim() || null, occurredAt });
+      this.sqlite.prepare('UPDATE products SET quantity = quantity + ? WHERE id = ?').run(quantityDelta, productId);
+      this.writeLocal('activity_log', { id: randomUUID(), actor: 'Desktop', action: `stock.${type}`, detail: reason?.trim() || product.name, amount: quantityDelta, referenceId: productId, occurredAt });
+    });
+    return this.findProduct(productId)!;
   }
 
   listCustomers(): Customer[] {
@@ -150,7 +180,7 @@ export class PosDatabase {
       this.setState('voucher.sequence', String(sequence));
       const deviceCode = this.getState('device.code') ?? 'D';
       const voucherId = `${deviceCode}-${String(sequence).padStart(6, '0')}`;
-      const saleId = randomUUID();
+      const saleId = randomUUID(); const movementAt = this.nextMovementAt();
       const subtotal = draft.lines.reduce((sum, line) => sum + line.quantity * line.unitPrice - line.discount, 0);
       const discount = Number(draft.discount ?? 0);
       const total = Math.max(0, subtotal - discount);
@@ -164,7 +194,7 @@ export class PosDatabase {
         if (!product) throw new Error(`Product no longer exists: ${line.name}`);
         const itemSubtotal = line.quantity * line.unitPrice - line.discount;
         this.writeLocal('sale_items', { id: randomUUID(), saleId, productId: product.id, productName: product.name, unit: line.unit, quantity: line.quantity, unitPrice: line.unitPrice, unitCost: line.unitCost, discount: line.discount, subtotal: itemSubtotal });
-        this.writeLocal('stock_movements', { id: randomUUID(), productId: product.id, type: 'sale', quantityDelta: -line.quantity, unitCost: line.unitCost, referenceId: saleId, supplierId: null, referenceNumber: voucherId, reason: null, occurredAt: soldAt });
+        this.writeLocal('stock_movements', { id: randomUUID(), productId: product.id, type: 'sale', quantityDelta: -line.quantity, unitCost: line.unitCost, referenceId: saleId, supplierId: null, referenceNumber: voucherId, reason: null, occurredAt: movementAt });
         this.sqlite.prepare('UPDATE products SET quantity = quantity - ? WHERE id = ?').run(line.quantity, product.id);
       }
       if (draft.paymentMethod !== 'debt') this.writeLocal('payments', { id: randomUUID(), saleId, customerId: draft.customerId ?? null, amount: total, methodCode: draft.paymentMethod, methodName: draft.paymentMethod, tendered: amountTendered, cashSessionId, note: null, paidAt: soldAt });
@@ -221,7 +251,7 @@ export class PosDatabase {
     if (!['cash', 'card', 'transfer', 'debt'].includes(refundMethod)) throw new Error('Choose a valid refund method');
     if (refundMethod === 'debt' && !source.customerId) throw new Error('Customer credit requires a customer on the original sale');
     const value = round(lines.reduce((sum, line) => sum + line.refundPerUnit * line.quantity, 0));
-    const soldAt = now(); const sequence = Number(this.getState('voucher.sequence') ?? '0') + 1; this.setState('voucher.sequence', String(sequence));
+    const soldAt = now(); const movementAt = this.nextMovementAt(); const sequence = Number(this.getState('voucher.sequence') ?? '0') + 1; this.setState('voucher.sequence', String(sequence));
     const returnId = randomUUID(); const returnVoucher = `${this.getState('device.code') ?? 'D'}-${String(sequence).padStart(6, '0')}`;
     const session = this.sqlite.prepare("SELECT id FROM cash_sessions WHERE status = 'open' AND deletedAt IS NULL ORDER BY openedAt DESC LIMIT 1").get() as any;
     this.transaction(() => {
@@ -229,7 +259,7 @@ export class PosDatabase {
       for (const line of lines) {
         const subtotal = -round(line.refundPerUnit * line.quantity);
         this.writeLocal('sale_items', { id: randomUUID(), saleId: returnId, productId: line.productId, productName: line.name, unit: line.unit, quantity: -line.quantity, unitPrice: line.refundPerUnit, unitCost: line.unitCost, discount: 0, subtotal });
-        this.writeLocal('stock_movements', { id: randomUUID(), productId: line.productId, type: 'return', quantityDelta: line.quantity, unitCost: line.unitCost, referenceId: returnId, supplierId: null, referenceNumber: returnVoucher, reason: note?.trim() || `Return for ${voucherId}`, occurredAt: soldAt });
+        this.writeLocal('stock_movements', { id: randomUUID(), productId: line.productId, type: 'return', quantityDelta: line.quantity, unitCost: line.unitCost, referenceId: returnId, supplierId: null, referenceNumber: returnVoucher, reason: note?.trim() || `Return for ${voucherId}`, occurredAt: movementAt });
         this.sqlite.prepare('UPDATE products SET quantity = quantity + ? WHERE id = ?').run(line.quantity, line.productId);
       }
       if (refundMethod !== 'debt') this.writeLocal('payments', { id: randomUUID(), saleId: returnId, customerId: source.customerId ?? null, amount: -value, methodCode: refundMethod, methodName: refundMethod, tendered: null, cashSessionId: session?.id ?? null, note: note?.trim() || `Refund for ${voucherId}`, paidAt: soldAt });
@@ -355,6 +385,13 @@ export class PosDatabase {
 
   private recordConflict(tableName: string, rowId: string, discarded: unknown): void {
     this.sqlite.prepare('INSERT INTO sync_conflicts (id, tableName, rowId, discarded, detectedAt) VALUES (?, ?, ?, ?, ?)').run(randomUUID(), tableName, rowId, JSON.stringify(discarded), now());
+  }
+
+  private nextMovementAt(): string {
+    const candidate = Date.now(); const prior = Date.parse(this.lastMovementAt);
+    const timestamp = Number.isFinite(prior) && candidate <= prior ? prior + 1 : candidate;
+    this.lastMovementAt = new Date(timestamp).toISOString();
+    return this.lastMovementAt;
   }
 
   private transaction<T>(operation: () => T): T {

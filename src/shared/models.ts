@@ -83,6 +83,17 @@ export interface ReturnableLine {
   unitCost: number;
 }
 
+export interface StockMovement {
+  id: string;
+  productId: string;
+  type: 'stock_in' | 'waste' | 'adjustment' | 'sale' | 'return' | 'opening';
+  quantityDelta: number;
+  unitCost: number | null;
+  reason: string | null;
+  occurredAt: string;
+  balance: number;
+}
+
 export interface Dashboard {
   salesToday: number;
   revenueToday: number;
@@ -138,6 +149,8 @@ export interface DesktopApi {
     receipt: (voucherId: string) => Promise<Receipt | null>;
     returnableSale: (voucherId: string) => Promise<ReturnableLine[] | null>;
     returnSale: (voucherId: string, lines: Array<{ productId: string; quantity: number }>, refundMethod: string, note?: string) => Promise<Receipt>;
+    stockHistory: (productId: string) => Promise<StockMovement[]>;
+    adjustStock: (productId: string, quantityDelta: number, type: 'stock_in' | 'waste' | 'adjustment', reason?: string) => Promise<Product>;
     debtors: () => Promise<Array<{ id: string; name: string; phone: string | null; debt: number }>>;
     collectDebt: (customerId: string, amount: number, methodCode: string, note?: string) => Promise<void>;
     cashSession: () => Promise<any>;
