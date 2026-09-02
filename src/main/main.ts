@@ -45,6 +45,8 @@ function registerIpc(): void {
   ipcMain.handle('pos:dashboard', (event) => { assertTrustedSender(event); return database.dashboard(); });
   ipcMain.handle('pos:report', (event, from, to) => { assertTrustedSender(event); return database.report(String(from), String(to)); });
   ipcMain.handle('pos:cash-sessions', (event) => { assertTrustedSender(event); return database.listCashSessions(); });
+  ipcMain.handle('pos:payment-methods', (event) => { assertTrustedSender(event); return database.listPaymentMethods(); });
+  ipcMain.handle('pos:save-payment-method', (event, input: unknown) => { assertTrustedSender(event); const result = database.savePaymentMethod(input as any); void cloud.syncNow(); return result; });
   ipcMain.handle('pos:products', (event, search?: unknown) => { assertTrustedSender(event); return database.listProducts(typeof search === 'string' ? search.slice(0, 120) : ''); });
   ipcMain.handle('pos:find-barcode', (event, code: unknown) => { assertTrustedSender(event); return database.findBarcode(typeof code === 'string' ? code.slice(0, 160) : ''); });
   ipcMain.handle('pos:save-product', (event, input: unknown) => { assertTrustedSender(event); const result = database.saveProduct(input as any); void cloud.syncNow(); return result; });

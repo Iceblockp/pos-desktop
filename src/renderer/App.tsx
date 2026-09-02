@@ -2,7 +2,7 @@ import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from '
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CartLine, CashSessionSummary, Product, Receipt, ReportSummary, SaleSummary, StockMovement } from '../shared/models';
 
-type Page = 'counter' | 'sales' | 'products' | 'catalog-setup' | 'customers' | 'money' | 'reports' | 'settings';
+type Page = 'counter' | 'sales' | 'products' | 'catalog-setup' | 'customers' | 'money' | 'reports' | 'payment-setup' | 'settings';
 const money = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
 
 export function App() {
@@ -19,7 +19,7 @@ export function App() {
   const afterSale = () => { setCart([]); void client.invalidateQueries({ queryKey: ['dashboard'] }); };
   return <div className="app-shell">
     <aside><div className="brand">Store <b>POS</b><small>Desktop</small></div>{([
-      ['counter', 'Counter'], ['sales', 'Sales history'], ['products', 'Products & stock'], ['catalog-setup', 'Catalog setup'], ['customers', 'Customers & debts'], ['money', 'Money & cash'], ['reports', 'Reports & day end'], ['settings', 'Settings'],
+      ['counter', 'Counter'], ['sales', 'Sales history'], ['products', 'Products & stock'], ['catalog-setup', 'Catalog setup'], ['customers', 'Customers & debts'], ['money', 'Money & cash'], ['reports', 'Reports & day end'], ['payment-setup', 'Payment methods'], ['settings', 'Settings'],
     ] as [Page, string][]).map(([key, label]) => <button className={page === key ? 'nav active' : 'nav'} key={key} onClick={() => setPage(key)}>{label}</button>)}<div className="side-note">Offline-first<br />Cloud sync is optional</div></aside>
     <main>
       {notice && <div className="notice" onClick={() => setNotice(null)}>{notice}</div>}
@@ -30,6 +30,7 @@ export function App() {
       {page === 'customers' && <Customers notify={setNotice} />}
       {page === 'money' && <Money dashboard={dashboard.data} notify={setNotice} />}
       {page === 'reports' && <Reports />}
+      {page === 'payment-setup' && <PaymentSetup notify={setNotice} />}
       {page === 'settings' && <Settings notify={setNotice} />}
     </main>
   </div>;
@@ -118,6 +119,14 @@ function reportRange(period: 'today' | 'week' | 'month'): { from: string; to: st
   if (period === 'week') from.setDate(from.getDate() - 6);
   if (period === 'month') from.setDate(1);
   return { from: from.toISOString(), to: now.toISOString() };
+}
+
+function PaymentSetup({ notify }: { notify: (s: string) => void }) {
+  const [name, setName] = useState(''); const client = useQueryClient();
+  const methods = useQuery({ queryKey: ['payment-methods'], queryFn: () => window.storePos.pos.paymentMethods() });
+  const save = useMutation({ mutationFn: () => window.storePos.pos.savePaymentMethod({ name }), onSuccess: () => { setName(''); void client.invalidateQueries({ queryKey: ['payment-methods'] }); notify('Payment method saved'); }, onError: (e: Error) => notify(e.message) });
+  const toggle = useMutation({ mutationFn: (method: { id: string; name: string; code: string; sortOrder: number; isActive: boolean }) => window.storePos.pos.savePaymentMethod({ ...method, isActive: !method.isActive }), onSuccess: () => { void client.invalidateQueries({ queryKey: ['payment-methods'] }); notify('Payment method updated'); }, onError: (e: Error) => notify(e.message) });
+  return <section><header><h1>Payment methods</h1><p>Configure how this shop accepts payments. Changes are kept locally first and sync to the other shop devices.</p></header><div className="workspace"><form className="panel form" onSubmit={(e) => { e.preventDefault(); save.mutate(); }}><h2>Add payment method</h2><label>Name<input required placeholder="e.g. Wave Pay" value={name} onChange={(e) => setName(e.target.value)} /></label><button className="primary" disabled={save.isPending}>{save.isPending ? 'Saving…' : 'Add method'}</button></form><div className="panel table"><h2>Available methods</h2>{methods.data?.map((method) => <div className="row" key={method.id}><span><b>{method.name}</b><small>{method.code} · {method.isActive ? 'Active at checkout' : 'Hidden at checkout'}</small></span><button onClick={() => toggle.mutate(method)} disabled={toggle.isPending}>{method.isActive ? 'Disable' : 'Enable'}</button></div>)}</div></div></section>;
 }
 
 function Settings({ notify }: { notify: (s: string) => void }) {

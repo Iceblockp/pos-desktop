@@ -133,6 +133,14 @@ export interface CashSessionSummary {
   status: string;
 }
 
+export interface PaymentMethod {
+  id: string;
+  name: string;
+  code: string;
+  sortOrder: number;
+  isActive: boolean;
+}
+
 export interface Dashboard {
   salesToday: number;
   revenueToday: number;
@@ -196,6 +204,8 @@ export interface DesktopApi {
     adjustStock: (productId: string, quantityDelta: number, type: 'stock_in' | 'waste' | 'adjustment', reason?: string) => Promise<Product>;
     report: (from: string, to: string) => Promise<ReportSummary>;
     cashSessions: () => Promise<CashSessionSummary[]>;
+    paymentMethods: () => Promise<PaymentMethod[]>;
+    savePaymentMethod: (input: Partial<PaymentMethod> & Pick<PaymentMethod, 'name'>) => Promise<PaymentMethod>;
     debtors: () => Promise<Array<{ id: string; name: string; phone: string | null; debt: number }>>;
     collectDebt: (customerId: string, amount: number, methodCode: string, note?: string) => Promise<void>;
     cashSession: () => Promise<any>;

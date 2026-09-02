@@ -5,6 +5,7 @@ import type {
   Customer,
   Dashboard,
   Product,
+  PaymentMethod,
   ReportSummary,
   Receipt,
   ReturnableLine,
@@ -85,6 +86,10 @@ export class PosDatabase {
       this.sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_${table.name}_dirty ON ${table.name}(dirty) WHERE dirty = 1`);
     }
     this.setState('voucher.sequence', this.getState('voucher.sequence') ?? '0');
+    const paymentMethodCount = Number((this.sqlite.prepare('SELECT COUNT(*) AS count FROM payment_methods WHERE deletedAt IS NULL').get() as any).count);
+    if (paymentMethodCount === 0) {
+      [['Cash', 'cash'], ['Card', 'card'], ['Transfer', 'transfer']].forEach(([name, code], sortOrder) => this.writeLocal('payment_methods', { id: randomUUID(), name, code, icon: null, color: null, sortOrder, isActive: 1 }));
+    }
   }
 
   getState(key: string): string | null {
@@ -155,6 +160,18 @@ export class PosDatabase {
     if (!input.name.trim()) throw new Error('Supplier name is required');
     this.writeLocal('suppliers', { id, name: input.name.trim(), contactName: input.contactName?.trim() || null, phone: input.phone?.trim() || null, email: existing?.email ?? null, address: existing?.address ?? null });
     return this.listSuppliers().find((supplier) => supplier.id === id)!;
+  }
+
+  listPaymentMethods(): PaymentMethod[] {
+    return this.sqlite.prepare('SELECT id, name, code, sortOrder, isActive FROM payment_methods WHERE deletedAt IS NULL ORDER BY sortOrder, name').all().map((row: any) => ({ id: String(row.id), name: String(row.name), code: String(row.code), sortOrder: Number(row.sortOrder), isActive: Boolean(row.isActive) }));
+  }
+
+  savePaymentMethod(input: Partial<PaymentMethod> & Pick<PaymentMethod, 'name'>): PaymentMethod {
+    const id = input.id || randomUUID(); const existing = input.id ? this.sqlite.prepare('SELECT * FROM payment_methods WHERE id = ?').get(input.id) as any : null;
+    const name = input.name.trim(); if (!name) throw new Error('Payment method name is required');
+    const code = input.code?.trim().toLowerCase() || existing?.code || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `method-${id.slice(0, 8)}`;
+    this.writeLocal('payment_methods', { id, name, code, icon: existing?.icon ?? null, color: existing?.color ?? null, sortOrder: Number(input.sortOrder ?? existing?.sortOrder ?? this.listPaymentMethods().length), isActive: input.isActive == null ? Number(existing?.isActive ?? 1) : Number(input.isActive) });
+    return this.listPaymentMethods().find((method) => method.id === id)!;
   }
 
   listStockHistory(productId: string): StockMovement[] {
