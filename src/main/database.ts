@@ -5,10 +5,12 @@ import type {
   Customer,
   Dashboard,
   Product,
+  ReportSummary,
   Receipt,
   ReturnableLine,
   SaleDraft,
   SaleSummary,
+  CashSessionSummary,
   StockMovement,
 } from '../shared/models';
 
@@ -297,6 +299,22 @@ export class PosDatabase {
     const total = this.sqlite.prepare("SELECT COUNT(*) AS salesToday, COALESCE(SUM(total), 0) AS revenueToday FROM sales WHERE type = 'sale' AND deletedAt IS NULL AND soldAt >= ?").get(day) as any;
     const low = this.sqlite.prepare('SELECT COUNT(*) AS count FROM products WHERE deletedAt IS NULL AND isActive = 1 AND quantity <= minStock').get() as any;
     return { salesToday: Number(total.salesToday), revenueToday: Number(total.revenueToday), lowStock: Number(low.count), pendingSync: this.countDirty() };
+  }
+
+  report(from: string, to: string): ReportSummary {
+    const start = new Date(from); const end = new Date(to); if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || start > end) throw new Error('Choose a valid report period');
+    const sales = this.sqlite.prepare(`SELECT COALESCE(SUM(CASE WHEN type = 'sale' THEN total ELSE 0 END), 0) AS grossSales, COALESCE(SUM(CASE WHEN type = 'return' THEN -total ELSE 0 END), 0) AS refunds, COALESCE(SUM(total), 0) AS netSales, COALESCE(SUM(discount), 0) AS discounts, COALESCE(SUM(CASE WHEN type = 'sale' THEN 1 ELSE 0 END), 0) AS saleCount FROM sales WHERE deletedAt IS NULL AND soldAt >= ? AND soldAt <= ?`).get(from, to) as any;
+    const cost = Number((this.sqlite.prepare(`SELECT COALESCE(SUM(i.unitCost * i.quantity), 0) AS total FROM sale_items i JOIN sales s ON s.id = i.saleId WHERE i.deletedAt IS NULL AND s.deletedAt IS NULL AND s.soldAt >= ? AND s.soldAt <= ?`).get(from, to) as any).total);
+    const expenses = Number((this.sqlite.prepare('SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE deletedAt IS NULL AND spentAt >= ? AND spentAt <= ?').get(from, to) as any).total);
+    const payments = this.sqlite.prepare('SELECT methodCode, COALESCE(SUM(amount), 0) AS total FROM payments WHERE deletedAt IS NULL AND paidAt >= ? AND paidAt <= ? GROUP BY methodCode ORDER BY methodCode').all(from, to).map((row: any) => ({ methodCode: String(row.methodCode), total: Number(row.total) }));
+    const debtRows = this.sqlite.prepare(`SELECT c.id, COALESCE((SELECT SUM(total) FROM sales WHERE customerId = c.id AND deletedAt IS NULL), 0) - COALESCE((SELECT SUM(amount) FROM payments WHERE customerId = c.id AND deletedAt IS NULL), 0) AS debt FROM customers c WHERE c.deletedAt IS NULL`).all() as any[];
+    const outstandingDebt = debtRows.reduce((total, row) => total + Math.max(0, Number(row.debt)), 0);
+    const netSales = Number(sales.netSales); const grossProfit = round(netSales - cost);
+    return { grossSales: Number(sales.grossSales), refunds: Number(sales.refunds), netSales, cost, grossProfit, expenses, netProfit: round(grossProfit - expenses), discounts: Number(sales.discounts), saleCount: Number(sales.saleCount), outstandingDebt: round(outstandingDebt), payments };
+  }
+
+  listCashSessions(): CashSessionSummary[] {
+    return this.sqlite.prepare('SELECT id, openingFloat, expectedCash, countedCash, difference, openedAt, closedAt, status FROM cash_sessions WHERE deletedAt IS NULL ORDER BY openedAt DESC LIMIT 30').all().map((row: any) => ({ id: String(row.id), openingFloat: Number(row.openingFloat), expectedCash: row.expectedCash == null ? null : Number(row.expectedCash), countedCash: row.countedCash == null ? null : Number(row.countedCash), difference: row.difference == null ? null : Number(row.difference), openedAt: String(row.openedAt), closedAt: row.closedAt ?? null, status: String(row.status) }));
   }
 
   listDebtors(): Array<{ id: string; name: string; phone: string | null; debt: number }> {

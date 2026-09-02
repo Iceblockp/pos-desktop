@@ -108,6 +108,31 @@ export interface StockMovement {
   balance: number;
 }
 
+export interface ReportSummary {
+  grossSales: number;
+  refunds: number;
+  netSales: number;
+  cost: number;
+  grossProfit: number;
+  expenses: number;
+  netProfit: number;
+  discounts: number;
+  saleCount: number;
+  outstandingDebt: number;
+  payments: Array<{ methodCode: string; total: number }>;
+}
+
+export interface CashSessionSummary {
+  id: string;
+  openingFloat: number;
+  expectedCash: number | null;
+  countedCash: number | null;
+  difference: number | null;
+  openedAt: string;
+  closedAt: string | null;
+  status: string;
+}
+
 export interface Dashboard {
   salesToday: number;
   revenueToday: number;
@@ -169,6 +194,8 @@ export interface DesktopApi {
     returnSale: (voucherId: string, lines: Array<{ productId: string; quantity: number }>, refundMethod: string, note?: string) => Promise<Receipt>;
     stockHistory: (productId: string) => Promise<StockMovement[]>;
     adjustStock: (productId: string, quantityDelta: number, type: 'stock_in' | 'waste' | 'adjustment', reason?: string) => Promise<Product>;
+    report: (from: string, to: string) => Promise<ReportSummary>;
+    cashSessions: () => Promise<CashSessionSummary[]>;
     debtors: () => Promise<Array<{ id: string; name: string; phone: string | null; debt: number }>>;
     collectDebt: (customerId: string, amount: number, methodCode: string, note?: string) => Promise<void>;
     cashSession: () => Promise<any>;

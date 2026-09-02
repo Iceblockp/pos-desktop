@@ -6,6 +6,8 @@ const api: DesktopApi = {
   app: { version: () => ipcRenderer.invoke('app:version') },
   pos: {
     dashboard: () => ipcRenderer.invoke('pos:dashboard'),
+    report: (from, to) => ipcRenderer.invoke('pos:report', from, to),
+    cashSessions: () => ipcRenderer.invoke('pos:cash-sessions'),
     products: (search) => ipcRenderer.invoke('pos:products', search),
     findByBarcode: (code) => ipcRenderer.invoke('pos:find-barcode', code),
     saveProduct: (input) => ipcRenderer.invoke('pos:save-product', input),

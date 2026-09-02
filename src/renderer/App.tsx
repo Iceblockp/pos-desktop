@@ -1,8 +1,8 @@
 import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CartLine, Product, Receipt, SaleSummary, StockMovement } from '../shared/models';
+import type { CartLine, CashSessionSummary, Product, Receipt, ReportSummary, SaleSummary, StockMovement } from '../shared/models';
 
-type Page = 'counter' | 'sales' | 'products' | 'catalog-setup' | 'customers' | 'money' | 'settings';
+type Page = 'counter' | 'sales' | 'products' | 'catalog-setup' | 'customers' | 'money' | 'reports' | 'settings';
 const money = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
 
 export function App() {
@@ -19,7 +19,7 @@ export function App() {
   const afterSale = () => { setCart([]); void client.invalidateQueries({ queryKey: ['dashboard'] }); };
   return <div className="app-shell">
     <aside><div className="brand">Store <b>POS</b><small>Desktop</small></div>{([
-      ['counter', 'Counter'], ['sales', 'Sales history'], ['products', 'Products & stock'], ['catalog-setup', 'Catalog setup'], ['customers', 'Customers & debts'], ['money', 'Money & reports'], ['settings', 'Settings'],
+      ['counter', 'Counter'], ['sales', 'Sales history'], ['products', 'Products & stock'], ['catalog-setup', 'Catalog setup'], ['customers', 'Customers & debts'], ['money', 'Money & cash'], ['reports', 'Reports & day end'], ['settings', 'Settings'],
     ] as [Page, string][]).map(([key, label]) => <button className={page === key ? 'nav active' : 'nav'} key={key} onClick={() => setPage(key)}>{label}</button>)}<div className="side-note">Offline-first<br />Cloud sync is optional</div></aside>
     <main>
       {notice && <div className="notice" onClick={() => setNotice(null)}>{notice}</div>}
@@ -29,6 +29,7 @@ export function App() {
       {page === 'catalog-setup' && <CatalogSetup notify={setNotice} />}
       {page === 'customers' && <Customers notify={setNotice} />}
       {page === 'money' && <Money dashboard={dashboard.data} notify={setNotice} />}
+      {page === 'reports' && <Reports />}
       {page === 'settings' && <Settings notify={setNotice} />}
     </main>
   </div>;
@@ -100,6 +101,23 @@ function Money({ dashboard, notify }: { dashboard?: { salesToday: number; revenu
   const saveExpense = useMutation({ mutationFn: () => window.storePos.pos.saveExpense(expenseName, Number(expenseAmount), expenseNote || undefined), onSuccess: () => { setExpenseName(''); setExpenseAmount(''); setExpenseNote(''); refresh(); notify('Expense saved'); }, onError: (e: Error) => notify(e.message) });
   const current = session.data;
   return <section><header><h1>Money & reports</h1><p>Run a cash drawer, record expenses, and review today’s locally saved business activity.</p></header><div className="metrics">{[['Today’s sales', dashboard?.salesToday ?? 0], ['Today’s revenue', money.format(dashboard?.revenueToday ?? 0)], ['Low stock', dashboard?.lowStock ?? 0], ['Waiting to sync', dashboard?.pendingSync ?? 0]].map(([label, value]) => <div className="metric" key={String(label)}><span>{label}</span><b>{value}</b></div>)}</div><div className="workspace three"><div className="panel form"><h2>Cash session</h2>{current ? <><p>Opened {new Date(current.openedAt).toLocaleString()}</p><p>Opening float: <b>{money.format(current.openingFloat)}</b></p><p>Expected cash: <b>{money.format(current.expectedCash)}</b></p><label>Counted cash<input required inputMode="decimal" value={countedCash} onChange={(e) => setCountedCash(e.target.value)} /></label><button className="primary" disabled={close.isPending || !countedCash} onClick={() => close.mutate()}>{close.isPending ? 'Closing…' : 'Close session'}</button></> : <><p>No cash session is open.</p><label>Opening float<input inputMode="decimal" value={openingFloat} onChange={(e) => setOpeningFloat(e.target.value)} /></label><button className="primary" disabled={open.isPending} onClick={() => open.mutate()}>{open.isPending ? 'Opening…' : 'Open session'}</button></>}</div><form className="panel form" onSubmit={(e) => { e.preventDefault(); saveExpense.mutate(); }}><h2>Expense</h2><label>Expense name<input required value={expenseName} onChange={(e) => setExpenseName(e.target.value)} /></label><label>Amount<input required min="0.01" inputMode="decimal" value={expenseAmount} onChange={(e) => setExpenseAmount(e.target.value)} /></label><label>Note<input value={expenseNote} onChange={(e) => setExpenseNote(e.target.value)} /></label><button className="primary" disabled={saveExpense.isPending}>{saveExpense.isPending ? 'Saving…' : 'Save expense'}</button></form><div className="panel table"><h2>Recent expenses</h2>{expenses.data?.length ? expenses.data.map((expense: { id: string; name: string; amount: number; note: string | null; spentAt: string }) => <div className="row" key={expense.id}><span><b>{expense.name}</b><small>{expense.note ?? new Date(expense.spentAt).toLocaleString()}</small></span><b>{money.format(expense.amount)}</b></div>) : <p className="empty">No expenses recorded.</p>}</div></div></section>;
+}
+
+function Reports() {
+  const [period, setPeriod] = useState<'today' | 'week' | 'month'>('today');
+  const range = useMemo(() => reportRange(period), [period]);
+  const report = useQuery({ queryKey: ['report', range.from, range.to], queryFn: () => window.storePos.pos.report(range.from, range.to) });
+  const sessions = useQuery({ queryKey: ['cash-sessions'], queryFn: () => window.storePos.pos.cashSessions() }); const data = report.data;
+  return <section><header><div><h1>Reports & day end</h1><p>Review net sales, returns, profitability, payment intake, debt, and completed cash sessions.</p></div><select value={period} onChange={(e) => setPeriod(e.target.value as typeof period)}><option value="today">Today</option><option value="week">Last 7 days</option><option value="month">This month</option></select></header><div className="metrics">{[['Net sales', money.format(data?.netSales ?? 0)], ['Gross profit', money.format(data?.grossProfit ?? 0)], ['Expenses', money.format(data?.expenses ?? 0)], ['Net profit', money.format(data?.netProfit ?? 0)]].map(([label, value]) => <div className="metric" key={String(label)}><span>{label}</span><b>{value}</b></div>)}</div><div className="workspace three"><div className="panel table"><h2>Sales summary</h2><ReportRow label="Sales" value={data?.grossSales ?? 0} /><ReportRow label="Returns" value={-(data?.refunds ?? 0)} negative /><ReportRow label="Discounts" value={-(data?.discounts ?? 0)} negative /><ReportRow label="Net sales" value={data?.netSales ?? 0} bold /><ReportRow label="Cost of goods" value={-(data?.cost ?? 0)} negative /><ReportRow label="Gross profit" value={data?.grossProfit ?? 0} bold /><ReportRow label="Transactions" value={data?.saleCount ?? 0} plain /></div><div className="panel table"><h2>Payments & debt</h2>{data?.payments.length ? data.payments.map((payment) => <ReportRow key={payment.methodCode} label={payment.methodCode} value={payment.total} />) : <p className="empty">No payments in this period.</p>}<ReportRow label="Outstanding debt" value={data?.outstandingDebt ?? 0} bold /></div><div className="panel table"><h2>Cash-session history</h2>{sessions.data?.length ? sessions.data.map((session: CashSessionSummary) => <div className="row" key={session.id}><span><b>{session.status === 'open' ? 'Open till' : 'Closed till'}</b><small>{new Date(session.openedAt).toLocaleString()}{session.closedAt ? ` · closed ${new Date(session.closedAt).toLocaleString()}` : ''}</small></span><span><b className={session.difference && session.difference < 0 ? 'negative' : ''}>{session.difference == null ? money.format(session.openingFloat) : money.format(session.difference)}</b><small>{session.difference == null ? 'opening float' : 'difference'}</small></span></div>) : <p className="empty">No cash sessions yet.</p>}</div></div></section>;
+}
+
+function ReportRow({ label, value, negative = false, bold = false, plain = false }: { label: string; value: number; negative?: boolean; bold?: boolean; plain?: boolean }) { return <div className="row"><span><b>{label}</b></span><b className={negative ? 'negative' : ''}>{plain ? value : money.format(value)}</b></div>; }
+
+function reportRange(period: 'today' | 'week' | 'month'): { from: string; to: string } {
+  const now = new Date(); const from = new Date(now); from.setHours(0, 0, 0, 0);
+  if (period === 'week') from.setDate(from.getDate() - 6);
+  if (period === 'month') from.setDate(1);
+  return { from: from.toISOString(), to: now.toISOString() };
 }
 
 function Settings({ notify }: { notify: (s: string) => void }) {
