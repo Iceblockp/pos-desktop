@@ -43,3 +43,11 @@
   color: #5c6a62;
   font-size: 13px;
 }
+
+.header-action { border: 0; border-radius: 7px; padding: 11px 14px; background: #28683a; color: white; font-weight: 650; cursor: pointer; }
+.modal-backdrop { position: fixed; inset: 0; z-index: 20; background: #17251e88; display: grid; place-items: center; padding: 24px; }
+.modal-card { width: min(520px, 100%); max-height: calc(100vh - 48px); overflow: auto; background: white; border-radius: 12px; padding: 22px; box-shadow: 0 24px 70px #0004; }
+.modal-card header { margin-bottom: 12px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px; }
+.chip { border: 1px solid #d6dcd3; border-radius: 999px; background: white; padding: 8px 12px; cursor: pointer; }
+.chip.active { background: #28683a; border-color: #28683a; color: white; }
