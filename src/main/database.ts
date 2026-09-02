@@ -95,11 +95,11 @@ export class PosDatabase {
 
   listProducts(search = ''): Product[] {
     const pattern = `%${search.trim()}%`;
-    return this.sqlite.prepare(`SELECT id, name, barcode, categoryId, price, cost, quantity, minStock, unit, isActive FROM products WHERE deletedAt IS NULL AND isActive = 1 AND (name LIKE ? OR barcode LIKE ?) ORDER BY name LIMIT 300`).all(pattern, pattern).map(toProduct);
+    return this.sqlite.prepare(`SELECT id, name, barcode, categoryId, supplierId, price, cost, quantity, minStock, unit, isActive FROM products WHERE deletedAt IS NULL AND isActive = 1 AND (name LIKE ? OR barcode LIKE ?) ORDER BY name LIMIT 300`).all(pattern, pattern).map(toProduct);
   }
 
   findBarcode(code: string): Product | null {
-    const row = this.sqlite.prepare('SELECT id, name, barcode, categoryId, price, cost, quantity, minStock, unit, isActive FROM products WHERE barcode = ? AND deletedAt IS NULL AND isActive = 1').get(code);
+    const row = this.sqlite.prepare('SELECT id, name, barcode, categoryId, supplierId, price, cost, quantity, minStock, unit, isActive FROM products WHERE barcode = ? AND deletedAt IS NULL AND isActive = 1').get(code);
     return row ? toProduct(row) : null;
   }
 
@@ -111,6 +111,7 @@ export class PosDatabase {
       name: input.name.trim(),
       barcode: input.barcode?.trim() || null,
       categoryId: input.categoryId ?? null,
+      supplierId: input.supplierId ?? old?.supplierId ?? null,
       price: Number(input.price), cost: Number(input.cost ?? old?.cost ?? 0),
       quantity: Number(old?.quantity ?? 0), minStock: Number(input.minStock ?? old?.minStock ?? 0),
       unit: input.unit?.trim() || String(old?.unit ?? 'pcs'), isActive: input.isActive === false ? 0 : 1,
@@ -128,8 +129,30 @@ export class PosDatabase {
   }
 
   private findProduct(id: string): Product | null {
-    const row = this.sqlite.prepare('SELECT id, name, barcode, categoryId, price, cost, quantity, minStock, unit, isActive FROM products WHERE id = ?').get(id);
+    const row = this.sqlite.prepare('SELECT id, name, barcode, categoryId, supplierId, price, cost, quantity, minStock, unit, isActive FROM products WHERE id = ?').get(id);
     return row ? toProduct(row) : null;
+  }
+
+  listCategories(): Array<{ id: string; name: string; sortOrder: number }> {
+    return this.sqlite.prepare('SELECT id, name, sortOrder FROM categories WHERE deletedAt IS NULL ORDER BY sortOrder, name').all().map((row: any) => ({ id: String(row.id), name: String(row.name), sortOrder: Number(row.sortOrder) }));
+  }
+
+  saveCategory(input: { id?: string; name: string; sortOrder?: number }): { id: string; name: string; sortOrder: number } {
+    const id = input.id || randomUUID(); const existing = input.id ? this.sqlite.prepare('SELECT sortOrder FROM categories WHERE id = ?').get(input.id) as any : null;
+    if (!input.name.trim()) throw new Error('Category name is required');
+    this.writeLocal('categories', { id, name: input.name.trim(), sortOrder: Number(input.sortOrder ?? existing?.sortOrder ?? 0) });
+    return this.listCategories().find((category) => category.id === id)!;
+  }
+
+  listSuppliers(): Array<{ id: string; name: string; contactName: string | null; phone: string | null }> {
+    return this.sqlite.prepare('SELECT id, name, contactName, phone FROM suppliers WHERE deletedAt IS NULL ORDER BY name').all().map((row: any) => ({ id: String(row.id), name: String(row.name), contactName: row.contactName ?? null, phone: row.phone ?? null }));
+  }
+
+  saveSupplier(input: { id?: string; name: string; contactName?: string | null; phone?: string | null }): { id: string; name: string; contactName: string | null; phone: string | null } {
+    const id = input.id || randomUUID(); const existing = input.id ? this.sqlite.prepare('SELECT * FROM suppliers WHERE id = ?').get(input.id) as any : null;
+    if (!input.name.trim()) throw new Error('Supplier name is required');
+    this.writeLocal('suppliers', { id, name: input.name.trim(), contactName: input.contactName?.trim() || null, phone: input.phone?.trim() || null, email: existing?.email ?? null, address: existing?.address ?? null });
+    return this.listSuppliers().find((supplier) => supplier.id === id)!;
   }
 
   listStockHistory(productId: string): StockMovement[] {
@@ -408,7 +431,7 @@ export class PosDatabase {
 }
 
 function toProduct(row: any): Product {
-  return { ...row, barcode: row.barcode ?? null, categoryId: row.categoryId ?? null, price: Number(row.price), cost: Number(row.cost), quantity: Number(row.quantity), minStock: Number(row.minStock), isActive: Boolean(row.isActive) };
+  return { ...row, barcode: row.barcode ?? null, categoryId: row.categoryId ?? null, supplierId: row.supplierId ?? null, price: Number(row.price), cost: Number(row.cost), quantity: Number(row.quantity), minStock: Number(row.minStock), isActive: Boolean(row.isActive) };
 }
 
 function normalize(value: unknown): unknown { return typeof value === 'boolean' ? Number(value) : value ?? null; }

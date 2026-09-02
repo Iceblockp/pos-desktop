@@ -13,12 +13,26 @@ export interface Product {
   name: string;
   barcode: string | null;
   categoryId: string | null;
+  supplierId: string | null;
   price: number;
   cost: number;
   quantity: number;
   minStock: number;
   unit: string;
   isActive: boolean;
+}
+
+export interface Category {
+  id: string;
+  name: string;
+  sortOrder: number;
+}
+
+export interface Supplier {
+  id: string;
+  name: string;
+  contactName: string | null;
+  phone: string | null;
 }
 
 export interface Customer {
@@ -142,6 +156,10 @@ export interface DesktopApi {
     products: (search?: string) => Promise<Product[]>;
     findByBarcode: (code: string) => Promise<Product | null>;
     saveProduct: (input: Partial<Product> & Pick<Product, 'name' | 'price'>) => Promise<Product>;
+    categories: () => Promise<Category[]>;
+    saveCategory: (input: Partial<Category> & Pick<Category, 'name'>) => Promise<Category>;
+    suppliers: () => Promise<Supplier[]>;
+    saveSupplier: (input: Partial<Supplier> & Pick<Supplier, 'name'>) => Promise<Supplier>;
     customers: () => Promise<Customer[]>;
     saveCustomer: (input: Partial<Customer> & Pick<Customer, 'name'>) => Promise<Customer>;
     checkout: (draft: SaleDraft) => Promise<Receipt>;

@@ -34,3 +34,12 @@
   background: white;
   font: inherit;
 }
+
+.compact-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding-top: 4px;
+  color: #5c6a62;
+  font-size: 13px;
+}

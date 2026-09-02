@@ -46,6 +46,10 @@ function registerIpc(): void {
   ipcMain.handle('pos:products', (event, search?: unknown) => { assertTrustedSender(event); return database.listProducts(typeof search === 'string' ? search.slice(0, 120) : ''); });
   ipcMain.handle('pos:find-barcode', (event, code: unknown) => { assertTrustedSender(event); return database.findBarcode(typeof code === 'string' ? code.slice(0, 160) : ''); });
   ipcMain.handle('pos:save-product', (event, input: unknown) => { assertTrustedSender(event); const result = database.saveProduct(input as any); void cloud.syncNow(); return result; });
+  ipcMain.handle('pos:categories', (event) => { assertTrustedSender(event); return database.listCategories(); });
+  ipcMain.handle('pos:save-category', (event, input: unknown) => { assertTrustedSender(event); const result = database.saveCategory(input as any); void cloud.syncNow(); return result; });
+  ipcMain.handle('pos:suppliers', (event) => { assertTrustedSender(event); return database.listSuppliers(); });
+  ipcMain.handle('pos:save-supplier', (event, input: unknown) => { assertTrustedSender(event); const result = database.saveSupplier(input as any); void cloud.syncNow(); return result; });
   ipcMain.handle('pos:stock-history', (event, productId: unknown) => { assertTrustedSender(event); return database.listStockHistory(String(productId)); });
   ipcMain.handle('pos:adjust-stock', (event, productId, quantityDelta, type, reason) => { assertTrustedSender(event); const result = database.adjustStock(String(productId), Number(quantityDelta), type as any, typeof reason === 'string' ? reason : undefined); void cloud.syncNow(); return result; });
   ipcMain.handle('pos:customers', (event) => { assertTrustedSender(event); return database.listCustomers(); });
