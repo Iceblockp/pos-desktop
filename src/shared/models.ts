@@ -62,6 +62,27 @@ export interface Receipt {
   lines: CartLine[];
 }
 
+export interface SaleSummary {
+  id: string;
+  voucherId: string;
+  type: 'sale' | 'return';
+  total: number;
+  soldAt: string;
+  customerName: string | null;
+  paymentMethod: string;
+}
+
+export interface ReturnableLine {
+  productId: string;
+  name: string;
+  unit: string;
+  quantity: number;
+  returned: number;
+  returnable: number;
+  refundPerUnit: number;
+  unitCost: number;
+}
+
 export interface Dashboard {
   salesToday: number;
   revenueToday: number;
@@ -113,6 +134,17 @@ export interface DesktopApi {
     customers: () => Promise<Customer[]>;
     saveCustomer: (input: Partial<Customer> & Pick<Customer, 'name'>) => Promise<Customer>;
     checkout: (draft: SaleDraft) => Promise<Receipt>;
+    sales: (search?: string) => Promise<SaleSummary[]>;
+    receipt: (voucherId: string) => Promise<Receipt | null>;
+    returnableSale: (voucherId: string) => Promise<ReturnableLine[] | null>;
+    returnSale: (voucherId: string, lines: Array<{ productId: string; quantity: number }>, refundMethod: string, note?: string) => Promise<Receipt>;
+    debtors: () => Promise<Array<{ id: string; name: string; phone: string | null; debt: number }>>;
+    collectDebt: (customerId: string, amount: number, methodCode: string, note?: string) => Promise<void>;
+    cashSession: () => Promise<any>;
+    openCashSession: (openingFloat: number) => Promise<any>;
+    closeCashSession: (countedCash: number) => Promise<any>;
+    expenses: () => Promise<any[]>;
+    saveExpense: (name: string, amount: number, note?: string) => Promise<void>;
   };
   cloud: {
     state: () => Promise<CloudState>;

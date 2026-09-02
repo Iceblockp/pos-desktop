@@ -6,7 +6,9 @@ import type {
   Dashboard,
   Product,
   Receipt,
+  ReturnableLine,
   SaleDraft,
+  SaleSummary,
 } from '../shared/models';
 
 type SyncTable = {
@@ -153,7 +155,10 @@ export class PosDatabase {
       const discount = Number(draft.discount ?? 0);
       const total = Math.max(0, subtotal - discount);
       const amountTendered = draft.amountTendered == null ? null : Number(draft.amountTendered);
-      this.writeLocal('sales', { id: saleId, voucherId, type: 'sale', originalSaleId: null, subtotal, discount, total, customerId: draft.customerId ?? null, cashSessionId: null, staffName: draft.staffName ?? null, note: draft.note?.trim() || null, soldAt, priceLevelId: null });
+      if (draft.paymentMethod === 'debt' && !draft.customerId) throw new Error('Choose a customer before recording a debt sale');
+      const openSession = this.sqlite.prepare("SELECT id FROM cash_sessions WHERE status = 'open' AND deletedAt IS NULL ORDER BY openedAt DESC LIMIT 1").get() as any;
+      const cashSessionId = openSession?.id ?? null;
+      this.writeLocal('sales', { id: saleId, voucherId, type: 'sale', originalSaleId: null, subtotal, discount, total, customerId: draft.customerId ?? null, cashSessionId, staffName: draft.staffName ?? null, note: draft.note?.trim() || null, soldAt, priceLevelId: null });
       for (const line of draft.lines) {
         const product = this.findProduct(line.productId);
         if (!product) throw new Error(`Product no longer exists: ${line.name}`);
@@ -162,11 +167,75 @@ export class PosDatabase {
         this.writeLocal('stock_movements', { id: randomUUID(), productId: product.id, type: 'sale', quantityDelta: -line.quantity, unitCost: line.unitCost, referenceId: saleId, supplierId: null, referenceNumber: voucherId, reason: null, occurredAt: soldAt });
         this.sqlite.prepare('UPDATE products SET quantity = quantity - ? WHERE id = ?').run(line.quantity, product.id);
       }
-      this.writeLocal('payments', { id: randomUUID(), saleId, customerId: draft.customerId ?? null, amount: total, methodCode: draft.paymentMethod, methodName: draft.paymentMethod, tendered: amountTendered, cashSessionId: null, note: null, paidAt: soldAt });
+      if (draft.paymentMethod !== 'debt') this.writeLocal('payments', { id: randomUUID(), saleId, customerId: draft.customerId ?? null, amount: total, methodCode: draft.paymentMethod, methodName: draft.paymentMethod, tendered: amountTendered, cashSessionId, note: null, paidAt: soldAt });
       this.writeLocal('activity_log', { id: randomUUID(), actor: draft.staffName ?? 'Desktop', action: 'sale.create', detail: voucherId, amount: total, referenceId: saleId, occurredAt: soldAt });
       const shopName = this.getShopSetting('shop.name') ?? 'Store POS';
       return { voucherId, shopName, shopPhone: this.getShopSetting('shop.phone'), soldAt, paymentMethod: draft.paymentMethod, subtotal, discount, total, amountTendered, change: amountTendered == null ? null : Math.max(0, amountTendered - total), lines: draft.lines };
     });
+  }
+
+  listSales(search = ''): SaleSummary[] {
+    const term = `%${search.trim()}%`;
+    return this.sqlite.prepare(`SELECT s.id, s.voucherId, s.type, s.total, s.soldAt, c.name AS customerName,
+      COALESCE((SELECT p.methodCode FROM payments p WHERE p.saleId = s.id AND p.deletedAt IS NULL ORDER BY p.paidAt LIMIT 1), 'debt') AS paymentMethod
+      FROM sales s LEFT JOIN customers c ON c.id = s.customerId
+      WHERE s.deletedAt IS NULL AND (s.voucherId LIKE ? OR COALESCE(c.name, '') LIKE ?)
+      ORDER BY s.soldAt DESC, s.id DESC LIMIT 200`).all(term, term).map((row: any) => ({
+      id: String(row.id), voucherId: String(row.voucherId), type: row.type === 'return' ? 'return' : 'sale', total: Number(row.total), soldAt: String(row.soldAt), customerName: row.customerName ?? null, paymentMethod: String(row.paymentMethod),
+    }));
+  }
+
+  receiptForSale(voucherId: string): Receipt | null {
+    const sale = this.sqlite.prepare(`SELECT voucherId, subtotal, discount, total, soldAt FROM sales WHERE voucherId = ? AND deletedAt IS NULL`).get(voucherId) as any;
+    if (!sale) return null;
+    const payment = this.sqlite.prepare(`SELECT methodCode, tendered FROM payments WHERE saleId = (SELECT id FROM sales WHERE voucherId = ? AND deletedAt IS NULL) AND deletedAt IS NULL ORDER BY paidAt LIMIT 1`).get(voucherId) as any;
+    const lines = this.sqlite.prepare(`SELECT productId, productName AS name, unit, quantity, unitPrice, unitCost, discount FROM sale_items WHERE saleId = (SELECT id FROM sales WHERE voucherId = ? AND deletedAt IS NULL) AND deletedAt IS NULL ORDER BY id`).all(voucherId).map((row: any) => ({ productId: String(row.productId), name: String(row.name), unit: String(row.unit), quantity: Number(row.quantity), unitPrice: Number(row.unitPrice), unitCost: Number(row.unitCost), discount: Number(row.discount) }));
+    const amountTendered = payment?.tendered == null ? null : Number(payment.tendered);
+    return { voucherId: String(sale.voucherId), shopName: this.getShopSetting('shop.name') ?? 'Store POS', shopPhone: this.getShopSetting('shop.phone'), soldAt: String(sale.soldAt), paymentMethod: payment?.methodCode ?? 'debt', subtotal: Number(sale.subtotal), discount: Number(sale.discount), total: Number(sale.total), amountTendered, change: amountTendered == null ? null : Math.max(0, amountTendered - Number(sale.total)), lines };
+  }
+
+  returnableSale(voucherId: string): ReturnableLine[] | null {
+    const sale = this.sqlite.prepare("SELECT id, type, discount FROM sales WHERE voucherId = ? AND deletedAt IS NULL").get(voucherId) as any;
+    if (!sale || sale.type !== 'sale') return null;
+    const items = this.sqlite.prepare('SELECT productId, productName AS name, unit, quantity, unitPrice, unitCost, discount, subtotal FROM sale_items WHERE saleId = ? AND deletedAt IS NULL ORDER BY id').all(sale.id) as any[];
+    const returnedRows = this.sqlite.prepare(`SELECT i.productId, ABS(SUM(i.quantity)) AS quantity FROM sale_items i JOIN sales r ON r.id = i.saleId WHERE r.originalSaleId = ? AND r.deletedAt IS NULL AND i.deletedAt IS NULL GROUP BY i.productId`).all(sale.id) as any[];
+    const returned = new Map(returnedRows.map((row) => [String(row.productId), Number(row.quantity)]));
+    const gross = items.reduce((sum, item) => sum + Number(item.subtotal), 0);
+    return items.map((item) => {
+      const quantity = Number(item.quantity); const prior = returned.get(String(item.productId)) ?? 0;
+      const value = Number(item.subtotal) - (gross > 0 ? Number(sale.discount) * Number(item.subtotal) / gross : 0);
+      return { productId: String(item.productId), name: String(item.name), unit: String(item.unit), quantity, returned: prior, returnable: round(Math.max(0, quantity - prior)), refundPerUnit: quantity ? round(value / quantity) : 0, unitCost: Number(item.unitCost) };
+    }).filter((line) => line.returnable > 0);
+  }
+
+  returnSale(voucherId: string, wanted: Array<{ productId: string; quantity: number }>, refundMethod: string, note?: string): Receipt {
+    const source = this.sqlite.prepare("SELECT id, customerId, type FROM sales WHERE voucherId = ? AND deletedAt IS NULL").get(voucherId) as any;
+    const available = this.returnableSale(voucherId); if (!source || !available || source.type !== 'sale') throw new Error('That transaction cannot be returned');
+    const byProduct = new Map(available.map((line) => [line.productId, line]));
+    const lines = wanted.filter((line) => line.quantity > 0).map((line) => {
+      const original = byProduct.get(line.productId); if (!original) throw new Error('That product is no longer returnable');
+      const quantity = Number(line.quantity); if (!Number.isFinite(quantity) || quantity > original.returnable + 0.0001) throw new Error(`Only ${original.returnable} ${original.unit} can be returned for ${original.name}`);
+      return { ...original, quantity };
+    });
+    if (!lines.length) throw new Error('Choose at least one item to return');
+    if (!['cash', 'card', 'transfer', 'debt'].includes(refundMethod)) throw new Error('Choose a valid refund method');
+    if (refundMethod === 'debt' && !source.customerId) throw new Error('Customer credit requires a customer on the original sale');
+    const value = round(lines.reduce((sum, line) => sum + line.refundPerUnit * line.quantity, 0));
+    const soldAt = now(); const sequence = Number(this.getState('voucher.sequence') ?? '0') + 1; this.setState('voucher.sequence', String(sequence));
+    const returnId = randomUUID(); const returnVoucher = `${this.getState('device.code') ?? 'D'}-${String(sequence).padStart(6, '0')}`;
+    const session = this.sqlite.prepare("SELECT id FROM cash_sessions WHERE status = 'open' AND deletedAt IS NULL ORDER BY openedAt DESC LIMIT 1").get() as any;
+    this.transaction(() => {
+      this.writeLocal('sales', { id: returnId, voucherId: returnVoucher, type: 'return', originalSaleId: source.id, subtotal: -value, discount: 0, total: -value, customerId: source.customerId ?? null, cashSessionId: session?.id ?? null, staffName: 'Desktop', note: note?.trim() || `Return for ${voucherId}`, soldAt, priceLevelId: null });
+      for (const line of lines) {
+        const subtotal = -round(line.refundPerUnit * line.quantity);
+        this.writeLocal('sale_items', { id: randomUUID(), saleId: returnId, productId: line.productId, productName: line.name, unit: line.unit, quantity: -line.quantity, unitPrice: line.refundPerUnit, unitCost: line.unitCost, discount: 0, subtotal });
+        this.writeLocal('stock_movements', { id: randomUUID(), productId: line.productId, type: 'return', quantityDelta: line.quantity, unitCost: line.unitCost, referenceId: returnId, supplierId: null, referenceNumber: returnVoucher, reason: note?.trim() || `Return for ${voucherId}`, occurredAt: soldAt });
+        this.sqlite.prepare('UPDATE products SET quantity = quantity + ? WHERE id = ?').run(line.quantity, line.productId);
+      }
+      if (refundMethod !== 'debt') this.writeLocal('payments', { id: randomUUID(), saleId: returnId, customerId: source.customerId ?? null, amount: -value, methodCode: refundMethod, methodName: refundMethod, tendered: null, cashSessionId: session?.id ?? null, note: note?.trim() || `Refund for ${voucherId}`, paidAt: soldAt });
+      this.writeLocal('activity_log', { id: randomUUID(), actor: 'Desktop', action: 'sale.return', detail: `${returnVoucher} for ${voucherId}`, amount: -value, referenceId: returnId, occurredAt: soldAt });
+    });
+    return this.receiptForSale(returnVoucher)!;
   }
 
   dashboard(): Dashboard {
@@ -175,6 +244,52 @@ export class PosDatabase {
     const total = this.sqlite.prepare("SELECT COUNT(*) AS salesToday, COALESCE(SUM(total), 0) AS revenueToday FROM sales WHERE type = 'sale' AND deletedAt IS NULL AND soldAt >= ?").get(day) as any;
     const low = this.sqlite.prepare('SELECT COUNT(*) AS count FROM products WHERE deletedAt IS NULL AND isActive = 1 AND quantity <= minStock').get() as any;
     return { salesToday: Number(total.salesToday), revenueToday: Number(total.revenueToday), lowStock: Number(low.count), pendingSync: this.countDirty() };
+  }
+
+  listDebtors(): Array<{ id: string; name: string; phone: string | null; debt: number }> {
+    return this.sqlite.prepare(`SELECT * FROM (SELECT c.id, c.name, c.phone, MAX(0, COALESCE((SELECT SUM(total) FROM sales WHERE customerId = c.id AND deletedAt IS NULL), 0) - COALESCE((SELECT SUM(amount) FROM payments WHERE customerId = c.id AND deletedAt IS NULL), 0)) AS debt FROM customers c WHERE c.deletedAt IS NULL) WHERE debt > 0 ORDER BY debt DESC`).all().map((row: any) => ({ id: String(row.id), name: String(row.name), phone: row.phone ?? null, debt: Number(row.debt) }));
+  }
+
+  collectDebt(customerId: string, amount: number, methodCode: string, note?: string): void {
+    if (!(amount > 0)) throw new Error('Collection amount must be more than zero');
+    const customer = this.sqlite.prepare('SELECT id FROM customers WHERE id = ? AND deletedAt IS NULL').get(customerId); if (!customer) throw new Error('Customer not found');
+    const session = this.sqlite.prepare("SELECT id FROM cash_sessions WHERE status = 'open' AND deletedAt IS NULL ORDER BY openedAt DESC LIMIT 1").get() as any;
+    const paidAt = now();
+    this.transaction(() => {
+      this.writeLocal('payments', { id: randomUUID(), saleId: null, customerId, amount, methodCode, methodName: methodCode, tendered: null, cashSessionId: session?.id ?? null, note: note?.trim() || null, paidAt });
+      this.writeLocal('activity_log', { id: randomUUID(), actor: 'Desktop', action: 'debt.collection', detail: note?.trim() || null, amount, referenceId: customerId, occurredAt: paidAt });
+    });
+  }
+
+  cashSession(): any {
+    const session = this.sqlite.prepare("SELECT id, status, openingFloat, expectedCash, countedCash, difference, openedAt, closedAt FROM cash_sessions WHERE status = 'open' AND deletedAt IS NULL ORDER BY openedAt DESC LIMIT 1").get() as any;
+    if (!session) return null;
+    const cashIn = Number((this.sqlite.prepare("SELECT COALESCE(SUM(amount),0) AS total FROM payments WHERE cashSessionId = ? AND methodCode = 'cash' AND deletedAt IS NULL").get(session.id) as any).total);
+    const cashOut = Number((this.sqlite.prepare('SELECT COALESCE(SUM(amount),0) AS total FROM expenses WHERE cashSessionId = ? AND deletedAt IS NULL').get(session.id) as any).total);
+    return { ...session, openingFloat: Number(session.openingFloat), expectedCash: Number(session.openingFloat) + cashIn - cashOut };
+  }
+
+  openCashSession(openingFloat: number): any {
+    if (this.cashSession()) throw new Error('A till session is already open');
+    const openedAt = now(); const id = randomUUID();
+    this.writeLocal('cash_sessions', { id, status: 'open', openedByName: 'Desktop', closedByName: null, openingFloat: Number(openingFloat) || 0, expectedCash: null, countedCash: null, difference: null, note: null, openedAt, closedAt: null });
+    return this.cashSession();
+  }
+
+  closeCashSession(countedCash: number): any {
+    const session = this.cashSession(); if (!session) throw new Error('No open till session');
+    const cashIn = Number((this.sqlite.prepare("SELECT COALESCE(SUM(amount),0) AS total FROM payments WHERE cashSessionId = ? AND methodCode = 'cash' AND deletedAt IS NULL").get(session.id) as any).total);
+    const cashOut = Number((this.sqlite.prepare('SELECT COALESCE(SUM(amount),0) AS total FROM expenses WHERE cashSessionId = ? AND deletedAt IS NULL').get(session.id) as any).total);
+    const expected = Number(session.openingFloat) + cashIn - cashOut; const counted = Number(countedCash); if (!Number.isFinite(counted)) throw new Error('Counted cash is required');
+    this.writeLocal('cash_sessions', { ...session, status: 'closed', expectedCash: expected, countedCash: counted, difference: counted - expected, closedByName: 'Desktop', closedAt: now() });
+    return { expected, counted, difference: counted - expected };
+  }
+
+  listExpenses(): any[] { return this.sqlite.prepare('SELECT id, name, amount, note, spentAt FROM expenses WHERE deletedAt IS NULL ORDER BY spentAt DESC LIMIT 100').all().map((row: any) => ({ ...row, amount: Number(row.amount) })); }
+
+  saveExpense(name: string, amount: number, note?: string): void {
+    if (!name.trim() || !(amount > 0)) throw new Error('Expense name and amount are required'); const session = this.cashSession(); const spentAt = now();
+    this.transaction(() => { this.writeLocal('expenses', { id: randomUUID(), categoryId: null, name: name.trim(), amount, note: note?.trim() || null, attachmentUrl: null, cashSessionId: session?.id ?? null, spentAt }); this.writeLocal('activity_log', { id: randomUUID(), actor: 'Desktop', action: 'expense.create', detail: name.trim(), amount, referenceId: null, occurredAt: spentAt }); });
   }
 
   getShopSetting(key: string): string | null {
@@ -260,3 +375,5 @@ function toProduct(row: any): Product {
 }
 
 function normalize(value: unknown): unknown { return typeof value === 'boolean' ? Number(value) : value ?? null; }
+
+function round(value: number): number { return Math.round(value * 1000) / 1000; }

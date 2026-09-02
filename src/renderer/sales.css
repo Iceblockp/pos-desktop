@@ -1,0 +1,36 @@
+.link-button {
+  border: 0 !important;
+  background: transparent !important;
+  color: inherit !important;
+  text-align: left;
+  padding: 0 !important;
+}
+
+.negative { color: #a52b21; }
+
+.return-panel {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid #edf0eb;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.return-panel h3 { margin: 0; font-size: 15px; }
+
+.return-panel label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: #5d6b62;
+  font-size: 12px;
+}
+
+.return-panel input, .return-panel select {
+  border: 1px solid #d6dcd3;
+  border-radius: 6px;
+  padding: 9px;
+  background: white;
+  font: inherit;
+}
