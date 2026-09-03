@@ -56,6 +56,7 @@ export interface SaleDraft {
   lines: CartLine[];
   customerId?: string | null;
   paymentMethod: string;
+  priceLevelId?: string | null;
   amountTendered?: number | null;
   discount?: number;
   note?: string;
@@ -141,6 +142,9 @@ export interface PaymentMethod {
   isActive: boolean;
 }
 
+export interface PriceLevel { id: string; name: string; isDefault: boolean; sortOrder: number; productCount?: number; saleCount?: number; }
+export interface ProductTier { id: string; productId: string; priceLevelId: string; minQuantity: number; bulkPrice: number; }
+
 export interface Dashboard {
   salesToday: number;
   revenueToday: number;
@@ -206,6 +210,13 @@ export interface DesktopApi {
     cashSessions: () => Promise<CashSessionSummary[]>;
     paymentMethods: () => Promise<PaymentMethod[]>;
     savePaymentMethod: (input: Partial<PaymentMethod> & Pick<PaymentMethod, 'name'>) => Promise<PaymentMethod>;
+    priceLevels: () => Promise<PriceLevel[]>;
+    savePriceLevel: (input: Partial<PriceLevel> & Pick<PriceLevel, 'name'>) => Promise<PriceLevel>;
+    removePriceLevel: (id: string) => Promise<void>;
+    productTiers: (productId: string) => Promise<ProductTier[]>;
+    saveProductTier: (input: Partial<ProductTier> & Pick<ProductTier, 'productId' | 'priceLevelId' | 'minQuantity' | 'bulkPrice'>) => Promise<ProductTier>;
+    removeProductTier: (id: string) => Promise<void>;
+    priceFor: (productId: string, priceLevelId: string | null, quantity: number) => Promise<number>;
     debtors: () => Promise<Array<{ id: string; name: string; phone: string | null; debt: number }>>;
     collectDebt: (customerId: string, amount: number, methodCode: string, note?: string) => Promise<void>;
     cashSession: () => Promise<any>;

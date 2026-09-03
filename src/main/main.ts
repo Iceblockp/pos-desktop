@@ -47,6 +47,13 @@ function registerIpc(): void {
   ipcMain.handle('pos:cash-sessions', (event) => { assertTrustedSender(event); return database.listCashSessions(); });
   ipcMain.handle('pos:payment-methods', (event) => { assertTrustedSender(event); return database.listPaymentMethods(); });
   ipcMain.handle('pos:save-payment-method', (event, input: unknown) => { assertTrustedSender(event); const result = database.savePaymentMethod(input as any); void cloud.syncNow(); return result; });
+  ipcMain.handle('pos:price-levels', (event) => { assertTrustedSender(event); return database.listPriceLevels(); });
+  ipcMain.handle('pos:save-price-level', (event, input: unknown) => { assertTrustedSender(event); const result = database.savePriceLevel(input as any); void cloud.syncNow(); return result; });
+  ipcMain.handle('pos:remove-price-level', (event, id: unknown) => { assertTrustedSender(event); database.removePriceLevel(String(id)); void cloud.syncNow(); });
+  ipcMain.handle('pos:product-tiers', (event, productId: unknown) => { assertTrustedSender(event); return database.listProductTiers(String(productId)); });
+  ipcMain.handle('pos:save-product-tier', (event, input: unknown) => { assertTrustedSender(event); const result = database.saveProductTier(input as any); void cloud.syncNow(); return result; });
+  ipcMain.handle('pos:remove-product-tier', (event, id: unknown) => { assertTrustedSender(event); database.removeProductTier(String(id)); void cloud.syncNow(); });
+  ipcMain.handle('pos:price-for', (event, productId, priceLevelId, quantity) => { assertTrustedSender(event); return database.priceFor(String(productId), typeof priceLevelId === 'string' ? priceLevelId : null, Number(quantity)); });
   ipcMain.handle('pos:products', (event, search?: unknown) => { assertTrustedSender(event); return database.listProducts(typeof search === 'string' ? search.slice(0, 120) : ''); });
   ipcMain.handle('pos:find-barcode', (event, code: unknown) => { assertTrustedSender(event); return database.findBarcode(typeof code === 'string' ? code.slice(0, 160) : ''); });
   ipcMain.handle('pos:save-product', (event, input: unknown) => { assertTrustedSender(event); const result = database.saveProduct(input as any); void cloud.syncNow(); return result; });

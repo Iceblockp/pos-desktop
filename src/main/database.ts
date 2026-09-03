@@ -90,6 +90,10 @@ export class PosDatabase {
     if (paymentMethodCount === 0) {
       [['Cash', 'cash'], ['Card', 'card'], ['Transfer', 'transfer']].forEach(([name, code], sortOrder) => this.writeLocal('payment_methods', { id: randomUUID(), name, code, icon: null, color: null, sortOrder, isActive: 1 }));
     }
+    const defaultPriceLevel = this.sqlite.prepare('SELECT id FROM price_levels WHERE deletedAt IS NULL AND isDefault = 1 LIMIT 1').get() as { id?: string } | undefined;
+    if (!defaultPriceLevel) {
+      this.writeLocal('price_levels', { id: 'level-retail', name: 'Retail', isDefault: 1, sortOrder: 0 });
+    }
   }
 
   getState(key: string): string | null {
@@ -166,6 +170,53 @@ export class PosDatabase {
     return this.sqlite.prepare('SELECT id, name, code, sortOrder, isActive FROM payment_methods WHERE deletedAt IS NULL ORDER BY sortOrder, name').all().map((row: any) => ({ id: String(row.id), name: String(row.name), code: String(row.code), sortOrder: Number(row.sortOrder), isActive: Boolean(row.isActive) }));
   }
 
+  listPriceLevels(): Array<{ id: string; name: string; isDefault: boolean; sortOrder: number; productCount: number; saleCount: number }> {
+    return this.sqlite.prepare('SELECT price_levels.id, price_levels.name, price_levels.isDefault, price_levels.sortOrder, (SELECT COUNT(*) FROM bulk_pricing WHERE bulk_pricing.priceLevelId = price_levels.id AND bulk_pricing.deletedAt IS NULL) AS productCount, (SELECT COUNT(*) FROM sales WHERE sales.priceLevelId = price_levels.id AND sales.deletedAt IS NULL) AS saleCount FROM price_levels WHERE price_levels.deletedAt IS NULL ORDER BY price_levels.isDefault DESC, price_levels.sortOrder, price_levels.name').all().map((row: any) => ({ id: String(row.id), name: String(row.name), isDefault: Boolean(row.isDefault), sortOrder: Number(row.sortOrder), productCount: Number(row.productCount), saleCount: Number(row.saleCount) }));
+  }
+
+  savePriceLevel(input: { id?: string; name: string; isDefault?: boolean; sortOrder?: number }): { id: string; name: string; isDefault: boolean; sortOrder: number } {
+    const id = input.id || randomUUID(); if (!input.name.trim()) throw new Error('Price level name is required'); const current = input.id ? this.sqlite.prepare('SELECT * FROM price_levels WHERE id = ?').get(input.id) as any : null;
+    this.writeLocal('price_levels', { id, name: input.name.trim(), isDefault: input.isDefault == null ? Number(current?.isDefault ?? this.listPriceLevels().length === 0) : Number(input.isDefault), sortOrder: Number(input.sortOrder ?? current?.sortOrder ?? this.listPriceLevels().length) });
+    return this.listPriceLevels().find((level) => level.id === id)!;
+  }
+
+  removePriceLevel(id: string): void {
+    const level = this.sqlite.prepare('SELECT id, isDefault FROM price_levels WHERE id = ? AND deletedAt IS NULL').get(id) as { id?: string; isDefault?: number } | undefined;
+    if (!level) throw new Error('Price level not found');
+    if (level.isDefault) throw new Error('The default retail level cannot be removed');
+    this.transaction(() => {
+      const deletedAt = now();
+      this.sqlite.prepare('UPDATE bulk_pricing SET deletedAt = ?, updatedAt = ?, dirty = 1, serverSeq = 0 WHERE priceLevelId = ? AND deletedAt IS NULL').run(deletedAt, deletedAt, id);
+      this.sqlite.prepare('UPDATE price_levels SET deletedAt = ?, updatedAt = ?, dirty = 1, serverSeq = 0 WHERE id = ?').run(deletedAt, deletedAt, id);
+    });
+  }
+
+  listProductTiers(productId: string): Array<{ id: string; productId: string; priceLevelId: string; minQuantity: number; bulkPrice: number }> {
+    return this.sqlite.prepare('SELECT bulk_pricing.id, bulk_pricing.productId, bulk_pricing.priceLevelId, bulk_pricing.minQuantity, bulk_pricing.bulkPrice FROM bulk_pricing JOIN price_levels ON price_levels.id = bulk_pricing.priceLevelId WHERE bulk_pricing.productId = ? AND bulk_pricing.priceLevelId IS NOT NULL AND bulk_pricing.deletedAt IS NULL AND price_levels.deletedAt IS NULL AND price_levels.isDefault = 0 ORDER BY bulk_pricing.priceLevelId, bulk_pricing.minQuantity').all(productId).map((row: any) => ({ id: String(row.id), productId: String(row.productId), priceLevelId: String(row.priceLevelId), minQuantity: Number(row.minQuantity), bulkPrice: Number(row.bulkPrice) }));
+  }
+
+  saveProductTier(input: { id?: string; productId: string; priceLevelId: string; minQuantity: number; bulkPrice: number }): { id: string; productId: string; priceLevelId: string; minQuantity: number; bulkPrice: number } {
+    if (!(input.minQuantity > 0) || !(input.bulkPrice > 0)) throw new Error('Quantity and price must be positive'); const id = input.id || randomUUID();
+    this.writeLocal('bulk_pricing', { id, productId: input.productId, priceLevelId: input.priceLevelId, minQuantity: input.minQuantity, bulkPrice: input.bulkPrice });
+    return this.listProductTiers(input.productId).find((tier) => tier.id === id)!;
+  }
+
+  removeProductTier(id: string): void {
+    const tier = this.sqlite.prepare('SELECT id FROM bulk_pricing WHERE id = ? AND deletedAt IS NULL').get(id) as { id?: string } | undefined;
+    if (!tier) throw new Error('Price tier not found');
+    this.sqlite.prepare('UPDATE bulk_pricing SET deletedAt = ?, updatedAt = ?, dirty = 1, serverSeq = 0 WHERE id = ?').run(now(), now(), id);
+  }
+
+  priceFor(productId: string, priceLevelId: string | null, quantity: number): number {
+    const product = this.findProduct(productId); if (!product) throw new Error('Product not found');
+    if (!(quantity > 0)) return product.price;
+    const defaultLevel = this.sqlite.prepare('SELECT id FROM price_levels WHERE deletedAt IS NULL AND isDefault = 1 LIMIT 1').get() as { id?: string } | undefined;
+    const selectedLevelId = priceLevelId || defaultLevel?.id;
+    if (!selectedLevelId) return product.price;
+    const tier = this.sqlite.prepare('SELECT bulkPrice FROM bulk_pricing WHERE productId = ? AND minQuantity <= ? AND deletedAt IS NULL AND (priceLevelId = ? OR (priceLevelId IS NULL AND ? = ?)) ORDER BY minQuantity DESC LIMIT 1').get(productId, quantity, selectedLevelId, selectedLevelId, defaultLevel?.id ?? '') as any;
+    return tier ? Number(tier.bulkPrice) : product.price;
+  }
+
   savePaymentMethod(input: Partial<PaymentMethod> & Pick<PaymentMethod, 'name'>): PaymentMethod {
     const id = input.id || randomUUID(); const existing = input.id ? this.sqlite.prepare('SELECT * FROM payment_methods WHERE id = ?').get(input.id) as any : null;
     const name = input.name.trim(); if (!name) throw new Error('Payment method name is required');
@@ -223,15 +274,21 @@ export class PosDatabase {
       const deviceCode = this.getState('device.code') ?? 'D';
       const voucherId = `${deviceCode}-${String(sequence).padStart(6, '0')}`;
       const saleId = randomUUID(); const movementAt = this.nextMovementAt();
-      const subtotal = draft.lines.reduce((sum, line) => sum + line.quantity * line.unitPrice - line.discount, 0);
-      const discount = Number(draft.discount ?? 0);
-      const total = Math.max(0, subtotal - discount);
+      const lines = draft.lines.map((line) => {
+        const gross = Math.max(0, Number(line.quantity) * Number(line.unitPrice));
+        return { ...line, quantity: Number(line.quantity), unitPrice: Number(line.unitPrice), unitCost: Number(line.unitCost), discount: Math.min(gross, Math.max(0, Number(line.discount) || 0)) };
+      });
+      const subtotal = lines.reduce((sum, line) => sum + line.quantity * line.unitPrice, 0);
+      const lineDiscounts = lines.reduce((sum, line) => sum + line.discount, 0);
+      const orderDiscount = Math.min(Math.max(0, Number(draft.discount) || 0), Math.max(0, subtotal - lineDiscounts));
+      const discount = round(lineDiscounts + orderDiscount);
+      const total = round(Math.max(0, subtotal - discount));
       const amountTendered = draft.amountTendered == null ? null : Number(draft.amountTendered);
       if (draft.paymentMethod === 'debt' && !draft.customerId) throw new Error('Choose a customer before recording a debt sale');
       const openSession = this.sqlite.prepare("SELECT id FROM cash_sessions WHERE status = 'open' AND deletedAt IS NULL ORDER BY openedAt DESC LIMIT 1").get() as any;
       const cashSessionId = openSession?.id ?? null;
-      this.writeLocal('sales', { id: saleId, voucherId, type: 'sale', originalSaleId: null, subtotal, discount, total, customerId: draft.customerId ?? null, cashSessionId, staffName: draft.staffName ?? null, note: draft.note?.trim() || null, soldAt, priceLevelId: null });
-      for (const line of draft.lines) {
+      this.writeLocal('sales', { id: saleId, voucherId, type: 'sale', originalSaleId: null, subtotal, discount, total, customerId: draft.customerId ?? null, cashSessionId, staffName: draft.staffName ?? null, note: draft.note?.trim() || null, soldAt, priceLevelId: draft.priceLevelId ?? null });
+      for (const line of lines) {
         const product = this.findProduct(line.productId);
         if (!product) throw new Error(`Product no longer exists: ${line.name}`);
         const itemSubtotal = line.quantity * line.unitPrice - line.discount;
@@ -240,9 +297,10 @@ export class PosDatabase {
         this.sqlite.prepare('UPDATE products SET quantity = quantity - ? WHERE id = ?').run(line.quantity, product.id);
       }
       if (draft.paymentMethod !== 'debt') this.writeLocal('payments', { id: randomUUID(), saleId, customerId: draft.customerId ?? null, amount: total, methodCode: draft.paymentMethod, methodName: draft.paymentMethod, tendered: amountTendered, cashSessionId, note: null, paidAt: soldAt });
+      if (discount > 0) this.writeLocal('activity_log', { id: randomUUID(), actor: draft.staffName ?? 'Desktop', action: 'discount', detail: voucherId, amount: discount, referenceId: saleId, occurredAt: soldAt });
       this.writeLocal('activity_log', { id: randomUUID(), actor: draft.staffName ?? 'Desktop', action: 'sale.create', detail: voucherId, amount: total, referenceId: saleId, occurredAt: soldAt });
       const shopName = this.getShopSetting('shop.name') ?? 'Store POS';
-      return { voucherId, shopName, shopPhone: this.getShopSetting('shop.phone'), soldAt, paymentMethod: draft.paymentMethod, subtotal, discount, total, amountTendered, change: amountTendered == null ? null : Math.max(0, amountTendered - total), lines: draft.lines };
+      return { voucherId, shopName, shopPhone: this.getShopSetting('shop.phone'), soldAt, paymentMethod: draft.paymentMethod, subtotal, discount, total, amountTendered, change: amountTendered == null ? null : Math.max(0, amountTendered - total), lines };
     });
   }
 
@@ -272,10 +330,13 @@ export class PosDatabase {
     const items = this.sqlite.prepare('SELECT productId, productName AS name, unit, quantity, unitPrice, unitCost, discount, subtotal FROM sale_items WHERE saleId = ? AND deletedAt IS NULL ORDER BY id').all(sale.id) as any[];
     const returnedRows = this.sqlite.prepare(`SELECT i.productId, ABS(SUM(i.quantity)) AS quantity FROM sale_items i JOIN sales r ON r.id = i.saleId WHERE r.originalSaleId = ? AND r.deletedAt IS NULL AND i.deletedAt IS NULL GROUP BY i.productId`).all(sale.id) as any[];
     const returned = new Map(returnedRows.map((row) => [String(row.productId), Number(row.quantity)]));
-    const gross = items.reduce((sum, item) => sum + Number(item.subtotal), 0);
+    const netBeforeOrderDiscount = items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity) * Number(item.unitPrice) - Number(item.discount)), 0);
+    const lineDiscounts = items.reduce((sum, item) => sum + Math.max(0, Number(item.discount)), 0);
+    const orderDiscount = Math.max(0, Number(sale.discount) - lineDiscounts);
     return items.map((item) => {
       const quantity = Number(item.quantity); const prior = returned.get(String(item.productId)) ?? 0;
-      const value = Number(item.subtotal) - (gross > 0 ? Number(sale.discount) * Number(item.subtotal) / gross : 0);
+      const lineValue = Math.max(0, quantity * Number(item.unitPrice) - Number(item.discount));
+      const value = lineValue - (netBeforeOrderDiscount > 0 ? orderDiscount * lineValue / netBeforeOrderDiscount : 0);
       return { productId: String(item.productId), name: String(item.name), unit: String(item.unit), quantity, returned: prior, returnable: round(Math.max(0, quantity - prior)), refundPerUnit: quantity ? round(value / quantity) : 0, unitCost: Number(item.unitCost) };
     }).filter((line) => line.returnable > 0);
   }
