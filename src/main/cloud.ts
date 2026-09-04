@@ -8,7 +8,7 @@ type Session = {
   accessToken: string;
   refreshToken: string;
   shop: { id: string; name: string };
-  device: { id: string; name: string; deviceCode: string };
+  device: { id: string; name: string; deviceCode: string; role?: string };
 };
 
 /** API calls and tokens never enter the renderer process. */
@@ -31,6 +31,7 @@ export class CloudService {
       error: this.error,
       shopName: this.session?.shop.name ?? null,
       deviceName: this.session?.device.name ?? null,
+      deviceId: this.session?.device.id ?? null, deviceCode: this.session?.device.deviceCode ?? null, role: this.session?.device.role ?? null,
     };
   }
 
@@ -94,6 +95,15 @@ export class CloudService {
     if (existsSync(this.sessionPath)) unlinkSync(this.sessionPath);
     return this.state();
   }
+
+  async devices(): Promise<Array<{ id: string; name: string; deviceCode: string; role: string; lastSyncedAt: string | null; isCurrent: boolean }>> {
+    if (!this.session) throw new Error('Connect this desktop first');
+    const result = await this.request<{ devices: Array<{ id: string; name: string; deviceCode: string; role: string; lastSyncedAt: string | null; isCurrent: boolean }> }>('GET', '/auth/devices', undefined, true);
+    return result.devices;
+  }
+  async revokeDevice(id: string): Promise<void> { if (!this.session) throw new Error('Connect this desktop first'); if (id === this.session.device.id) throw new Error('Disconnect this desktop from Cloud settings instead'); await this.request('DELETE', `/auth/devices/${encodeURIComponent(id)}`, undefined, true); }
+  async billingStatus(): Promise<{ tier: string; premiumUntil: string | null; entitlement?: string }> { if (!this.session) throw new Error('Connect this desktop first'); const result = await this.request<{ tier: string; premiumUntil: string | null; entitlement?: string }>('GET', '/billing/status', undefined, true); this.db.setState('entitlement.tier', result.tier); this.db.setState('entitlement.premiumUntil', result.premiumUntil); return result; }
+  async redeemCode(code: string): Promise<{ tier: string; premiumUntil: string | null; entitlement?: string; daysAdded?: number }> { if (!this.session) throw new Error('Connect this desktop first'); const result = await this.request<{ tier: string; premiumUntil: string | null; entitlement?: string; daysAdded?: number }>('POST', '/billing/redeem', { code }, true); this.db.setState('entitlement.tier', result.tier); this.db.setState('entitlement.premiumUntil', result.premiumUntil); return result; }
 
   private apiUrl(): string { return this.db.getState('cloud.apiUrl') ?? process.env.STORE_POS_API_URL ?? 'http://localhost:3000/api'; }
 

@@ -21,16 +21,37 @@ export function savePrinterSettings(db: PosDatabase, settings: PrinterSettings):
 /** Prints through the OS driver, covering USB, Bluetooth, and Wi-Fi printers. */
 export async function printReceipt(db: PosDatabase, receipt: Receipt): Promise<void> {
   const settings = getPrinterSettings(db);
-  if (!settings.deviceName) throw new Error('Choose a receipt printer in Settings first');
+  if (!settings.deviceName) throw new Error('Install or pair the printer in Windows or macOS first, then choose it in Settings.');
   const window = new BrowserWindow({ show: false, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false } });
   try {
-    await window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(receiptHtml(receipt, settings.paperWidth))}`);
+    await window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(receiptHtml(db, receipt, settings.paperWidth))}`);
     await new Promise<void>((resolve, reject) => window.webContents.print({ silent: true, deviceName: settings.deviceName!, printBackground: true, pageSize: { width: settings.paperWidth * 1000, height: 297000 }, margins: { marginType: 'none' } }, (success, failureReason) => success ? resolve() : reject(new Error(failureReason || 'The printer rejected the receipt'))));
   } finally { window.destroy(); }
 }
 
-function receiptHtml(receipt: Receipt, width: 58 | 80): string {
+/** Sends a representative receipt to the selected OS-managed thermal printer. */
+export async function printTestReceipt(db: PosDatabase): Promise<void> {
+  const soldAt = new Date().toISOString();
+  await printReceipt(db, {
+    voucherId: 'TEST-0001',
+    shopName: db.getShopSetting('shop.name') || 'Store POS',
+    shopPhone: db.getShopSetting('shop.phone') || null,
+    soldAt,
+    paymentMethod: 'Cash',
+    subtotal: 12250,
+    discount: 500,
+    total: 11750,
+    amountTendered: 20000,
+    change: 8250,
+    lines: [
+      { productId: 'test-water', name: 'ရေသန့် ၁ လီတာ', unit: 'ဘူး', quantity: 2, unitPrice: 500, unitCost: 0, discount: 0 },
+      { productId: 'test-rice', name: 'ဆန် (ပေါ်ဆန်းမွှေး)', unit: 'ပိဿာ', quantity: 2.5, unitPrice: 4500, unitCost: 0, discount: 500 },
+    ],
+  });
+}
+
+function receiptHtml(db: PosDatabase, receipt: Receipt, width: 58 | 80): string {
   const esc = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[char]!);
   const rows = receipt.lines.map((line) => `<tr><td>${esc(line.name)}<br><small>${line.quantity} ${esc(line.unit)} × ${line.unitPrice.toFixed(2)}</small></td><td>${(line.quantity * line.unitPrice - line.discount).toFixed(2)}</td></tr>`).join('');
-  return `<!doctype html><html><head><meta charset="utf-8"><style>@page{size:${width}mm auto;margin:3mm}body{font-family:Arial,'Myanmar Text',sans-serif;font-size:11px;width:${width - 6}mm}h1,p{text-align:center;margin:3px 0}table{width:100%;border-collapse:collapse}td:last-child{text-align:right}tfoot td{border-top:1px dashed #000;padding-top:4px}.total{font-size:14px;font-weight:bold}small{color:#444}</style></head><body><h1>${esc(receipt.shopName)}</h1>${receipt.shopPhone ? `<p>${esc(receipt.shopPhone)}</p>` : ''}<p>${esc(receipt.voucherId)}<br>${esc(new Date(receipt.soldAt).toLocaleString())}</p><table><tbody>${rows}</tbody><tfoot><tr><td>Subtotal</td><td>${receipt.subtotal.toFixed(2)}</td></tr><tr><td>Discount</td><td>${receipt.discount.toFixed(2)}</td></tr><tr class="total"><td>Total</td><td>${receipt.total.toFixed(2)}</td></tr>${receipt.change != null ? `<tr><td>Change</td><td>${receipt.change.toFixed(2)}</td></tr>` : ''}</tfoot></table><p>${esc(receipt.paymentMethod)}</p><p>Thank you</p></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><style>@page{size:${width}mm auto;margin:3mm}body{font-family:Arial,'Myanmar Text',sans-serif;font-size:11px;width:${width - 6}mm}h1,p{text-align:center;margin:3px 0}table{width:100%;border-collapse:collapse}td:last-child{text-align:right}tfoot td{border-top:1px dashed #000;padding-top:4px}.total{font-size:14px;font-weight:bold}small{color:#444}</style></head><body><h1>${esc(receipt.shopName)}</h1>${db.getShopSetting('shop.address') ? `<p>${esc(db.getShopSetting('shop.address'))}</p>` : ''}${receipt.shopPhone ? `<p>${esc(receipt.shopPhone)}</p>` : ''}<p>${esc(receipt.voucherId)}<br>${esc(new Date(receipt.soldAt).toLocaleString())}</p><table><tbody>${rows}</tbody><tfoot><tr><td>Subtotal</td><td>${receipt.subtotal.toFixed(2)}</td></tr><tr><td>Discount</td><td>${receipt.discount.toFixed(2)}</td></tr><tr class="total"><td>Total</td><td>${receipt.total.toFixed(2)}</td></tr>${receipt.change != null ? `<tr><td>Change</td><td>${receipt.change.toFixed(2)}</td></tr>` : ''}</tfoot></table><p>${esc(receipt.paymentMethod)}</p><p>${esc(db.getShopSetting('shop.receiptFooter') || 'Thank you')}</p></body></html>`;
 }

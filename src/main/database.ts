@@ -81,6 +81,7 @@ export class PosDatabase {
       CREATE TABLE IF NOT EXISTS activity_log (id TEXT PRIMARY KEY, updatedAt TEXT NOT NULL, deletedAt TEXT, serverSeq INTEGER NOT NULL DEFAULT 0, dirty INTEGER NOT NULL DEFAULT 0, actor TEXT, action TEXT NOT NULL, detail TEXT, amount REAL, referenceId TEXT, occurredAt TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS sync_state (key TEXT PRIMARY KEY, value TEXT);
       CREATE TABLE IF NOT EXISTS sync_conflicts (id TEXT PRIMARY KEY, tableName TEXT NOT NULL, rowId TEXT NOT NULL, discarded TEXT NOT NULL, detectedAt TEXT NOT NULL, acknowledged INTEGER NOT NULL DEFAULT 0);
+      CREATE TABLE IF NOT EXISTS crash_logs (id TEXT PRIMARY KEY, message TEXT NOT NULL, source TEXT NOT NULL, appVersion TEXT, occurredAt TEXT NOT NULL);
     `);
     for (const table of SYNC_TABLES) {
       this.sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_${table.name}_dirty ON ${table.name}(dirty) WHERE dirty = 1`);
@@ -134,9 +135,16 @@ export class PosDatabase {
     const openingQuantity = old ? 0 : Number(input.quantity ?? 0);
     if (openingQuantity) {
       this.writeLocal('stock_movements', { id: randomUUID(), productId: id, type: 'opening', quantityDelta: openingQuantity, unitCost: row.cost, referenceId: null, supplierId: null, referenceNumber: null, reason: 'Initial desktop inventory', occurredAt: this.nextMovementAt() });
-      this.sqlite.prepare('UPDATE products SET quantity = ? WHERE id = ?').run(openingQuantity, id);
+      this.recomputeStock(id);
     }
     return this.findProduct(id)!;
+  }
+
+  removeProduct(id: string): void {
+    const product = this.sqlite.prepare('SELECT id FROM products WHERE id = ? AND deletedAt IS NULL').get(id);
+    if (!product) throw new Error('Product not found');
+    const deletedAt = now();
+    this.sqlite.prepare('UPDATE products SET deletedAt = ?, updatedAt = ?, dirty = 1, serverSeq = 0 WHERE id = ?').run(deletedAt, deletedAt, id);
   }
 
   private findProduct(id: string): Product | null {
@@ -155,15 +163,46 @@ export class PosDatabase {
     return this.listCategories().find((category) => category.id === id)!;
   }
 
-  listSuppliers(): Array<{ id: string; name: string; contactName: string | null; phone: string | null }> {
-    return this.sqlite.prepare('SELECT id, name, contactName, phone FROM suppliers WHERE deletedAt IS NULL ORDER BY name').all().map((row: any) => ({ id: String(row.id), name: String(row.name), contactName: row.contactName ?? null, phone: row.phone ?? null }));
+  removeCategory(id: string): void {
+    const category = this.sqlite.prepare('SELECT id FROM categories WHERE id = ? AND deletedAt IS NULL').get(id);
+    if (!category) throw new Error('Category not found');
+    const deletedAt = now();
+    this.transaction(() => {
+      this.sqlite.prepare('UPDATE products SET categoryId = NULL, updatedAt = ?, dirty = 1, serverSeq = 0 WHERE categoryId = ? AND deletedAt IS NULL').run(deletedAt, id);
+      this.sqlite.prepare('UPDATE categories SET deletedAt = ?, updatedAt = ?, dirty = 1, serverSeq = 0 WHERE id = ?').run(deletedAt, deletedAt, id);
+    });
   }
 
-  saveSupplier(input: { id?: string; name: string; contactName?: string | null; phone?: string | null }): { id: string; name: string; contactName: string | null; phone: string | null } {
+  listSuppliers(search = ''): Array<{ id: string; name: string; contactName: string | null; phone: string | null; address: string | null }> {
+    const pattern = `%${search.trim()}%`;
+    return this.sqlite.prepare('SELECT id, name, contactName, phone, address FROM suppliers WHERE deletedAt IS NULL AND (name LIKE ? OR phone LIKE ?) ORDER BY name').all(pattern, pattern).map((row: any) => ({ id: String(row.id), name: String(row.name), contactName: row.contactName ?? null, phone: row.phone ?? null, address: row.address ?? null }));
+  }
+
+  saveSupplier(input: { id?: string; name: string; contactName?: string | null; phone?: string | null; address?: string | null }): { id: string; name: string; contactName: string | null; phone: string | null; address: string | null } {
     const id = input.id || randomUUID(); const existing = input.id ? this.sqlite.prepare('SELECT * FROM suppliers WHERE id = ?').get(input.id) as any : null;
     if (!input.name.trim()) throw new Error('Supplier name is required');
-    this.writeLocal('suppliers', { id, name: input.name.trim(), contactName: input.contactName?.trim() || null, phone: input.phone?.trim() || null, email: existing?.email ?? null, address: existing?.address ?? null });
+    this.writeLocal('suppliers', { id, name: input.name.trim(), contactName: input.contactName?.trim() || null, phone: input.phone?.trim() || null, email: existing?.email ?? null, address: input.address?.trim() || null });
     return this.listSuppliers().find((supplier) => supplier.id === id)!;
+  }
+
+  removeSupplier(id: string): void {
+    const existing = this.sqlite.prepare('SELECT id FROM suppliers WHERE id = ? AND deletedAt IS NULL').get(id);
+    if (!existing) throw new Error('Supplier not found');
+    const deletedAt = now();
+    this.sqlite.prepare('UPDATE suppliers SET deletedAt = ?, updatedAt = ?, dirty = 1, serverSeq = 0 WHERE id = ?').run(deletedAt, deletedAt, id);
+  }
+
+  supplierPurchases(supplierId: string, from?: string, to?: string): Array<{ id: string; productName: string; quantity: number; unitCost: number | null; referenceNumber: string | null; occurredAt: string }> {
+    const clauses = ['m.supplierId = ?', 'm.deletedAt IS NULL']; const params: string[] = [supplierId];
+    if (from && to) { clauses.push('m.occurredAt >= ?', 'm.occurredAt <= ?'); params.push(from, to); }
+    return this.sqlite.prepare(`SELECT m.id, COALESCE(p.name, 'Deleted product') AS productName, m.quantityDelta AS quantity, m.unitCost, m.referenceNumber, m.occurredAt FROM stock_movements m LEFT JOIN products p ON p.id = m.productId WHERE ${clauses.join(' AND ')} ORDER BY m.occurredAt DESC, m.id DESC LIMIT 50`).all(...params).map((row: any) => ({ id: String(row.id), productName: String(row.productName), quantity: Number(row.quantity), unitCost: row.unitCost == null ? null : Number(row.unitCost), referenceNumber: row.referenceNumber ?? null, occurredAt: String(row.occurredAt) }));
+  }
+
+  supplierSpend(supplierId: string, from?: string, to?: string): number {
+    const clauses = ['supplierId = ?', 'deletedAt IS NULL', 'unitCost IS NOT NULL']; const params: string[] = [supplierId];
+    if (from && to) { clauses.push('occurredAt >= ?', 'occurredAt <= ?'); params.push(from, to); }
+    const row = this.sqlite.prepare(`SELECT COALESCE(SUM(quantityDelta * unitCost), 0) AS total FROM stock_movements WHERE ${clauses.join(' AND ')}`).get(...params) as { total: number };
+    return round(Number(row.total));
   }
 
   listPaymentMethods(): PaymentMethod[] {
@@ -225,29 +264,45 @@ export class PosDatabase {
     return this.listPaymentMethods().find((method) => method.id === id)!;
   }
 
+  removePaymentMethod(id: string): 'deleted' | 'deactivated' {
+    const method = this.sqlite.prepare('SELECT id, name, code, sortOrder FROM payment_methods WHERE id = ? AND deletedAt IS NULL').get(id) as { id: string; name: string; code: string; sortOrder: number } | undefined;
+    if (!method) throw new Error('Payment method not found');
+    const used = Number((this.sqlite.prepare('SELECT COUNT(*) AS total FROM payments WHERE methodCode = ? AND deletedAt IS NULL').get(method.code) as { total: number }).total);
+    if (used > 0) {
+      this.writeLocal('payment_methods', { ...method, icon: null, color: null, isActive: 0 });
+      return 'deactivated';
+    }
+    const deletedAt = now();
+    this.sqlite.prepare('UPDATE payment_methods SET deletedAt = ?, updatedAt = ?, dirty = 1, serverSeq = 0 WHERE id = ?').run(deletedAt, deletedAt, id);
+    return 'deleted';
+  }
+
   listStockHistory(productId: string): StockMovement[] {
     const product = this.findProduct(productId); if (!product) throw new Error('Product not found');
-    const rows = this.sqlite.prepare('SELECT id, productId, type, quantityDelta, unitCost, reason, occurredAt FROM stock_movements WHERE productId = ? AND deletedAt IS NULL ORDER BY occurredAt DESC, id DESC LIMIT 200').all(productId) as any[];
+    const rows = this.sqlite.prepare('SELECT m.id, m.productId, m.type, m.quantityDelta, m.unitCost, m.supplierId, s.name AS supplierName, m.referenceNumber, m.reason, m.occurredAt FROM stock_movements m LEFT JOIN suppliers s ON s.id = m.supplierId WHERE m.productId = ? AND m.deletedAt IS NULL ORDER BY m.occurredAt DESC, m.id DESC LIMIT 200').all(productId) as any[];
     let balance = product.quantity;
     return rows.map((row) => {
-      const quantityDelta = Number(row.quantityDelta); const movement = { id: String(row.id), productId: String(row.productId), type: String(row.type) as StockMovement['type'], quantityDelta, unitCost: row.unitCost == null ? null : Number(row.unitCost), reason: row.reason ?? null, occurredAt: String(row.occurredAt), balance: round(balance) };
+      const quantityDelta = Number(row.quantityDelta); const movement = { id: String(row.id), productId: String(row.productId), type: String(row.type) as StockMovement['type'], quantityDelta, unitCost: row.unitCost == null ? null : Number(row.unitCost), supplierId: row.supplierId ?? null, supplierName: row.supplierName ?? null, referenceNumber: row.referenceNumber ?? null, reason: row.reason ?? null, occurredAt: String(row.occurredAt), balance: round(balance) };
       balance -= quantityDelta;
       return movement;
     });
   }
 
-  adjustStock(productId: string, quantityDelta: number, type: 'stock_in' | 'waste' | 'adjustment', reason?: string): Product {
+  adjustStock(productId: string, quantityDelta: number, type: 'stock_in' | 'waste' | 'adjustment', reason?: string, details?: { supplierId?: string | null; referenceNumber?: string | null; unitCost?: number | null }): Product {
     const product = this.findProduct(productId); if (!product) throw new Error('Product not found');
     if (!['stock_in', 'waste', 'adjustment'].includes(type)) throw new Error('Invalid stock action');
     if (!Number.isFinite(quantityDelta) || quantityDelta === 0) throw new Error('Enter a non-zero stock quantity');
     if (type === 'stock_in' && quantityDelta < 0) throw new Error('Received stock must be positive');
     if (type === 'waste' && quantityDelta > 0) throw new Error('Waste stock must be negative');
-    if (product.quantity + quantityDelta < -0.0001) throw new Error('This would make stock negative');
     const occurredAt = this.nextMovementAt();
     this.transaction(() => {
-      this.writeLocal('stock_movements', { id: randomUUID(), productId, type, quantityDelta, unitCost: product.cost, referenceId: null, supplierId: null, referenceNumber: null, reason: reason?.trim() || null, occurredAt });
-      this.sqlite.prepare('UPDATE products SET quantity = quantity + ? WHERE id = ?').run(quantityDelta, productId);
-      this.writeLocal('activity_log', { id: randomUUID(), actor: 'Desktop', action: `stock.${type}`, detail: reason?.trim() || product.name, amount: quantityDelta, referenceId: productId, occurredAt });
+      const suppliedCost = Number(details?.unitCost);
+      const unitCost = type === 'stock_in' && Number.isFinite(suppliedCost) && suppliedCost > 0 ? suppliedCost : null;
+      const supplierId = type === 'stock_in' ? details?.supplierId?.trim() || null : null;
+      if (supplierId && !this.sqlite.prepare('SELECT id FROM suppliers WHERE id = ? AND deletedAt IS NULL').get(supplierId)) throw new Error('Selected supplier was not found');
+      this.writeLocal('stock_movements', { id: randomUUID(), productId, type, quantityDelta, unitCost, referenceId: null, supplierId, referenceNumber: type === 'stock_in' ? details?.referenceNumber?.trim() || null : null, reason: reason?.trim() || (type === 'stock_in' ? 'Delivery' : null), occurredAt });
+      this.recomputeStock(productId);
+      if (type !== 'stock_in') this.writeLocal('activity_log', { id: randomUUID(), actor: 'Desktop', action: type, detail: reason?.trim() || product.name, amount: quantityDelta, referenceId: productId, occurredAt });
     });
     return this.findProduct(productId)!;
   }
@@ -259,10 +314,20 @@ export class PosDatabase {
   saveCustomer(input: Partial<Customer> & Pick<Customer, 'name'>): Customer {
     const id = input.id || randomUUID();
     if (!input.name.trim()) throw new Error('Customer name is required');
-    this.writeLocal('customers', { id, name: input.name.trim(), phone: input.phone?.trim() || null, note: input.note?.trim() || null, email: null, address: null });
+    const existing = input.id ? this.sqlite.prepare('SELECT email, address FROM customers WHERE id = ?').get(input.id) as { email?: string | null; address?: string | null } | undefined : undefined;
+    this.writeLocal('customers', { id, name: input.name.trim(), phone: input.phone?.trim() || null, note: input.note?.trim() || null, email: existing?.email ?? null, address: existing?.address ?? null });
     const customer = this.sqlite.prepare('SELECT id, name, phone, note FROM customers WHERE id = ?').get(id) as Record<string, unknown> | undefined;
     if (!customer) throw new Error('Customer could not be saved');
     return { id: String(customer.id), name: String(customer.name), phone: customer.phone == null ? null : String(customer.phone), note: customer.note == null ? null : String(customer.note) };
+  }
+
+  removeCustomer(id: string): void {
+    const customer = this.sqlite.prepare('SELECT id FROM customers WHERE id = ? AND deletedAt IS NULL').get(id);
+    if (!customer) throw new Error('Customer not found');
+    const debt = Number((this.sqlite.prepare(`SELECT COALESCE(SUM(total), 0) - COALESCE((SELECT SUM(amount) FROM payments WHERE customerId = ? AND deletedAt IS NULL), 0) AS debt FROM sales WHERE customerId = ? AND deletedAt IS NULL`).get(id, id) as { debt: number }).debt);
+    if (debt > 0.0001) throw new Error('This customer still owes money');
+    const deletedAt = now();
+    this.sqlite.prepare('UPDATE customers SET deletedAt = ?, updatedAt = ?, dirty = 1, serverSeq = 0 WHERE id = ?').run(deletedAt, deletedAt, id);
   }
 
   checkout(draft: SaleDraft): Receipt {
@@ -292,9 +357,9 @@ export class PosDatabase {
         const product = this.findProduct(line.productId);
         if (!product) throw new Error(`Product no longer exists: ${line.name}`);
         const itemSubtotal = line.quantity * line.unitPrice - line.discount;
-        this.writeLocal('sale_items', { id: randomUUID(), saleId, productId: product.id, productName: product.name, unit: line.unit, quantity: line.quantity, unitPrice: line.unitPrice, unitCost: line.unitCost, discount: line.discount, subtotal: itemSubtotal });
-        this.writeLocal('stock_movements', { id: randomUUID(), productId: product.id, type: 'sale', quantityDelta: -line.quantity, unitCost: line.unitCost, referenceId: saleId, supplierId: null, referenceNumber: voucherId, reason: null, occurredAt: movementAt });
-        this.sqlite.prepare('UPDATE products SET quantity = quantity - ? WHERE id = ?').run(line.quantity, product.id);
+        this.writeLocal('sale_items', { id: randomUUID(), saleId, productId: product.id, productName: product.name, unit: line.unit, quantity: line.quantity, unitPrice: line.unitPrice, unitCost: product.cost, discount: line.discount, subtotal: itemSubtotal });
+        this.writeLocal('stock_movements', { id: randomUUID(), productId: product.id, type: 'sale', quantityDelta: -line.quantity, unitCost: product.cost, referenceId: saleId, supplierId: null, referenceNumber: voucherId, reason: null, occurredAt: movementAt });
+        this.recomputeStock(product.id);
       }
       if (draft.paymentMethod !== 'debt') this.writeLocal('payments', { id: randomUUID(), saleId, customerId: draft.customerId ?? null, amount: total, methodCode: draft.paymentMethod, methodName: draft.paymentMethod, tendered: amountTendered, cashSessionId, note: null, paidAt: soldAt });
       if (discount > 0) this.writeLocal('activity_log', { id: randomUUID(), actor: draft.staffName ?? 'Desktop', action: 'discount', detail: voucherId, amount: discount, referenceId: saleId, occurredAt: soldAt });
@@ -363,10 +428,10 @@ export class PosDatabase {
         const subtotal = -round(line.refundPerUnit * line.quantity);
         this.writeLocal('sale_items', { id: randomUUID(), saleId: returnId, productId: line.productId, productName: line.name, unit: line.unit, quantity: -line.quantity, unitPrice: line.refundPerUnit, unitCost: line.unitCost, discount: 0, subtotal });
         this.writeLocal('stock_movements', { id: randomUUID(), productId: line.productId, type: 'return', quantityDelta: line.quantity, unitCost: line.unitCost, referenceId: returnId, supplierId: null, referenceNumber: returnVoucher, reason: note?.trim() || `Return for ${voucherId}`, occurredAt: movementAt });
-        this.sqlite.prepare('UPDATE products SET quantity = quantity + ? WHERE id = ?').run(line.quantity, line.productId);
+        this.recomputeStock(line.productId);
       }
       if (refundMethod !== 'debt') this.writeLocal('payments', { id: randomUUID(), saleId: returnId, customerId: source.customerId ?? null, amount: -value, methodCode: refundMethod, methodName: refundMethod, tendered: null, cashSessionId: session?.id ?? null, note: note?.trim() || `Refund for ${voucherId}`, paidAt: soldAt });
-      this.writeLocal('activity_log', { id: randomUUID(), actor: 'Desktop', action: 'sale.return', detail: `${returnVoucher} for ${voucherId}`, amount: -value, referenceId: returnId, occurredAt: soldAt });
+      this.writeLocal('activity_log', { id: randomUUID(), actor: 'Desktop', action: 'return', detail: `${returnVoucher} for ${voucherId}`, amount: -value, referenceId: returnId, occurredAt: soldAt });
     });
     return this.receiptForSale(returnVoucher)!;
   }
@@ -391,6 +456,22 @@ export class PosDatabase {
     return { grossSales: Number(sales.grossSales), refunds: Number(sales.refunds), netSales, cost, grossProfit, expenses, netProfit: round(grossProfit - expenses), discounts: Number(sales.discounts), saleCount: Number(sales.saleCount), outstandingDebt: round(outstandingDebt), payments };
   }
 
+  reportAnalytics(from: string, to: string): { topProducts: Array<{ productName: string; quantity: number; revenue: number }>; slowMoving: Array<{ productName: string; quantity: number }>; categories: Array<{ categoryName: string; revenue: number }> } {
+    const topProducts = this.sqlite.prepare(`SELECT i.productName, SUM(i.quantity) AS quantity, SUM(i.subtotal) AS revenue FROM sale_items i JOIN sales s ON s.id = i.saleId WHERE i.deletedAt IS NULL AND s.deletedAt IS NULL AND s.type = 'sale' AND s.soldAt >= ? AND s.soldAt <= ? GROUP BY i.productId, i.productName ORDER BY quantity DESC, revenue DESC LIMIT 10`).all(from, to).map((row: any) => ({ productName: String(row.productName), quantity: Number(row.quantity), revenue: Number(row.revenue) }));
+    const slowMoving = this.sqlite.prepare(`SELECT p.name AS productName, COALESCE(SUM(CASE WHEN s.type = 'sale' THEN i.quantity ELSE 0 END), 0) AS quantity FROM products p LEFT JOIN sale_items i ON i.productId = p.id AND i.deletedAt IS NULL LEFT JOIN sales s ON s.id = i.saleId AND s.deletedAt IS NULL AND s.soldAt >= ? AND s.soldAt <= ? WHERE p.deletedAt IS NULL GROUP BY p.id, p.name ORDER BY quantity, p.name LIMIT 10`).all(from, to).map((row: any) => ({ productName: String(row.productName), quantity: Number(row.quantity) }));
+    const categories = this.sqlite.prepare(`SELECT COALESCE(c.name, 'Uncategorized') AS categoryName, SUM(i.subtotal) AS revenue FROM sale_items i JOIN sales s ON s.id = i.saleId LEFT JOIN products p ON p.id = i.productId LEFT JOIN categories c ON c.id = p.categoryId WHERE i.deletedAt IS NULL AND s.deletedAt IS NULL AND s.type = 'sale' AND s.soldAt >= ? AND s.soldAt <= ? GROUP BY COALESCE(c.name, 'Uncategorized') ORDER BY revenue DESC`).all(from, to).map((row: any) => ({ categoryName: String(row.categoryName), revenue: Number(row.revenue) }));
+    return { topProducts, slowMoving, categories };
+  }
+
+  listActivity(): Array<{ id: string; actor: string | null; action: 'discount' | 'return' | 'adjustment' | 'waste'; detail: string | null; amount: number | null; occurredAt: string }> {
+    return this.sqlite.prepare(`SELECT id, actor, action, detail, amount, occurredAt FROM activity_log WHERE deletedAt IS NULL AND action IN ('discount', 'return', 'adjustment', 'waste') ORDER BY occurredAt DESC LIMIT 200`).all().map((row: any) => ({ id: String(row.id), actor: row.actor ?? null, action: row.action, detail: row.detail ?? null, amount: row.amount == null ? null : Number(row.amount), occurredAt: String(row.occurredAt) }));
+  }
+
+  stockDiscrepancies(): Array<{ id: string; name: string; quantity: number }> { return this.sqlite.prepare('SELECT id, name, quantity FROM products WHERE deletedAt IS NULL AND quantity < 0 ORDER BY quantity, name').all().map((row: any) => ({ id: String(row.id), name: String(row.name), quantity: Number(row.quantity) })); }
+  crashes(): Array<{ id: string; message: string; source: string; appVersion: string | null; occurredAt: string }> { return this.sqlite.prepare('SELECT id, message, source, appVersion, occurredAt FROM crash_logs ORDER BY occurredAt DESC LIMIT 100').all().map((row: any) => ({ id: String(row.id), message: String(row.message), source: String(row.source), appVersion: row.appVersion ?? null, occurredAt: String(row.occurredAt) })); }
+  logCrash(message: string, source: string, appVersion?: string): void { this.sqlite.prepare('INSERT INTO crash_logs (id, message, source, appVersion, occurredAt) VALUES (?, ?, ?, ?, ?)').run(randomUUID(), message.slice(0, 2000), source.slice(0, 200), appVersion ?? null, now()); }
+  clearCrashes(): void { this.sqlite.exec('DELETE FROM crash_logs'); }
+
   listCashSessions(): CashSessionSummary[] {
     return this.sqlite.prepare('SELECT id, openingFloat, expectedCash, countedCash, difference, openedAt, closedAt, status FROM cash_sessions WHERE deletedAt IS NULL ORDER BY openedAt DESC LIMIT 30').all().map((row: any) => ({ id: String(row.id), openingFloat: Number(row.openingFloat), expectedCash: row.expectedCash == null ? null : Number(row.expectedCash), countedCash: row.countedCash == null ? null : Number(row.countedCash), difference: row.difference == null ? null : Number(row.difference), openedAt: String(row.openedAt), closedAt: row.closedAt ?? null, status: String(row.status) }));
   }
@@ -399,7 +480,7 @@ export class PosDatabase {
     return this.sqlite.prepare(`SELECT * FROM (SELECT c.id, c.name, c.phone, MAX(0, COALESCE((SELECT SUM(total) FROM sales WHERE customerId = c.id AND deletedAt IS NULL), 0) - COALESCE((SELECT SUM(amount) FROM payments WHERE customerId = c.id AND deletedAt IS NULL), 0)) AS debt FROM customers c WHERE c.deletedAt IS NULL) WHERE debt > 0 ORDER BY debt DESC`).all().map((row: any) => ({ id: String(row.id), name: String(row.name), phone: row.phone ?? null, debt: Number(row.debt) }));
   }
 
-  collectDebt(customerId: string, amount: number, methodCode: string, note?: string): void {
+  collectDebt(customerId: string, amount: number, methodCode: string, note?: string): Receipt {
     if (!(amount > 0)) throw new Error('Collection amount must be more than zero');
     const customer = this.sqlite.prepare('SELECT id FROM customers WHERE id = ? AND deletedAt IS NULL').get(customerId); if (!customer) throw new Error('Customer not found');
     const session = this.sqlite.prepare("SELECT id FROM cash_sessions WHERE status = 'open' AND deletedAt IS NULL ORDER BY openedAt DESC LIMIT 1").get() as any;
@@ -408,6 +489,19 @@ export class PosDatabase {
       this.writeLocal('payments', { id: randomUUID(), saleId: null, customerId, amount, methodCode, methodName: methodCode, tendered: null, cashSessionId: session?.id ?? null, note: note?.trim() || null, paidAt });
       this.writeLocal('activity_log', { id: randomUUID(), actor: 'Desktop', action: 'debt.collection', detail: note?.trim() || null, amount, referenceId: customerId, occurredAt: paidAt });
     });
+    return { voucherId: `PAY-${paidAt.replace(/\D/g, '').slice(0, 14)}`, shopName: this.getShopSetting('shop.name') ?? 'Store POS', shopPhone: this.getShopSetting('shop.phone'), soldAt: paidAt, paymentMethod: methodCode, subtotal: amount, discount: 0, total: amount, amountTendered: null, change: null, lines: [{ productId: 'debt-payment', name: 'Debt payment', unit: 'payment', quantity: 1, unitPrice: amount, unitCost: 0, discount: 0 }] };
+  }
+
+  customerLedger(customerId: string): { balance: number; sales: Array<{ id: string; voucherId: string; total: number; soldAt: string; remaining: number }>; payments: Array<{ id: string; amount: number; methodCode: string; methodName: string; saleId: string | null; paidAt: string; note: string | null }> } {
+    const customer = this.sqlite.prepare('SELECT id FROM customers WHERE id = ? AND deletedAt IS NULL').get(customerId); if (!customer) throw new Error('Customer not found');
+    const sales = this.sqlite.prepare('SELECT id, voucherId, total, soldAt FROM sales WHERE customerId = ? AND deletedAt IS NULL ORDER BY soldAt, id').all(customerId) as any[];
+    const payments = this.sqlite.prepare('SELECT id, amount, methodCode, methodName, saleId, paidAt, note FROM payments WHERE customerId = ? AND deletedAt IS NULL ORDER BY paidAt, id').all(customerId) as any[];
+    const remaining = new Map(sales.map((sale) => [String(sale.id), Math.max(0, Number(sale.total))]));
+    let unallocated = 0;
+    for (const payment of payments) { const amount = Number(payment.amount); if (payment.saleId && remaining.has(String(payment.saleId))) remaining.set(String(payment.saleId), Math.max(0, (remaining.get(String(payment.saleId)) ?? 0) - amount)); else unallocated += amount; }
+    for (const sale of sales) { const due = remaining.get(String(sale.id)) ?? 0; const applied = Math.min(due, Math.max(0, unallocated)); remaining.set(String(sale.id), due - applied); unallocated -= applied; }
+    const ledgerSales = sales.map((sale) => ({ id: String(sale.id), voucherId: String(sale.voucherId), total: Number(sale.total), soldAt: String(sale.soldAt), remaining: round(remaining.get(String(sale.id)) ?? 0) }));
+    return { balance: round(ledgerSales.reduce((sum, sale) => sum + sale.remaining, 0)), sales: ledgerSales, payments: payments.map((row) => ({ id: String(row.id), amount: Number(row.amount), methodCode: String(row.methodCode), methodName: String(row.methodName), saleId: row.saleId ?? null, paidAt: String(row.paidAt), note: row.note ?? null })) };
   }
 
   cashSession(): any {
@@ -443,6 +537,13 @@ export class PosDatabase {
 
   getShopSetting(key: string): string | null {
     return (this.sqlite.prepare('SELECT value FROM shop_settings WHERE key = ? AND deletedAt IS NULL').get(key) as any)?.value ?? null;
+  }
+
+  shopProfile(): { name: string; address: string; phone: string; receiptFooter: string } { return { name: this.getShopSetting('shop.name') ?? '', address: this.getShopSetting('shop.address') ?? '', phone: this.getShopSetting('shop.phone') ?? '', receiptFooter: this.getShopSetting('shop.receiptFooter') ?? '' }; }
+  saveShopProfile(profile: { name: string; address: string; phone: string; receiptFooter: string }): { name: string; address: string; phone: string; receiptFooter: string } {
+    const next = { name: profile.name.trim(), address: profile.address.trim(), phone: profile.phone.trim(), receiptFooter: profile.receiptFooter.trim() };
+    this.transaction(() => { for (const [key, value] of Object.entries({ 'shop.name': next.name, 'shop.address': next.address, 'shop.phone': next.phone, 'shop.receiptFooter': next.receiptFooter })) this.writeLocal('shop_settings', { id: key, key, value }); });
+    return next;
   }
 
   countDirty(): number {
@@ -490,7 +591,7 @@ export class PosDatabase {
         this.sqlite.prepare(`INSERT INTO ${table.name} (${fields.join(',')}) VALUES (${fields.map(() => '?').join(',')}) ON CONFLICT(id) DO UPDATE SET ${update}`).run(...values);
         if (table.name === 'stock_movements' && typeof row.productId === 'string') touched.add(row.productId);
       }
-      for (const id of touched) this.sqlite.prepare('UPDATE products SET quantity = COALESCE((SELECT SUM(quantityDelta) FROM stock_movements WHERE productId = ? AND deletedAt IS NULL), 0) WHERE id = ?').run(id, id);
+      for (const id of touched) this.recomputeStock(id);
     });
   }
 
@@ -500,6 +601,14 @@ export class PosDatabase {
     const values = [row.id ?? randomUUID(), now(), null, 0, 1, ...fields.slice(5).map((column) => normalize(row[column]))];
     const update = fields.filter((field) => field !== 'id' && field !== 'serverSeq').map((field) => `${field}=excluded.${field}`).join(',');
     this.sqlite.prepare(`INSERT INTO ${tableName} (${fields.join(',')}) VALUES (${fields.map(() => '?').join(',')}) ON CONFLICT(id) DO UPDATE SET ${update}, dirty=1, updatedAt=excluded.updatedAt`).run(...(values as [any, ...any[]]));
+  }
+
+  private recomputeStock(productId: string): void {
+    const product = this.sqlite.prepare('SELECT cost FROM products WHERE id = ?').get(productId) as { cost?: number } | undefined; if (!product) return;
+    const rows = this.sqlite.prepare('SELECT quantityDelta, unitCost FROM stock_movements WHERE productId = ? AND deletedAt IS NULL ORDER BY occurredAt, id').all(productId) as Array<{ quantityDelta: number; unitCost: number | null }>;
+    let quantity = 0; let value = 0; let lastKnown = Number(product.cost) || 0;
+    for (const row of rows) { const delta = Number(row.quantityDelta); if (!delta) continue; const average = quantity > 0 ? value / quantity : lastKnown; if (delta > 0) { const cost = row.unitCost == null ? average : Number(row.unitCost); value += delta * cost; quantity += delta; } else { value += delta * average; quantity += delta; } if (quantity > 0) lastKnown = value / quantity; else value = 0; }
+    this.sqlite.prepare('UPDATE products SET quantity = ?, cost = ? WHERE id = ?').run(round(quantity), quantity > 0 ? lastKnown : lastKnown, productId);
   }
 
   private recordConflict(tableName: string, rowId: string, discarded: unknown): void {
