@@ -1,0 +1,28 @@
+/* CSS Reset & Base Styles */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: var(--color-text-primary, #19231f);
+  background: var(--color-background, #f6f5f1);
+}
+
+h1 {
+  font-size: 28px;
+  margin: 0 0 7px;
+  letter-spacing: -0.6px;
+}
+
+h2 {
+  font-size: 16px;
+  margin: 0 0 15px;
+}
+
+p {
+  color: var(--color-text-secondary, #5c6a62);
+  margin: 0;
+  line-height: 1.5;
+}

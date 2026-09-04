@@ -1,0 +1,71 @@
+/* Navigation & Sidebar */
+
+aside {
+  background: linear-gradient(180deg, #1a2920 0%, #162419 100%);
+  color: #eaf3e9;
+  padding: 28px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.08);
+}
+
+.brand {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  padding: 8px 12px 32px;
+}
+
+.brand b {
+  color: #5cb85c;
+  font-weight: 800;
+}
+
+.brand small {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: #7a9987;
+  margin-top: 6px;
+  font-weight: 600;
+}
+
+.nav {
+  border: 0;
+  background: transparent;
+  color: #b8c9be;
+  padding: 14px 16px;
+  text-align: left;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.nav:hover {
+  background: rgba(93, 184, 92, 0.12);
+  color: #e8f5ea;
+  transform: translateX(2px);
+}
+
+.nav.active {
+  background: linear-gradient(135deg, #2d7a3e 0%, #256a34 100%);
+  color: white;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(45, 122, 62, 0.3);
+}
+
+.side-note {
+  margin-top: auto;
+  padding: 16px;
+  color: #7a9987;
+  font-size: 11px;
+  line-height: 1.7;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}

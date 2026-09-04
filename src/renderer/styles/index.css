@@ -1,0 +1,11 @@
+/* Tailwind CSS + DaisyUI */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom utilities if needed */
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}

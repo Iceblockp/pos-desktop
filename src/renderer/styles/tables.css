@@ -1,0 +1,39 @@
+/* Tables & Rows */
+
+.table {
+  max-height: 650px;
+  overflow: auto;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 13px 0;
+  border-bottom: 1px solid #edf0eb;
+}
+
+.row button {
+  width: auto;
+  margin: 0;
+  padding: 7px 10px;
+}
+
+.activity-row {
+  padding: 16px 0;
+}
+
+.crash-row {
+  padding: 14px 0;
+  border-bottom: 1px solid #edf0eb;
+}
+
+.crash-message {
+  color: #c14436;
+  font-family: "Monaco", "Courier New", monospace;
+  font-size: 13px;
+}
+
+.crash-row small {
+  margin-top: 6px;
+}

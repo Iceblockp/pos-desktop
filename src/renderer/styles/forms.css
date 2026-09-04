@@ -1,0 +1,89 @@
+/* Form Styles */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.form label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form input,
+.form select {
+  width: 100%;
+}
+
+select,
+input {
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  background: white;
+  font: inherit;
+  font-size: 15px;
+  transition: all 0.2s ease;
+  color: var(--color-text-primary);
+}
+
+select:focus,
+input:focus {
+  outline: none;
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 3px rgba(74, 154, 90, 0.1);
+}
+
+select:hover,
+input:hover {
+  border-color: var(--color-border-focus);
+}
+
+.catalog > input {
+  width: 100%;
+  padding: 16px 18px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  font-size: 16px;
+  background: white;
+}
+
+.payment {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.payment input,
+.payment select {
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  background: white;
+  font: inherit;
+}
+
+.check {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 10px !important;
+}
+
+.check input {
+  width: auto;
+  cursor: pointer;
+}
+
+.hint {
+  display: block;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin-top: 6px;
+  line-height: 1.5;
+}

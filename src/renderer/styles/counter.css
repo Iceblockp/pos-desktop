@@ -1,0 +1,51 @@
+/* Counter / POS Specific Styles */
+
+.cart {
+  background: white;
+  border: 1px solid #e0e4de;
+  border-radius: 10px;
+  padding: 18px;
+  position: sticky;
+  top: 20px;
+  align-self: start;
+}
+
+.cart-line {
+  display: grid;
+  grid-template-columns: 1fr auto auto 24px;
+  gap: 9px;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #edf0eb;
+  font-size: 13px;
+}
+
+.quantity {
+  display: flex;
+  align-items: center;
+  border: 1px solid #dce1da;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.quantity button {
+  border: 0;
+  background: #f1f4ef;
+  cursor: pointer;
+  width: 25px;
+  height: 27px;
+}
+
+.quantity input {
+  width: 35px;
+  border: 0;
+  text-align: center;
+  height: 27px;
+}
+
+.total {
+  display: flex;
+  justify-content: space-between;
+  font-size: 20px;
+  padding: 18px 0;
+}

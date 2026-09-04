@@ -1,0 +1,51 @@
+/* Utility Classes & Responsive Design */
+
+@media (max-width: 1000px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  aside {
+    flex-direction: row;
+    overflow: auto;
+  }
+
+  .brand,
+  .side-note {
+    display: none;
+  }
+
+  .nav {
+    white-space: nowrap;
+  }
+
+  main {
+    padding: 18px;
+  }
+
+  .counter-grid,
+  .workspace,
+  .workspace.three {
+    grid-template-columns: 1fr;
+  }
+
+  .cart {
+    position: static;
+  }
+
+  .metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .hero-amount {
+    font-size: 32px;
+  }
+
+  .debt-amount {
+    font-size: 22px;
+  }
+
+  .plan-details {
+    grid-template-columns: 1fr;
+  }
+}
