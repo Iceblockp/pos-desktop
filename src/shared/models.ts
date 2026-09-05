@@ -230,7 +230,7 @@ export interface DesktopApi {
     removeCustomer: (id: string) => Promise<void>;
     customerLedger: (id: string) => Promise<CustomerLedger>;
     checkout: (draft: SaleDraft) => Promise<Receipt>;
-    sales: (search?: string) => Promise<SaleSummary[]>;
+    sales: (search?: string, from?: string, to?: string) => Promise<SaleSummary[]>;
     receipt: (voucherId: string) => Promise<Receipt | null>;
     returnableSale: (voucherId: string) => Promise<ReturnableLine[] | null>;
     returnSale: (voucherId: string, lines: Array<{ productId: string; quantity: number }>, refundMethod: string, note?: string) => Promise<Receipt>;

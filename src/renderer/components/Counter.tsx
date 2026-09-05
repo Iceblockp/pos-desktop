@@ -135,8 +135,10 @@ export function Counter({
         {
           productId: product.id,
           name: product.name,
+          unit: product.unit,
           quantity: 1,
           unitPrice: tier?.bulkPrice ?? product.price,
+          unitCost: product.cost,
           discount: 0,
         },
       ]);
