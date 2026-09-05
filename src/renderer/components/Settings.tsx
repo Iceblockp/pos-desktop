@@ -15,54 +15,54 @@ export function Settings({ notify }: { notify: (s: string) => void }) {
 
   return (
     <section className="h-full">
-      {/* Header */}
-      <header className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">⚙️ Settings</h1>
-        <p className="text-gray-600">
+      {/* Compact Header */}
+      <header className="mb-3">
+        <h1 className="text-2xl font-bold text-gray-900">⚙️ Settings</h1>
+        <p className="text-xs text-gray-500">
           Configure your store, payments, pricing, and more
         </p>
       </header>
 
-      {/* Tabs */}
-      <div role="tablist" className="tabs tabs-boxed mb-6 bg-white shadow-sm">
+      {/* Compact Tabs */}
+      <div role="tablist" className="tabs tabs-boxed mb-3 bg-white shadow-sm">
         <button
           role="tab"
-          className={`tab ${tab === "general" ? "tab-active" : ""}`}
+          className={`tab tab-sm ${tab === "general" ? "tab-active" : ""}`}
           onClick={() => setTab("general")}
         >
           General
         </button>
         <button
           role="tab"
-          className={`tab ${tab === "payment" ? "tab-active" : ""}`}
+          className={`tab tab-sm ${tab === "payment" ? "tab-active" : ""}`}
           onClick={() => setTab("payment")}
         >
           Payment Methods
         </button>
         <button
           role="tab"
-          className={`tab ${tab === "pricing" ? "tab-active" : ""}`}
+          className={`tab tab-sm ${tab === "pricing" ? "tab-active" : ""}`}
           onClick={() => setTab("pricing")}
         >
           Price Levels
         </button>
         <button
           role="tab"
-          className={`tab ${tab === "printer" ? "tab-active" : ""}`}
+          className={`tab tab-sm ${tab === "printer" ? "tab-active" : ""}`}
           onClick={() => setTab("printer")}
         >
           Printer
         </button>
         <button
           role="tab"
-          className={`tab ${tab === "subscription" ? "tab-active" : ""}`}
+          className={`tab tab-sm ${tab === "subscription" ? "tab-active" : ""}`}
           onClick={() => setTab("subscription")}
         >
           Subscription
         </button>
         <button
           role="tab"
-          className={`tab ${tab === "diagnostics" ? "tab-active" : ""}`}
+          className={`tab tab-sm ${tab === "diagnostics" ? "tab-active" : ""}`}
           onClick={() => setTab("diagnostics")}
         >
           Diagnostics
@@ -469,7 +469,7 @@ function PaymentTab({ notify }: { notify: (s: string) => void }) {
                   placeholder="e.g. Wave Pay"
                   value={name}
                   onChange={(event) => setName(event.target.value)}
-                  className="input input-bordered"
+                  className="input input-bordered input-sm"
                 />
               </div>
               <button
@@ -665,7 +665,7 @@ function PricingTab({ notify }: { notify: (s: string) => void }) {
                   placeholder="e.g. Wholesale"
                   value={name}
                   onChange={(event) => setName(event.target.value)}
-                  className="input input-bordered"
+                  className="input input-bordered input-sm"
                 />
               </div>
               <button
@@ -1437,7 +1437,7 @@ function GeneralTab({ notify }: { notify: (s: string) => void }) {
                   <input
                     value={apiUrl}
                     onChange={(e) => setApiUrl(e.target.value)}
-                    className="input input-bordered"
+                    className="input input-bordered input-sm"
                   />
                 </div>
                 <div className="form-control">
@@ -1447,7 +1447,7 @@ function GeneralTab({ notify }: { notify: (s: string) => void }) {
                   <input
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="input input-bordered"
+                    className="input input-bordered input-sm"
                   />
                 </div>
                 <div className="form-control">
@@ -1458,7 +1458,7 @@ function GeneralTab({ notify }: { notify: (s: string) => void }) {
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="input input-bordered"
+                    className="input input-bordered input-sm"
                   />
                 </div>
                 <div className="form-control">
@@ -1468,7 +1468,7 @@ function GeneralTab({ notify }: { notify: (s: string) => void }) {
                   <input
                     value={deviceName}
                     onChange={(e) => setDeviceName(e.target.value)}
-                    className="input input-bordered"
+                    className="input input-bordered input-sm"
                   />
                 </div>
                 <button

@@ -234,57 +234,56 @@ export function Counter({
   };
 
   return (
-    <section className="h-full">
-      {/* Header */}
-      <header className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Counter</h1>
-        <p className="text-gray-600">
-          Scan a barcode or search products. Pricing and discounts are
-          calculated before checkout.
-        </p>
-        <div className="mt-3 flex gap-2 text-sm text-gray-600">
-          <kbd className="kbd kbd-sm">F2</kbd>
-          <span>Search</span>
-          <span className="mx-2">·</span>
-          <kbd className="kbd kbd-sm">Enter</kbd>
-          <span>Scan</span>
+    <section className="h-full flex flex-col">
+      {/* Compact Header */}
+      <header className="mb-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Counter</h1>
+            <p className="text-xs text-gray-500">Scan or search products</p>
+          </div>
+          {priceLevelId && (
+            <div className="badge badge-success badge-sm">
+              {selectedLevelName}
+            </div>
+          )}
         </div>
       </header>
 
-      {/* Main Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-6">
+      {/* Main Grid - More Compact */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-4 flex-1 overflow-hidden">
         {/* Product Catalog */}
-        <div>
-          <div className="mb-4">
+        <div className="flex flex-col overflow-hidden">
+          <div className="mb-3">
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={handleSearchKeyDown}
-              placeholder="Search name or barcode"
-              className="input input-bordered w-full"
+              placeholder="Search name or barcode (F2)"
+              className="input input-bordered input-sm w-full"
               autoFocus
             />
           </div>
 
-          {/* Product Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+          {/* Compact Product Grid */}
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-4 xl:grid-cols-6 gap-2 overflow-y-auto">
             {products.data?.map((product) => (
               <button
                 key={product.id}
                 onClick={() => addProduct(product)}
-                className="card bg-white hover:shadow-lg transition-all duration-200 cursor-pointer border border-gray-200 hover:border-green-500"
+                className="card bg-white hover:bg-green-50 transition-colors cursor-pointer border border-gray-200 hover:border-green-500"
               >
-                <div className="card-body p-4 gap-2">
-                  <h3 className="font-semibold text-sm line-clamp-2">
+                <div className="card-body p-2 gap-1">
+                  <h3 className="font-semibold text-xs line-clamp-2 leading-tight">
                     {product.name}
                   </h3>
-                  <p className="text-green-600 font-bold text-base">
+                  <p className="text-green-600 font-bold text-sm">
                     {money.format(product.price)}
                   </p>
                   {product.stock !== undefined && (
-                    <p className="text-xs text-gray-500">
-                      Stock: {product.stock}
+                    <p className="text-[10px] text-gray-400">
+                      Stk: {product.stock}
                     </p>
                   )}
                 </div>
@@ -293,52 +292,48 @@ export function Counter({
           </div>
 
           {!products.data?.length && (
-            <div className="text-center py-12">
-              <p className="text-gray-400">No products found</p>
+            <div className="text-center py-8">
+              <p className="text-gray-400 text-sm">No products found</p>
             </div>
           )}
         </div>
 
-        {/* Cart Sidebar */}
-        <div className="card bg-white shadow-xl sticky top-5 self-start">
-          <div className="card-body">
-            {/* Price Level Badge */}
-            {priceLevelId && (
-              <div className="badge badge-success badge-outline mb-3">
-                Using {selectedLevelName} pricing
-              </div>
-            )}
-
-            {/* Cart Items */}
+        {/* Compact Cart Sidebar */}
+        <div className="card bg-white shadow-lg flex flex-col overflow-hidden">
+          <div className="card-body p-3 flex flex-col overflow-hidden">
+            {/* Cart Items - Scrollable */}
             {cart.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-gray-400">
-                  Scan or select products to start.
-                </p>
+              <div className="text-center py-6">
+                <p className="text-gray-400 text-sm">Cart is empty</p>
               </div>
             ) : (
-              <div className="space-y-3 mb-4">
+              <div className="flex-1 overflow-y-auto space-y-2 mb-3">
                 {cart.map((line) => (
                   <div
                     key={line.productId}
-                    className="flex items-center gap-3 pb-3 border-b border-gray-100"
+                    className="group flex items-center gap-2 p-2 rounded hover:bg-gray-50 border border-gray-100"
                   >
+                    {/* Product Info */}
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">
+                      <p className="font-medium text-xs truncate leading-tight">
                         {line.name}
                       </p>
-                      <p className="text-xs text-gray-500">
-                        {money.format(line.unitPrice)} each
-                      </p>
-                      {line.discount > 0 && (
-                        <p className="text-xs text-orange-600">
-                          Disc: -{money.format(line.discount)}
-                        </p>
-                      )}
+                      <div className="flex items-center gap-1 text-[10px] text-gray-500">
+                        <span>{money.format(line.unitPrice)}</span>
+                        {line.discount > 0 && (
+                          <>
+                            <span className="text-orange-600">
+                              · -{money.format(line.discount)}
+                            </span>
+                          </>
+                        )}
+                      </div>
                     </div>
-                    <div className="join">
+
+                    {/* Quantity Controls - More Compact */}
+                    <div className="flex items-center gap-1">
                       <button
-                        className="btn btn-xs join-item"
+                        className="btn btn-xs btn-square h-6 w-6 min-h-0"
                         onClick={() =>
                           updateQuantity(line.productId, line.quantity - 1)
                         }
@@ -351,10 +346,10 @@ export function Counter({
                         onChange={(e) =>
                           updateQuantity(line.productId, Number(e.target.value))
                         }
-                        className="input input-xs join-item w-12 text-center"
+                        className="input input-xs w-10 h-6 text-center p-0 text-xs"
                       />
                       <button
-                        className="btn btn-xs join-item"
+                        className="btn btn-xs btn-square h-6 w-6 min-h-0"
                         onClick={() =>
                           updateQuantity(line.productId, line.quantity + 1)
                         }
@@ -362,56 +357,76 @@ export function Counter({
                         +
                       </button>
                     </div>
-                    <p className="font-bold text-sm w-16 text-right">
-                      {money.format(line.quantity * line.unitPrice)}
+
+                    {/* Line Total */}
+                    <p className="font-bold text-xs w-12 text-right">
+                      {money.format(
+                        line.quantity * line.unitPrice - line.discount,
+                      )}
                     </p>
-                    <button
-                      className="btn btn-xs btn-ghost btn-square text-error"
-                      onClick={() => updateQuantity(line.productId, 0)}
-                    >
-                      ×
-                    </button>
+
+                    {/* Actions - Show on Hover */}
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        className="btn btn-xs btn-ghost btn-square h-6 w-6 min-h-0"
+                        title="Discount"
+                        onClick={() => {
+                          setDiscountProductId(line.productId);
+                          setDiscountDraft(String(line.discount));
+                          setDiscountModal("line");
+                        }}
+                      >
+                        %
+                      </button>
+                      <button
+                        className="btn btn-xs btn-ghost btn-square h-6 w-6 min-h-0 text-error"
+                        title="Remove"
+                        onClick={() => updateQuantity(line.productId, 0)}
+                      >
+                        ×
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
             )}
 
-            {/* Totals */}
+            {/* Totals - Compact */}
             {cart.length > 0 && (
               <>
-                <div className="divider my-2"></div>
-                <div className="space-y-1 text-sm">
+                <div className="divider my-1"></div>
+                <div className="space-y-1 text-xs">
                   <div className="flex justify-between text-gray-600">
                     <span>Subtotal</span>
                     <span>{money.format(gross)}</span>
                   </div>
                   {lineDiscounts > 0 && (
                     <div className="flex justify-between text-orange-600">
-                      <span>Line discounts</span>
+                      <span>Line disc.</span>
                       <span>-{money.format(lineDiscounts)}</span>
                     </div>
                   )}
                   {orderDiscount > 0 && (
                     <div className="flex justify-between text-orange-600">
-                      <span>Order discount</span>
+                      <span>Order disc.</span>
                       <span>-{money.format(orderDiscount)}</span>
                     </div>
                   )}
                 </div>
-                <div className="flex justify-between items-center text-2xl font-bold mt-3">
+                <div className="flex justify-between items-center text-lg font-bold mt-2">
                   <span>Total</span>
                   <span className="text-green-600">{money.format(total)}</span>
                 </div>
 
-                {/* Payment Method */}
-                <div className="form-control mt-4">
-                  <label className="label">
-                    <span className="label-text font-medium">
-                      Payment Method
+                {/* Compact Payment Method */}
+                <div className="form-control mt-2">
+                  <label className="label py-1">
+                    <span className="label-text text-xs font-medium">
+                      Payment
                     </span>
                   </label>
                   <select
-                    className="select select-bordered w-full"
+                    className="select select-bordered select-sm w-full"
                     value={method}
                     onChange={(e) => setMethod(e.target.value)}
                   >
@@ -420,15 +435,15 @@ export function Counter({
                         {m.name}
                       </option>
                     ))}
-                    <option value="debt">On Account (Debt)</option>
+                    <option value="debt">On Account</option>
                   </select>
                 </div>
 
-                {/* Cash Tendered */}
+                {/* Cash Tendered - Compact */}
                 {method === "cash" && (
-                  <div className="form-control mt-3">
-                    <label className="label">
-                      <span className="label-text font-medium">
+                  <div className="form-control mt-2">
+                    <label className="label py-1">
+                      <span className="label-text text-xs font-medium">
                         Cash received
                       </span>
                     </label>
@@ -438,10 +453,10 @@ export function Counter({
                       value={tendered}
                       onChange={(e) => setTendered(e.target.value)}
                       placeholder="Optional"
-                      className="input input-bordered"
+                      className="input input-bordered input-sm"
                     />
                     {tendered && Number(tendered) >= total && (
-                      <label className="label">
+                      <label className="label py-0">
                         <span className="label-text-alt text-success">
                           Change: {money.format(Number(tendered) - total)}
                         </span>
@@ -450,14 +465,16 @@ export function Counter({
                   </div>
                 )}
 
-                {/* Customer Selection */}
+                {/* Customer Selection - Compact */}
                 {method === "debt" && (
-                  <div className="form-control mt-3">
-                    <label className="label">
-                      <span className="label-text font-medium">Customer</span>
+                  <div className="form-control mt-2">
+                    <label className="label py-1">
+                      <span className="label-text text-xs font-medium">
+                        Customer
+                      </span>
                     </label>
                     <select
-                      className="select select-bordered w-full"
+                      className="select select-bordered select-sm w-full"
                       value={customerId}
                       onChange={(e) => setCustomerId(e.target.value)}
                       required
@@ -472,9 +489,9 @@ export function Counter({
                   </div>
                 )}
 
-                {/* Checkout Button */}
+                {/* Checkout Button - Compact */}
                 <button
-                  className="btn btn-primary btn-block mt-4 btn-lg"
+                  className="btn btn-primary btn-block mt-3"
                   onClick={() => checkout.mutate()}
                   disabled={
                     checkout.isPending || (method === "debt" && !customerId)
@@ -483,16 +500,16 @@ export function Counter({
                   {checkout.isPending ? "Processing..." : "Checkout"}
                 </button>
 
-                {/* Secondary Actions */}
-                <div className="grid grid-cols-2 gap-2 mt-2">
+                {/* Secondary Actions - Compact */}
+                <div className="flex gap-2 mt-2">
                   <button
-                    className="btn btn-sm btn-ghost"
+                    className="btn btn-xs btn-ghost flex-1"
                     onClick={() => setCart([])}
                   >
-                    Clear Cart
+                    Clear
                   </button>
                   <button
-                    className="btn btn-sm btn-ghost"
+                    className="btn btn-xs btn-ghost flex-1"
                     onClick={() => {
                       setDiscountModal("order");
                       setDiscountDraft(String(orderDiscount));

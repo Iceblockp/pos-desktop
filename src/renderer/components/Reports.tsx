@@ -23,10 +23,12 @@ function ReportRow({
   plain?: boolean;
 }) {
   return (
-    <div className="flex justify-between items-center py-2">
-      <span className={bold ? "font-bold" : "font-medium"}>{label}</span>
+    <div className="flex justify-between items-center py-1">
+      <span className={`text-xs ${bold ? "font-bold" : "font-medium"}`}>
+        {label}
+      </span>
       <span
-        className={`${bold ? "font-bold" : ""} ${negative ? "text-red-600" : ""}`}
+        className={`text-xs ${bold ? "font-bold" : ""} ${negative ? "text-red-600" : ""}`}
       >
         {plain ? value : money.format(value)}
       </span>
@@ -62,36 +64,36 @@ export function Reports({
   const [tab, setTab] = useState<"money" | "reports" | "activity">("money");
 
   return (
-    <section className="h-full">
-      {/* Header */}
-      <header className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+    <section className="h-full flex flex-col">
+      {/* Compact Header */}
+      <header className="mb-3">
+        <h1 className="text-2xl font-bold text-gray-900">
           💰 Reports & Analytics
         </h1>
-        <p className="text-gray-600">
+        <p className="text-xs text-gray-500">
           Track money, sales performance, and activity
         </p>
       </header>
 
-      {/* Tabs */}
-      <div role="tablist" className="tabs tabs-boxed mb-6 bg-white shadow-sm">
+      {/* Compact Tabs */}
+      <div role="tablist" className="tabs tabs-boxed mb-3 bg-white shadow-sm">
         <button
           role="tab"
-          className={`tab ${tab === "money" ? "tab-active" : ""}`}
+          className={`tab tab-sm ${tab === "money" ? "tab-active" : ""}`}
           onClick={() => setTab("money")}
         >
           Money & Cash
         </button>
         <button
           role="tab"
-          className={`tab ${tab === "reports" ? "tab-active" : ""}`}
+          className={`tab tab-sm ${tab === "reports" ? "tab-active" : ""}`}
           onClick={() => setTab("reports")}
         >
           Sales Reports
         </button>
         <button
           role="tab"
-          className={`tab ${tab === "activity" ? "tab-active" : ""}`}
+          className={`tab tab-sm ${tab === "activity" ? "tab-active" : ""}`}
           onClick={() => setTab("activity")}
         >
           Activity Log
@@ -138,7 +140,7 @@ function ReportsTab() {
         <select
           value={period}
           onChange={(e) => setPeriod(e.target.value as typeof period)}
-          className="select select-bordered"
+          className="select select-bordered select-sm mb-2"
         >
           <option value="today">Today</option>
           <option value="week">Last 7 days</option>
@@ -169,11 +171,13 @@ function ReportsTab() {
       </div>
 
       {/* Reports Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 flex-1 overflow-y-auto">
         {/* Sales Summary */}
         <div className="card bg-white shadow-lg">
-          <div className="card-body">
-            <h3 className="text-lg font-semibold mb-3">Sales summary</h3>
+          <div className="card-body p-3">
+            <h3 className="text-sm font-semibold mb-2 text-gray-700">
+              Sales summary
+            </h3>
             <div className="space-y-1">
               <ReportRow label="Sales" value={data?.grossSales ?? 0} />
               <ReportRow
@@ -205,8 +209,10 @@ function ReportsTab() {
 
         {/* Top Products */}
         <div className="card bg-white shadow-lg">
-          <div className="card-body">
-            <h3 className="text-lg font-semibold mb-3">Top products</h3>
+          <div className="card-body p-3">
+            <h3 className="text-sm font-semibold mb-2 text-gray-700">
+              Top products
+            </h3>
             <div className="space-y-2">
               {analytics.data?.topProducts.length ? (
                 analytics.data.topProducts.map((item) => (
@@ -234,8 +240,10 @@ function ReportsTab() {
 
         {/* Slow-moving Products */}
         <div className="card bg-white shadow-lg">
-          <div className="card-body">
-            <h3 className="text-lg font-semibold mb-3">Slow-moving products</h3>
+          <div className="card-body p-3">
+            <h3 className="text-sm font-semibold mb-2 text-gray-700">
+              Slow-moving products
+            </h3>
             <div className="space-y-2">
               {analytics.data?.slowMoving.map((item) => (
                 <div
@@ -252,8 +260,10 @@ function ReportsTab() {
 
         {/* Sales by Category */}
         <div className="card bg-white shadow-lg">
-          <div className="card-body">
-            <h3 className="text-lg font-semibold mb-3">Sales by category</h3>
+          <div className="card-body p-3">
+            <h3 className="text-sm font-semibold mb-2 text-gray-700">
+              Sales by category
+            </h3>
             <div className="space-y-1">
               {analytics.data?.categories.map((item) => (
                 <ReportRow
@@ -268,8 +278,10 @@ function ReportsTab() {
 
         {/* Payments & Debt */}
         <div className="card bg-white shadow-lg">
-          <div className="card-body">
-            <h3 className="text-lg font-semibold mb-3">Payments & debt</h3>
+          <div className="card-body p-3">
+            <h3 className="text-sm font-semibold mb-2 text-gray-700">
+              Payments & debt
+            </h3>
             <div className="space-y-1">
               {data?.payments.length ? (
                 data.payments.map((payment) => (
@@ -296,8 +308,10 @@ function ReportsTab() {
 
         {/* Cash-session History */}
         <div className="card bg-white shadow-lg">
-          <div className="card-body">
-            <h3 className="text-lg font-semibold mb-3">Cash-session history</h3>
+          <div className="card-body p-3">
+            <h3 className="text-sm font-semibold mb-2 text-gray-700">
+              Cash-session history
+            </h3>
             <div className="space-y-2">
               {sessions.data?.length ? (
                 sessions.data.map((session: CashSessionSummary) => (
@@ -409,9 +423,9 @@ function ActivityTab() {
       </div>
 
       {/* Activity List */}
-      <div className="card bg-white shadow-lg">
-        <div className="card-body">
-          <h3 className="text-lg font-semibold mb-4">
+      <div className="card bg-white shadow-lg flex-1 overflow-hidden">
+        <div className="card-body p-3 flex flex-col overflow-hidden">
+          <h3 className="text-sm font-semibold mb-2 text-gray-700">
             Recent Activity ({filtered.length})
           </h3>
           <div className="space-y-2">

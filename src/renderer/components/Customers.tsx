@@ -91,21 +91,20 @@ export function Customers({ notify }: { notify: (s: string) => void }) {
     setModal("customer");
   };
   return (
-    <section className="h-full">
-      {/* Header */}
-      <header className="mb-6 flex justify-between items-start">
+    <section className="h-full flex flex-col">
+      {/* Compact Header */}
+      <header className="mb-3 flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          <h1 className="text-2xl font-bold text-gray-900">
             Customers & debts
           </h1>
-          <p className="text-gray-600">
-            See who owes money first, then manage customer details only when
-            needed.
+          <p className="text-xs text-gray-500">
+            Track outstanding debts and manage customer records
           </p>
         </div>
         <div className="flex gap-2">
           <button
-            className="btn btn-outline btn-sm"
+            className="btn btn-outline btn-xs"
             onClick={() => {
               setForm(empty);
               setModal("customer");
@@ -114,7 +113,7 @@ export function Customers({ notify }: { notify: (s: string) => void }) {
             Add customer
           </button>
           <button
-            className="btn btn-primary btn-sm"
+            className="btn btn-primary btn-xs"
             onClick={() => openCollect()}
           >
             Collect debt
@@ -122,10 +121,10 @@ export function Customers({ notify }: { notify: (s: string) => void }) {
         </div>
       </header>
 
-      {/* Print Debt Receipt Button */}
+      {/* Compact Print Debt Receipt Button */}
       {debtReceipt && (
         <button
-          className="btn btn-success mb-4"
+          className="btn btn-success btn-sm mb-3"
           onClick={() =>
             window.storePos.printer
               .printReceipt(debtReceipt)
@@ -136,30 +135,32 @@ export function Customers({ notify }: { notify: (s: string) => void }) {
         </button>
       )}
 
-      {/* Main Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Compact Main Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 overflow-hidden">
         {/* Open Debts Panel */}
-        <div className="card bg-white shadow-lg">
-          <div className="card-body">
-            <h2 className="text-xl font-semibold mb-4">Open debts</h2>
-            <div className="space-y-2">
+        <div className="card bg-white shadow-lg flex flex-col overflow-hidden">
+          <div className="card-body p-3 flex flex-col overflow-hidden">
+            <h2 className="text-sm font-semibold mb-2 text-gray-700">
+              Open debts
+            </h2>
+            <div className="space-y-1 flex-1 overflow-y-auto">
               {debtors.data?.length ? (
                 debtors.data.map((debtor) => (
                   <div
                     key={debtor.id}
-                    className="flex justify-between items-center p-3 rounded-lg border border-gray-200 hover:border-orange-500 hover:bg-orange-50 transition-all"
+                    className="flex justify-between items-center p-2 rounded border border-gray-200 hover:border-orange-500 hover:bg-orange-50 transition-colors"
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-gray-900">
+                      <p className="font-semibold text-sm text-gray-900">
                         {debtor.name}
                       </p>
-                      <p className="text-sm text-gray-500">
+                      <p className="text-xs text-gray-500">
                         {debtor.phone ?? "No phone"} · balance{" "}
                         {money.format(debtor.debt)}
                       </p>
                     </div>
                     <button
-                      className="btn btn-sm btn-warning"
+                      className="btn btn-xs btn-warning"
                       onClick={() => openCollect(debtor.id)}
                     >
                       Collect
@@ -167,8 +168,8 @@ export function Customers({ notify }: { notify: (s: string) => void }) {
                   </div>
                 ))
               ) : (
-                <div className="text-center py-12">
-                  <p className="text-gray-400">No customer debts.</p>
+                <div className="text-center py-8">
+                  <p className="text-gray-400 text-sm">No customer debts.</p>
                 </div>
               )}
             </div>
@@ -176,27 +177,29 @@ export function Customers({ notify }: { notify: (s: string) => void }) {
         </div>
 
         {/* Customers Panel */}
-        <div className="card bg-white shadow-lg">
-          <div className="card-body">
-            <h2 className="text-xl font-semibold mb-4">Customers</h2>
-            <div className="space-y-2">
+        <div className="card bg-white shadow-lg flex flex-col overflow-hidden">
+          <div className="card-body p-3 flex flex-col overflow-hidden">
+            <h2 className="text-sm font-semibold mb-2 text-gray-700">
+              Customers
+            </h2>
+            <div className="space-y-1 flex-1 overflow-y-auto">
               {customers.data?.length ? (
                 customers.data.map((customer) => (
                   <div
                     key={customer.id}
-                    className="flex justify-between items-center p-3 rounded-lg border border-gray-200 hover:border-green-500 hover:bg-green-50 transition-all"
+                    className="flex justify-between items-center p-2 rounded border border-gray-200 hover:border-green-500 hover:bg-green-50 transition-colors"
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-gray-900">
+                      <p className="font-semibold text-sm text-gray-900">
                         {customer.name}
                       </p>
-                      <p className="text-sm text-gray-500 truncate">
+                      <p className="text-xs text-gray-500 truncate">
                         {customer.phone ?? "No phone"}
                         {customer.note ? ` · ${customer.note}` : ""}
                       </p>
                     </div>
                     <button
-                      className="btn btn-sm btn-ghost"
+                      className="btn btn-xs btn-ghost"
                       onClick={() => edit(customer)}
                     >
                       View
@@ -204,8 +207,8 @@ export function Customers({ notify }: { notify: (s: string) => void }) {
                   </div>
                 ))
               ) : (
-                <div className="text-center py-12">
-                  <p className="text-gray-400">No customers yet.</p>
+                <div className="text-center py-8">
+                  <p className="text-gray-400 text-sm">No customers yet.</p>
                 </div>
               )}
             </div>
@@ -213,33 +216,31 @@ export function Customers({ notify }: { notify: (s: string) => void }) {
         </div>
       </div>
 
-      {/* Customer Details Modal */}
+      {/* Compact Customer Details Modal */}
       {modal === "customer" && (
         <div className="modal modal-open">
-          <div className="modal-box max-w-2xl">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold">
-                {form.id ? "Customer details" : "Add customer"}
-              </h2>
-              <button
-                className="btn btn-sm btn-circle btn-ghost"
-                type="button"
-                onClick={() => setModal(null)}
-              >
-                ✕
-              </button>
-            </div>
+          <div className="modal-box max-w-2xl max-h-[90vh] overflow-y-auto">
+            <h3 className="font-bold text-lg mb-4">
+              {form.id ? "Customer details" : "Add customer"}
+            </h3>
+            <button
+              className="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
+              type="button"
+              onClick={() => setModal(null)}
+            >
+              ✕
+            </button>
 
             <form
-              className="space-y-4"
+              className="space-y-3"
               onSubmit={(event) => {
                 event.preventDefault();
                 save.mutate();
               }}
             >
               <div className="form-control">
-                <label className="label">
-                  <span className="label-text font-medium">Name</span>
+                <label className="label py-1">
+                  <span className="label-text text-xs font-medium">Name</span>
                 </label>
                 <input
                   required
@@ -247,65 +248,79 @@ export function Customers({ notify }: { notify: (s: string) => void }) {
                   onChange={(event) =>
                     setForm({ ...form, name: event.target.value })
                   }
-                  className="input input-bordered"
+                  className="input input-bordered input-sm"
                 />
               </div>
 
               <div className="form-control">
-                <label className="label">
-                  <span className="label-text font-medium">Phone</span>
+                <label className="label py-1">
+                  <span className="label-text text-xs font-medium">Phone</span>
                 </label>
                 <input
                   value={form.phone}
                   onChange={(event) =>
                     setForm({ ...form, phone: event.target.value })
                   }
-                  className="input input-bordered"
+                  className="input input-bordered input-sm"
                 />
               </div>
 
               <div className="form-control">
-                <label className="label">
-                  <span className="label-text font-medium">Note</span>
+                <label className="label py-1">
+                  <span className="label-text text-xs font-medium">Note</span>
                 </label>
                 <input
                   value={form.note}
                   onChange={(event) =>
                     setForm({ ...form, note: event.target.value })
                   }
-                  className="input input-bordered"
+                  className="input input-bordered input-sm"
                 />
               </div>
 
-              <button
-                className="btn btn-primary w-full"
-                disabled={save.isPending}
-              >
-                {save.isPending ? "Saving…" : "Save customer"}
-              </button>
+              <div className="modal-action">
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setModal(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary btn-sm"
+                  disabled={save.isPending}
+                >
+                  {save.isPending ? "Saving…" : "Save customer"}
+                </button>
+              </div>
             </form>
 
             {form.id && (
               <>
-                <div className="divider"></div>
-                <h3 className="text-lg font-semibold mb-3">
+                <div className="divider my-2"></div>
+                <h3 className="text-sm font-semibold mb-2">
                   Debt ledger · {money.format(ledger.data?.balance ?? 0)}
                 </h3>
-                <div className="space-y-2 max-h-60 overflow-y-auto">
+                <div className="space-y-1 max-h-60 overflow-y-auto">
                   {ledger.data?.sales.map((sale) => (
                     <div
                       key={sale.id}
-                      className="flex justify-between items-start p-3 bg-gray-50 rounded-lg"
+                      className="flex justify-between items-start p-2 bg-gray-50 rounded"
                     >
                       <div>
-                        <p className="font-semibold">{sale.voucherId}</p>
-                        <p className="text-sm text-gray-500">
+                        <p className="font-semibold text-xs">
+                          {sale.voucherId}
+                        </p>
+                        <p className="text-[10px] text-gray-500">
                           {new Date(sale.soldAt).toLocaleString()}
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="font-bold">{money.format(sale.total)}</p>
-                        <p className="text-sm text-gray-500">
+                        <p className="font-bold text-xs">
+                          {money.format(sale.total)}
+                        </p>
+                        <p className="text-[10px] text-gray-500">
                           Remaining {money.format(sale.remaining)}
                         </p>
                       </div>
@@ -314,25 +329,25 @@ export function Customers({ notify }: { notify: (s: string) => void }) {
                   {ledger.data?.payments.map((payment) => (
                     <div
                       key={payment.id}
-                      className="flex justify-between items-start p-3 bg-green-50 rounded-lg"
+                      className="flex justify-between items-start p-2 bg-green-50 rounded"
                     >
                       <div>
-                        <p className="font-semibold">
+                        <p className="font-semibold text-xs">
                           Payment · {payment.methodName}
                         </p>
-                        <p className="text-sm text-gray-500">
+                        <p className="text-[10px] text-gray-500">
                           {new Date(payment.paidAt).toLocaleString()}
                           {payment.note ? ` · ${payment.note}` : ""}
                         </p>
                       </div>
-                      <p className="font-bold text-red-600">
+                      <p className="font-bold text-xs text-red-600">
                         −{money.format(payment.amount)}
                       </p>
                     </div>
                   ))}
                 </div>
                 <button
-                  className="btn btn-error btn-outline w-full mt-4"
+                  className="btn btn-error btn-outline btn-sm w-full mt-3"
                   type="button"
                   disabled={remove.isPending}
                   onClick={() => {
@@ -353,37 +368,37 @@ export function Customers({ notify }: { notify: (s: string) => void }) {
         </div>
       )}
 
-      {/* Collect Debt Modal */}
+      {/* Compact Collect Debt Modal */}
       {modal === "collect" && (
         <div className="modal modal-open">
-          <form
-            className="modal-box"
-            onSubmit={(event) => {
-              event.preventDefault();
-              collect.mutate();
-            }}
-          >
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold">Collect debt</h2>
-              <button
-                className="btn btn-sm btn-circle btn-ghost"
-                type="button"
-                onClick={() => setModal(null)}
-              >
-                ✕
-              </button>
-            </div>
+          <div className="modal-box">
+            <h3 className="font-bold text-lg mb-4">Collect debt</h3>
+            <button
+              className="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
+              type="button"
+              onClick={() => setModal(null)}
+            >
+              ✕
+            </button>
 
-            <div className="space-y-4">
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                collect.mutate();
+              }}
+              className="space-y-3"
+            >
               <div className="form-control">
-                <label className="label">
-                  <span className="label-text font-medium">Customer</span>
+                <label className="label py-1">
+                  <span className="label-text text-xs font-medium">
+                    Customer
+                  </span>
                 </label>
                 <select
                   required
                   value={customerId}
                   onChange={(event) => setCustomerId(event.target.value)}
-                  className="select select-bordered w-full"
+                  className="select select-bordered select-sm w-full"
                 >
                   <option value="">Choose customer</option>
                   {debtors.data?.map((debtor) => (
@@ -395,8 +410,8 @@ export function Customers({ notify }: { notify: (s: string) => void }) {
               </div>
 
               <div className="form-control">
-                <label className="label">
-                  <span className="label-text font-medium">Amount</span>
+                <label className="label py-1">
+                  <span className="label-text text-xs font-medium">Amount</span>
                 </label>
                 <input
                   required
@@ -404,18 +419,18 @@ export function Customers({ notify }: { notify: (s: string) => void }) {
                   inputMode="decimal"
                   value={amount}
                   onChange={(event) => setAmount(event.target.value)}
-                  className="input input-bordered"
+                  className="input input-bordered input-sm"
                 />
               </div>
 
               <div className="form-control">
-                <label className="label">
-                  <span className="label-text font-medium">Method</span>
+                <label className="label py-1">
+                  <span className="label-text text-xs font-medium">Method</span>
                 </label>
                 <select
                   value={method}
                   onChange={(event) => setMethod(event.target.value)}
-                  className="select select-bordered w-full"
+                  className="select select-bordered select-sm w-full"
                 >
                   <option value="cash">Cash</option>
                   <option value="card">Card</option>
@@ -424,25 +439,34 @@ export function Customers({ notify }: { notify: (s: string) => void }) {
               </div>
 
               <div className="form-control">
-                <label className="label">
-                  <span className="label-text font-medium">Note</span>
+                <label className="label py-1">
+                  <span className="label-text text-xs font-medium">Note</span>
                 </label>
                 <input
                   value={note}
                   onChange={(event) => setNote(event.target.value)}
-                  className="input input-bordered"
+                  className="input input-bordered input-sm"
                 />
               </div>
 
-              <button
-                className="btn btn-primary w-full"
-                disabled={collect.isPending || !customerId}
-              >
-                {collect.isPending ? "Saving…" : "Record payment"}
-              </button>
-            </div>
-          </form>
-          <div className="modal-backdrop" onClick={() => setModal(null)}></div>
+              <div className="modal-action">
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setModal(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary btn-sm"
+                  disabled={collect.isPending || !customerId}
+                >
+                  {collect.isPending ? "Saving…" : "Record payment"}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </section>
