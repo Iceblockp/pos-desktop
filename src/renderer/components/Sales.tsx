@@ -1,62 +1,17 @@
-import { useMemo, useState } from "react";
+import { useCapabilities } from '../useCapabilities';
+import { PeriodFilter, usePeriod } from "./PeriodFilter";
+import { useMemo, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Receipt, SaleSummary } from "../../shared/models";
 
 const money = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
 
-function dateRange(period: "today" | "week" | "month" | "all" | "custom"): {
-  from: string;
-  to: string;
-} | null {
-  if (period === "all" || period === "custom") return null;
-
-  // Create separate date objects to avoid mutation issues
-  const now = new Date();
-  const from = new Date(now);
-  from.setHours(0, 0, 0, 0);
-
-  if (period === "week") from.setDate(from.getDate() - 6);
-  if (period === "month") from.setDate(1);
-
-  // Create end of day for 'to' to include all transactions today
-  const to = new Date(now);
-  to.setHours(23, 59, 59, 999);
-
-  return { from: from.toISOString(), to: to.toISOString() };
-}
-
-function formatDateRange(
-  period: string,
-  customFrom?: string,
-  customTo?: string,
-): string {
-  if (period === "all") return "All time";
-  if (period === "today") return "Today";
-  if (period === "week") return "Last 7 days";
-  if (period === "month") return "This month";
-  if (period === "custom" && customFrom && customTo) {
-    const from = new Date(customFrom).toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric",
-    });
-    const to = new Date(customTo).toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-    return `${from} - ${to}`;
-  }
-  return "Select range";
-}
-
 export function Sales({ notify }: { notify: (s: string) => void }) {
+  const capabilities=useCapabilities();
   const [search, setSearch] = useState("");
-  const [period, setPeriod] = useState<
-    "today" | "week" | "month" | "all" | "custom"
-  >("today"); // Changed default from "all" to "today"
-  const [customFrom, setCustomFrom] = useState("");
-  const [customTo, setCustomTo] = useState("");
-  const [showFilterModal, setShowFilterModal] = useState(false);
+  const {range,label:periodLabel}=usePeriod(true);
+  const methods=useQuery({queryKey:['payment-methods'],queryFn:()=>window.storePos.pos.paymentMethods()});
+  const [refundAmount,setRefundAmount]=useState('');
   const [voucherId, setVoucherId] = useState<string | null>(null);
   const [showReturn, setShowReturn] = useState(false);
   const [returnQuantities, setReturnQuantities] = useState<
@@ -64,42 +19,16 @@ export function Sales({ notify }: { notify: (s: string) => void }) {
   >({});
   const [refundMethod, setRefundMethod] = useState("cash");
   const [returnNote, setReturnNote] = useState("");
+  useEffect(() => {
+    const active = methods.data?.filter(m => m.isActive && m.code !== 'debt');
+    if (refundMethod !== 'debt' && active?.length && !active.some(m => m.code === refundMethod)) setRefundMethod(active[0].code);
+  }, [methods.data, refundMethod]);
+
   const client = useQueryClient();
 
-  const range = useMemo(() => {
-    if (period === "custom" && customFrom && customTo) {
-      const result = {
-        from: new Date(customFrom).toISOString(),
-        to: new Date(customTo + "T23:59:59").toISOString(),
-      };
-      console.log("[Sales] Custom range:", result);
-      return result;
-    }
-    const result = dateRange(period);
-    console.log("[Sales] Period:", period, "Range:", result);
-    return result;
-  }, [period, customFrom, customTo]);
   const sales = useQuery({
     queryKey: ["sales", search, range?.from, range?.to],
-    queryFn: async () => {
-      console.log("[Sales Query] Calling backend with:", {
-        search,
-        from: range?.from,
-        to: range?.to,
-      });
-      const result = await window.storePos.pos.sales(
-        search,
-        range?.from,
-        range?.to,
-      );
-      console.log("[Sales Query] Backend returned:", result?.length, "sales");
-      result?.forEach((sale: any, idx: number) => {
-        console.log(`  [${idx}] ${sale.voucherId} - ${sale.soldAt}`);
-      });
-      return result;
-    },
-    staleTime: 0, // Always fetch fresh data
-    gcTime: 0, // Don't cache
+    queryFn: () => window.storePos.pos.sales(search,range?.from,range?.to),
   });
   const receipt = useQuery({
     queryKey: ["receipt", voucherId],
@@ -123,11 +52,14 @@ export function Sales({ notify }: { notify: (s: string) => void }) {
           .filter((line) => line.quantity > 0),
         refundMethod,
         returnNote || undefined,
+        refundAmount ? Number(refundAmount) : undefined,
       ),
     onSuccess: (result) => {
       setShowReturn(false);
       setReturnQuantities({});
       setReturnNote("");
+      setRefundAmount("");
+      void client.invalidateQueries();
       setVoucherId(result.voucherId);
       void client.invalidateQueries({ queryKey: ["sales"] });
       void client.invalidateQueries({ queryKey: ["products"] });
@@ -156,29 +88,10 @@ export function Sales({ notify }: { notify: (s: string) => void }) {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Sales history</h1>
           <p className="text-xs text-gray-500">
-            {formatDateRange(period, customFrom, customTo)}
+            {periodLabel}
           </p>
         </div>
-        <button
-          className="btn btn-outline btn-sm gap-2"
-          onClick={() => setShowFilterModal(true)}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
-            />
-          </svg>
-          Filter
-        </button>
+        <PeriodFilter allowAll/>
       </header>
 
       {/* Compact Main Grid */}
@@ -274,7 +187,7 @@ export function Sales({ notify }: { notify: (s: string) => void }) {
                       </div>
                       <p className="font-bold text-sm">
                         {money.format(
-                          line.quantity * line.unitPrice - line.discount,
+                          line.subtotal ?? (line.quantity * line.unitPrice - line.discount),
                         )}
                       </p>
                     </div>
@@ -312,6 +225,8 @@ export function Sales({ notify }: { notify: (s: string) => void }) {
                   ) : null}
                 </div>
 
+                {receipt.data.payments?.map((p,i)=><p className="text-sm" key={i}>{p.methodName??p.methodCode}: {money.format(p.amount)}</p>)}
+                {!!receipt.data.outstanding && <p className="text-sm">Balance: {money.format(receipt.data.outstanding)}</p>}
                 {/* Compact Return Items Section - Only show when button clicked */}
                 {showReturn && returnable.data?.length ? (
                   <div className="mt-3 p-3 bg-orange-50 rounded-lg border border-orange-200">
@@ -368,13 +283,12 @@ export function Sales({ notify }: { notify: (s: string) => void }) {
                           onChange={(e) => setRefundMethod(e.target.value)}
                           className="select select-bordered select-sm w-full"
                         >
-                          <option value="cash">Cash</option>
-                          <option value="card">Card</option>
-                          <option value="transfer">Transfer</option>
-                          <option value="debt">Customer credit</option>
+                          {methods.data?.filter(m=>m.isActive&&m.code!=='debt').map(m=><option key={m.id} value={m.code}>{m.name}</option>)}
+                          {capabilities.debt && receipt.data?.customerId && <option value="debt">Customer credit</option>}
                         </select>
                       </div>
 
+                      {refundMethod !== 'debt' && capabilities.debt && receipt.data?.customerId && <label className="form-control text-xs">Refund amount (blank = full refund)<input type="number" min="0" step="0.001" className="input input-bordered input-sm" value={refundAmount} onChange={e=>setRefundAmount(e.target.value)}/></label>}
                       <div className="form-control">
                         <label className="label py-1">
                           <span className="label-text text-xs font-medium">
@@ -413,115 +327,6 @@ export function Sales({ notify }: { notify: (s: string) => void }) {
         </div>
       </div>
 
-      {/* Filter Modal */}
-      {showFilterModal && (
-        <div className="modal modal-open">
-          <div className="modal-box max-w-sm">
-            <div className="flex justify-between items-center mb-3">
-              <h2 className="text-lg font-bold">Filter by date</h2>
-              <button
-                type="button"
-                className="btn btn-xs btn-circle btn-ghost"
-                onClick={() => setShowFilterModal(false)}
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              {/* Quick filter options */}
-              <button
-                className={`btn btn-sm w-full justify-start ${period === "all" ? "btn-primary" : "btn-ghost"}`}
-                onClick={() => {
-                  setPeriod("all");
-                  setShowFilterModal(false);
-                }}
-              >
-                All time
-              </button>
-              <button
-                className={`btn btn-sm w-full justify-start ${period === "today" ? "btn-primary" : "btn-ghost"}`}
-                onClick={() => {
-                  console.log("[Filter] Setting period to: today");
-                  setPeriod("today");
-                  setShowFilterModal(false);
-                }}
-              >
-                Today
-              </button>
-              <button
-                className={`btn btn-sm w-full justify-start ${period === "week" ? "btn-primary" : "btn-ghost"}`}
-                onClick={() => {
-                  setPeriod("week");
-                  setShowFilterModal(false);
-                }}
-              >
-                Last 7 days
-              </button>
-              <button
-                className={`btn btn-sm w-full justify-start ${period === "month" ? "btn-primary" : "btn-ghost"}`}
-                onClick={() => {
-                  setPeriod("month");
-                  setShowFilterModal(false);
-                }}
-              >
-                This month
-              </button>
-
-              <div className="divider my-2 text-xs">Custom range</div>
-
-              {/* Custom date inputs */}
-              <div className="form-control">
-                <label className="label py-1">
-                  <span className="label-text text-xs font-medium">
-                    From date
-                  </span>
-                </label>
-                <input
-                  type="date"
-                  value={customFrom}
-                  onChange={(e) => setCustomFrom(e.target.value)}
-                  max={customTo || undefined}
-                  className="input input-bordered input-sm"
-                />
-              </div>
-
-              <div className="form-control">
-                <label className="label py-1">
-                  <span className="label-text text-xs font-medium">
-                    To date
-                  </span>
-                </label>
-                <input
-                  type="date"
-                  value={customTo}
-                  onChange={(e) => setCustomTo(e.target.value)}
-                  min={customFrom || undefined}
-                  max={new Date().toISOString().split("T")[0]}
-                  className="input input-bordered input-sm"
-                />
-              </div>
-
-              <button
-                className="btn btn-primary btn-sm w-full mt-3"
-                disabled={!customFrom || !customTo}
-                onClick={() => {
-                  if (customFrom && customTo) {
-                    setPeriod("custom");
-                    setShowFilterModal(false);
-                  }
-                }}
-              >
-                Apply custom range
-              </button>
-            </div>
-          </div>
-          <div
-            className="modal-backdrop"
-            onClick={() => setShowFilterModal(false)}
-          ></div>
-        </div>
-      )}
     </section>
   );
 }

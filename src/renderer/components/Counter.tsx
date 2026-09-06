@@ -1,3 +1,6 @@
+import { useCapabilities } from '../useCapabilities';
+import { stepFor } from '../../shared/units';
+import { resolveUnitPrice } from "../../shared/pricing";
 import {
   FormEvent,
   KeyboardEvent,
@@ -7,28 +10,43 @@ import {
   useState,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { CartLine, Product, Receipt } from "../../shared/models";
+import type { CartDraft, CartLine, Product, Receipt } from "../../shared/models";
 
 const money = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
 
 export function Counter({
+  draft,
+  updateDraft,
   cart,
   setCart,
   afterSale,
   notify,
 }: {
+  draft: CartDraft;
+  updateDraft: (patch:Partial<CartDraft>)=>void;
   cart: CartLine[];
   setCart: React.Dispatch<React.SetStateAction<CartLine[]>>;
   afterSale: () => void;
   notify: (s: string) => void;
 }) {
+  const capabilities = useCapabilities();
+  const client = useQueryClient();
+  const [split,setSplit] = useState(false);
+  const [parts,setParts] = useState<Record<string,string>>({});
+  const note = draft.note;
+  const setNote = (value:string) => updateDraft({note:value});
+  const soldAt = draft.soldAt;
+  const setSoldAt = (value:string) => updateDraft({soldAt:value});
   const [search, setSearch] = useState("");
   const [method, setMethod] = useState("cash");
-  const [customerId, setCustomerId] = useState("");
+  const customerId = draft.customerId;
+  const setCustomerId = (value:string) => updateDraft({customerId:value});
   const [tendered, setTendered] = useState("");
   const [receipt, setReceipt] = useState<Receipt | null>(null);
-  const [priceLevelId, setPriceLevelId] = useState("");
-  const [orderDiscount, setOrderDiscount] = useState(0);
+  const priceLevelId = draft.priceLevelId;
+  const setPriceLevelId = (value:string) => updateDraft({priceLevelId:value});
+  const orderDiscount = draft.orderDiscount;
+  const setOrderDiscount = (value:number) => updateDraft({orderDiscount:value});
   const [discountModal, setDiscountModal] = useState<"line" | "order" | null>(
     null,
   );
@@ -39,6 +57,7 @@ export function Counter({
     queryKey: ["products", search],
     queryFn: () => window.storePos.pos.products(search),
   });
+  const cartProducts=useQuery({queryKey:['cart-products',cart.map(l=>l.productId).sort().join(',')],queryFn:()=>window.storePos.pos.cartProducts(cart.map(l=>l.productId)),enabled:cart.length>0});
   const customers = useQuery({
     queryKey: ["customers"],
     queryFn: () => window.storePos.pos.customers(),
@@ -73,7 +92,9 @@ export function Counter({
     [cart],
   );
   const discountableTotal = Math.max(0, gross - lineDiscounts);
-  const total = Math.max(0, discountableTotal - orderDiscount);
+  const total = Math.round(Math.max(0, discountableTotal - orderDiscount)*1000)/1000;
+  const paid = split ? activeMethods.reduce((sum,m) => sum+Number(parts[m.code] || 0),0) : method === 'debt' ? 0 : total;
+  const outstanding = Math.round((total-paid)*1000)/1000;
 
   useEffect(() => {
     if (
@@ -90,13 +111,15 @@ export function Counter({
   }, [defaultPriceLevelId, priceLevelId]);
 
   useEffect(() => {
-    setOrderDiscount((current) => Math.min(current, discountableTotal));
+    if(orderDiscount > discountableTotal)setOrderDiscount(discountableTotal);
   }, [discountableTotal]);
 
   const checkout = useMutation({
     mutationFn: () =>
       window.storePos.pos.checkout({
         lines: cart,
+        note, soldAt: soldAt ? new Date(soldAt).toISOString() : null,
+        payments: split ? activeMethods.map(m => ({methodCode:m.code,amount:Number(parts[m.code] || 0),methodName:m.name,tendered:m.code==='cash' && tendered ? Number(tendered) : null})).filter(p => p.amount > 0) : undefined,
         customerId: customerId || null,
         paymentMethod: method,
         priceLevelId: priceLevelId || null,
@@ -108,68 +131,51 @@ export function Counter({
       setTendered("");
       setCustomerId("");
       setOrderDiscount(0);
+      setParts({}); setNote(""); setSoldAt(""); setSplit(false);
+      void client.invalidateQueries();
       afterSale();
       notify(`Sale saved: ${result.voucherId}`);
     },
     onError: (error: Error) => notify(error.message),
   });
 
-  const addProduct = (product: Product) => {
-    const existing = cart.find((item) => item.productId === product.id);
-    if (existing) {
-      setCart(
-        cart.map((item) =>
-          item.productId === product.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item,
-        ),
-      );
-    } else {
-      const tier =
-        priceLevelId &&
-        product.tiers?.find(
-          (t) => t.priceLevelId === priceLevelId && t.minQuantity <= 1,
-        );
-      setCart([
-        ...cart,
-        {
-          productId: product.id,
-          name: product.name,
-          unit: product.unit,
-          quantity: 1,
-          unitPrice: tier?.bulkPrice ?? product.price,
-          unitCost: product.cost,
-          discount: 0,
-        },
-      ]);
-    }
-    setSearch("");
+  const catalog = useRef(new Map<string,Product>());
+  for (const product of [...(products.data ?? []),...(cartProducts.data ?? [])]) catalog.current.set(product.id,product);
+  const price = (product:Product,quantity:number) => resolveUnitPrice(product.price,quantity,product.tiers,priceLevelId || 'level-retail').unitPrice;
+  const addProduct = (product:Product) => {
+    catalog.current.set(product.id,product);
+    setCart(current => {
+      const existing=current.find(l => l.productId===product.id);
+      const quantity=(existing?.quantity ?? 0)+stepFor(product.unit);
+      return existing ? current.map(l => l.productId===product.id ? {...l,quantity,unitPrice:price(product,quantity)} : l)
+        : [...current,{productId:product.id,name:product.name,unit:product.unit,quantity,unitPrice:price(product,quantity),unitCost:product.cost,discount:0}];
+    }); setSearch('');
   };
-
-  const updateQuantity = (productId: string, quantity: number) => {
-    if (quantity <= 0) {
-      setCart(cart.filter((item) => item.productId !== productId));
-    } else {
-      setCart(
-        cart.map((item) => {
-          if (item.productId !== productId) return item;
-          const product = products.data?.find((p) => p.id === productId);
-          const tier =
-            priceLevelId &&
-            product?.tiers?.find(
-              (t) =>
-                t.priceLevelId === priceLevelId && t.minQuantity <= quantity,
-            );
-          return {
-            ...item,
-            quantity,
-            unitPrice: tier?.bulkPrice ?? (product?.price || item.unitPrice),
-          };
-        }),
-      );
-    }
+  const updateQuantity = (productId:string,quantity:number) => {
+    if (!Number.isFinite(quantity)) return;
+    setCart(current => quantity <= 0 ? current.filter(l => l.productId!==productId) : current.map(l => {
+      if(l.productId!==productId)return l;
+      const product=catalog.current.get(productId);
+      return {...l,quantity,unitPrice:product?price(product,quantity):l.unitPrice};
+    }));
   };
+  useEffect(() => {
+    setCart(current => {
+      let changed=false;
+      const next=current.map(line => {
+        const p=catalog.current.get(line.productId);if(!p)return line;
+        const unitPrice=price(p,line.quantity);
+        if(unitPrice===line.unitPrice && p.cost===line.unitCost)return line;
+        changed=true;return {...line,name:p.name,unit:p.unit,unitPrice,unitCost:p.cost};
+      });return changed?next:current;
+    });
+  },[priceLevelId,products.data,cartProducts.data]);
 
+  useEffect(() => {
+    if (!cartProducts.data || cartProducts.isFetching) return;
+    const active = new Set(cartProducts.data.map(p=>p.id));
+    if(cart.some(line=>!active.has(line.productId)))setCart(current=>current.filter(line=>active.has(line.productId)));
+  }, [cartProducts.data, cartProducts.isFetching]);
   const removeLineDiscount = (productId: string) => {
     setCart(
       cart.map((item) =>
@@ -207,7 +213,7 @@ export function Counter({
         event.key.length === 1 &&
         !event.ctrlKey &&
         !event.metaKey &&
-        document.activeElement?.tagName !== "INPUT"
+        !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName ?? '') && !(document.activeElement as HTMLElement)?.isContentEditable
       ) {
         if (!firstAt.current) firstAt.current = Date.now();
         buffer.current += event.key;
@@ -217,8 +223,7 @@ export function Counter({
           buffer.current = "";
           firstAt.current = 0;
           if (code.length >= 4) {
-            const product = products.data?.find((p) => p.barcode === code);
-            if (product) addProduct(product);
+            try { const product = await window.storePos.pos.findByBarcode(code); if (product) addProduct(product); else notify('Barcode not found'); } catch(e) { notify((e as Error).message); }
           }
         }, 150);
       }
@@ -244,11 +249,7 @@ export function Counter({
             <h1 className="text-2xl font-bold text-gray-900">Counter</h1>
             <p className="text-xs text-gray-500">Scan or search products</p>
           </div>
-          {priceLevelId && (
-            <div className="badge badge-success badge-sm">
-              {selectedLevelName}
-            </div>
-          )}
+          {capabilities.effectivePlan !== 'free' ? <label className="form-control text-xs">Price level<select aria-label="Price level" className="select select-bordered select-sm" value={priceLevelId} onChange={e=>setPriceLevelId(e.target.value)}>{levels.data?.map(level=><option key={level.id} value={level.id}>{level.name}</option>)}</select></label> : <div className="badge badge-success badge-sm">{selectedLevelName}</div>}
         </div>
       </header>
 
@@ -283,9 +284,9 @@ export function Counter({
                   <p className="text-green-600 font-bold text-sm">
                     {money.format(product.price)}
                   </p>
-                  {product.stock !== undefined && (
+                  {product.quantity !== undefined && (
                     <p className="text-[10px] text-gray-400">
-                      Stk: {product.stock}
+                      Stk: {product.quantity}
                     </p>
                   )}
                 </div>
@@ -337,7 +338,7 @@ export function Counter({
                       <button
                         className="btn btn-xs btn-square h-6 w-6 min-h-0"
                         onClick={() =>
-                          updateQuantity(line.productId, line.quantity - 1)
+                          updateQuantity(line.productId, line.quantity - stepFor(line.unit))
                         }
                       >
                         -
@@ -353,7 +354,7 @@ export function Counter({
                       <button
                         className="btn btn-xs btn-square h-6 w-6 min-h-0"
                         onClick={() =>
-                          updateQuantity(line.productId, line.quantity + 1)
+                          updateQuantity(line.productId, line.quantity + stepFor(line.unit))
                         }
                       >
                         +
@@ -437,12 +438,17 @@ export function Counter({
                         {m.name}
                       </option>
                     ))}
-                    <option value="debt">On Account</option>
+                    {capabilities.debt && <option value="debt">On Account</option>}
                   </select>
                 </div>
 
+                <label className="flex gap-2 mt-2 text-sm"><input type="checkbox" checked={split} onChange={e=>setSplit(e.target.checked)}/>Split payment</label>
+                {split && activeMethods.map(m=><label key={m.code} className="flex justify-between gap-2 mt-2 text-sm">{m.name}<input aria-label={m.name+' amount'} className="input input-bordered input-sm w-32" type="number" min="0" step="0.001" value={parts[m.code]??''} onChange={e=>setParts({...parts,[m.code]:e.target.value})}/></label>)}
+                {outstanding > 0 && <p className="text-sm mt-2">Customer owes: {money.format(outstanding)}</p>}
+                <label className="form-control mt-2 text-xs">Sale date (optional)<input type="datetime-local" className="input input-bordered input-sm" value={soldAt} onChange={e=>setSoldAt(e.target.value)}/></label>
+                <label className="form-control mt-2 text-xs">Note<input className="input input-bordered input-sm" value={note} onChange={e=>setNote(e.target.value)}/></label>
                 {/* Cash Tendered - Compact */}
-                {method === "cash" && (
+                {((!split && method === "cash") || (split && Number(parts.cash)>0)) && (
                   <div className="form-control mt-2">
                     <label className="label py-1">
                       <span className="label-text text-xs font-medium">
@@ -457,10 +463,10 @@ export function Counter({
                       placeholder="Optional"
                       className="input input-bordered input-sm"
                     />
-                    {tendered && Number(tendered) >= total && (
+                    {tendered && Number(tendered) >= (split ? Number(parts.cash) : total) && (
                       <label className="label py-0">
                         <span className="label-text-alt text-success">
-                          Change: {money.format(Number(tendered) - total)}
+                          Change: {money.format(Number(tendered) - (split ? Number(parts.cash) : total))}
                         </span>
                       </label>
                     )}
@@ -468,7 +474,7 @@ export function Counter({
                 )}
 
                 {/* Customer Selection - Compact */}
-                {method === "debt" && (
+                {(
                   <div className="form-control mt-2">
                     <label className="label py-1">
                       <span className="label-text text-xs font-medium">
@@ -496,7 +502,7 @@ export function Counter({
                   className="btn btn-primary btn-block mt-3"
                   onClick={() => checkout.mutate()}
                   disabled={
-                    checkout.isPending || (method === "debt" && !customerId)
+                    checkout.isPending || cartProducts.isFetching || outstanding < 0 || (outstanding > 0 && (!customerId || !capabilities.debt)) || (!!tendered && ((!split && method === 'cash' && Number(tendered) < total) || (split && Number(tendered) < Number(parts.cash || 0))))
                   }
                 >
                   {checkout.isPending ? "Processing..." : "Checkout"}
@@ -506,7 +512,7 @@ export function Counter({
                 <div className="flex gap-2 mt-2">
                   <button
                     className="btn btn-xs btn-ghost flex-1"
-                    onClick={() => setCart([])}
+                    onClick={() => { setCart([]); setCustomerId(''); setOrderDiscount(0); setNote(''); setSoldAt(''); setParts({}); setSplit(false); setTendered(''); }}
                   >
                     Clear
                   </button>
@@ -544,7 +550,9 @@ export function Counter({
               <p>
                 <strong>Payment:</strong> {receipt.paymentMethod}
               </p>
-              {receipt.change !== undefined && receipt.change > 0 && (
+              {receipt.payments?.map((p,i)=><p key={i}>{p.methodName ?? p.methodCode}: {money.format(p.amount)}</p>)}
+              {!!receipt.outstanding && <p>Balance: {money.format(receipt.outstanding)}</p>}
+              {receipt.change != null && receipt.change > 0 && (
                 <p>
                   <strong>Change:</strong> {money.format(receipt.change)}
                 </p>
@@ -557,8 +565,7 @@ export function Counter({
               <button
                 className="btn btn-primary"
                 onClick={() => {
-                  window.storePos.printer.printReceipt(receipt.id);
-                  setReceipt(null);
+                  void window.storePos.printer.printReceipt(receipt).then(()=>setReceipt(null)).catch(e=>notify(e.message));
                 }}
               >
                 Print Receipt

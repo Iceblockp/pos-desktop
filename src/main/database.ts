@@ -1,4 +1,7 @@
+import { reconcileIdentities } from './identities';
 import { randomUUID } from "node:crypto";
+import { resolveUnitPrice } from "../shared/pricing";
+import type { CartDraft, Capabilities, SalePayment, Expense } from "../shared/models";
 import { DatabaseSync } from "node:sqlite";
 import type {
   CartLine,
@@ -201,6 +204,7 @@ export class PosDatabase {
     this.sqlite = new DatabaseSync(filename);
     this.sqlite.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = OFF;");
     this.migrate();
+    this.transaction(() => reconcileIdentities(this.sqlite));
     this.lastMovementAt =
       (
         this.sqlite
@@ -237,45 +241,13 @@ export class PosDatabase {
         `CREATE INDEX IF NOT EXISTS idx_${table.name}_dirty ON ${table.name}(dirty) WHERE dirty = 1`,
       );
     }
+    // Repair only unsynced legacy enum values; no stock quantities are rewritten.
+    this.sqlite.exec("UPDATE stock_movements SET type = CASE type WHEN 'sale' THEN 'sale_out' WHEN 'return' THEN 'return_in' WHEN 'opening' THEN 'stock_in' END WHERE dirty = 1 AND type IN ('sale', 'return', 'opening')");
     this.setState("voucher.sequence", this.getState("voucher.sequence") ?? "0");
-    const paymentMethodCount = Number(
-      (
-        this.sqlite
-          .prepare(
-            "SELECT COUNT(*) AS count FROM payment_methods WHERE deletedAt IS NULL",
-          )
-          .get() as any
-      ).count,
-    );
-    if (paymentMethodCount === 0) {
-      [
-        ["Cash", "cash"],
-        ["Card", "card"],
-        ["Transfer", "transfer"],
-      ].forEach(([name, code], sortOrder) =>
-        this.writeLocal("payment_methods", {
-          id: randomUUID(),
-          name,
-          code,
-          icon: null,
-          color: null,
-          sortOrder,
-          isActive: 1,
-        }),
-      );
-    }
-    const defaultPriceLevel = this.sqlite
-      .prepare(
-        "SELECT id FROM price_levels WHERE deletedAt IS NULL AND isDefault = 1 LIMIT 1",
-      )
-      .get() as { id?: string } | undefined;
-    if (!defaultPriceLevel) {
-      this.writeLocal("price_levels", {
-        id: "level-retail",
-        name: "Retail",
-        isDefault: 1,
-        sortOrder: 0,
-      });
+    if (!this.getState('schema.parity-seeds')) {
+      for (const [id,name,isDefault,sortOrder] of [['level-retail','Retail',1,0],['level-wholesale','Wholesale',0,1]])
+        this.sqlite.prepare('INSERT OR IGNORE INTO price_levels (id,updatedAt,name,isDefault,sortOrder) VALUES (?,?,?,?,?)').run(id,now(),name,isDefault,sortOrder);
+      this.setState('schema.parity-seeds','1');
     }
   }
 
@@ -297,14 +269,17 @@ export class PosDatabase {
       .run(key, value);
   }
 
+  cartProducts(ids:string[]):Product[] {
+    return [...new Set(ids)].map(id=>this.findProduct(id)).filter((p):p is Product=>!!p).map(p=>({...p,tiers:this.pricingTiers(p.id)}));
+  }
   listProducts(search = ""): Product[] {
     const pattern = `%${search.trim()}%`;
     return this.sqlite
       .prepare(
-        `SELECT id, name, barcode, categoryId, supplierId, price, cost, quantity, minStock, unit, isActive FROM products WHERE deletedAt IS NULL AND isActive = 1 AND (name LIKE ? OR barcode LIKE ?) ORDER BY name LIMIT 300`,
+        `SELECT id, name, barcode, categoryId, supplierId, price, cost, quantity, minStock, unit, isActive FROM products WHERE deletedAt IS NULL AND isActive = 1 AND (name LIKE ? OR barcode LIKE ?) ORDER BY name`,
       )
       .all(pattern, pattern)
-      .map(toProduct);
+      .map((row) => ({ ...toProduct(row), tiers: this.pricingTiers(String(row.id)) }));
   }
 
   findBarcode(code: string): Product | null {
@@ -313,7 +288,7 @@ export class PosDatabase {
         "SELECT id, name, barcode, categoryId, supplierId, price, cost, quantity, minStock, unit, isActive FROM products WHERE barcode = ? AND deletedAt IS NULL AND isActive = 1",
       )
       .get(code);
-    return row ? toProduct(row) : null;
+    return row ? { ...toProduct(row), tiers: this.pricingTiers(String(row.id)) } : null;
   }
 
   saveProduct(
@@ -340,6 +315,10 @@ export class PosDatabase {
     };
     if (!row.name || !Number.isFinite(row.price) || row.price < 0)
       throw new Error("Product name and a non-negative price are required");
+    if (input.id && !old) throw new Error('Product not found');
+    if (row.barcode && this.sqlite.prepare('SELECT id FROM products WHERE barcode = ? AND id != ? AND deletedAt IS NULL').get(row.barcode,id)) throw new Error('That barcode already belongs to a product');
+    if (![row.cost,row.minStock,Number(input.quantity ?? 0)].every(Number.isFinite) || row.cost < 0 || row.minStock < 0) throw new Error('Enter valid cost, minimum stock and quantity');
+    return this.transaction(() => {
     this.writeLocal("products", row);
     // Quantity is derived from the stock ledger, never replicated as an
     // absolute value. An opening amount is therefore an explicit movement.
@@ -348,7 +327,7 @@ export class PosDatabase {
       this.writeLocal("stock_movements", {
         id: randomUUID(),
         productId: id,
-        type: "opening",
+        type: "stock_in",
         quantityDelta: openingQuantity,
         unitCost: row.cost,
         referenceId: null,
@@ -360,6 +339,7 @@ export class PosDatabase {
       this.recomputeStock(id);
     }
     return this.findProduct(id)!;
+    });
   }
 
   removeProduct(id: string): void {
@@ -705,33 +685,14 @@ export class PosDatabase {
       .run(now(), now(), id);
   }
 
-  priceFor(
-    productId: string,
-    priceLevelId: string | null,
-    quantity: number,
-  ): number {
+  private pricingTiers(productId: string): any[] {
+    return this.sqlite.prepare("SELECT b.* FROM bulk_pricing b LEFT JOIN price_levels l ON l.id = COALESCE(b.priceLevelId, 'level-retail') WHERE b.productId = ? AND b.deletedAt IS NULL AND (l.deletedAt IS NULL) ORDER BY b.minQuantity").all(productId);
+  }
+
+  priceFor(productId: string, priceLevelId: string | null, quantity: number): number {
     const product = this.findProduct(productId);
-    if (!product) throw new Error("Product not found");
-    if (!(quantity > 0)) return product.price;
-    const defaultLevel = this.sqlite
-      .prepare(
-        "SELECT id FROM price_levels WHERE deletedAt IS NULL AND isDefault = 1 LIMIT 1",
-      )
-      .get() as { id?: string } | undefined;
-    const selectedLevelId = priceLevelId || defaultLevel?.id;
-    if (!selectedLevelId) return product.price;
-    const tier = this.sqlite
-      .prepare(
-        "SELECT bulkPrice FROM bulk_pricing WHERE productId = ? AND minQuantity <= ? AND deletedAt IS NULL AND (priceLevelId = ? OR (priceLevelId IS NULL AND ? = ?)) ORDER BY minQuantity DESC LIMIT 1",
-      )
-      .get(
-        productId,
-        quantity,
-        selectedLevelId,
-        selectedLevelId,
-        defaultLevel?.id ?? "",
-      ) as any;
-    return tier ? Number(tier.bulkPrice) : product.price;
+    if (!product) throw new Error('Product not found');
+    return resolveUnitPrice(product.price, quantity, this.pricingTiers(productId), priceLevelId ?? 'level-retail').unitPrice;
   }
 
   savePaymentMethod(
@@ -746,13 +707,15 @@ export class PosDatabase {
     const name = input.name.trim();
     if (!name) throw new Error("Payment method name is required");
     const code =
-      input.code?.trim().toLowerCase() ||
       existing?.code ||
+      input.code?.trim().toLowerCase() ||
       name
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-|-$/g, "") ||
       `method-${id.slice(0, 8)}`;
+    if (code === 'debt') throw new Error('Credit is an unpaid balance, not a payment method');
+    if (this.sqlite.prepare('SELECT id FROM payment_methods WHERE code = ? AND id != ? AND deletedAt IS NULL').get(code, id)) throw new Error('That payment method already exists');
     this.writeLocal("payment_methods", {
       id,
       name,
@@ -837,6 +800,14 @@ export class PosDatabase {
     });
   }
 
+  setStockTo(productId: string, counted: number, reason?: string): Product {
+    if (!Number.isFinite(counted) || counted < 0) throw new Error('Counted stock cannot be negative');
+    const product = this.findProduct(productId);
+    if (!product) throw new Error('Product not found');
+    const delta = round(counted - product.quantity);
+    return delta === 0 ? product : this.adjustStock(productId, delta, 'adjustment', reason || 'Stock count');
+  }
+
   adjustStock(
     productId: string,
     quantityDelta: number,
@@ -862,7 +833,7 @@ export class PosDatabase {
     this.transaction(() => {
       const suppliedCost = Number(details?.unitCost);
       const unitCost =
-        type === "stock_in" && Number.isFinite(suppliedCost) && suppliedCost > 0
+        type === "stock_in" && details?.unitCost != null && Number.isFinite(suppliedCost) && suppliedCost >= 0
           ? suppliedCost
           : null;
       const supplierId =
@@ -907,7 +878,7 @@ export class PosDatabase {
   listCustomers(): Customer[] {
     return this.sqlite
       .prepare(
-        "SELECT id, name, phone, note FROM customers WHERE deletedAt IS NULL ORDER BY name LIMIT 300",
+        "SELECT id, name, phone, note FROM customers WHERE deletedAt IS NULL ORDER BY name",
       )
       .all()
       .map((row: any) => ({
@@ -974,14 +945,12 @@ export class PosDatabase {
     if (!draft.lines.length)
       throw new Error("Add at least one product to the sale");
     return this.transaction(() => {
-      const soldAt = now();
-      const sequence = Number(this.getState("voucher.sequence") ?? "0") + 1;
-      this.setState("voucher.sequence", String(sequence));
-      const deviceCode = this.getState("device.code") ?? "D";
-      const voucherId = `${deviceCode}-${String(sequence).padStart(6, "0")}`;
+      const soldAt = draft.soldAt ? new Date(draft.soldAt).toISOString() : now();
+      const voucherId = this.nextVoucher();
       const saleId = randomUUID();
-      const movementAt = this.nextMovementAt();
+      const movementAt = soldAt;
       const lines = draft.lines.map((line) => {
+        if (!Number.isFinite(line.quantity) || line.quantity <= 0 || !Number.isFinite(line.unitPrice) || line.unitPrice < 0 || !Number.isFinite(line.discount)) throw new Error("Enter valid quantities, prices and discounts");
         const gross = Math.max(
           0,
           Number(line.quantity) * Number(line.unitPrice),
@@ -994,21 +963,29 @@ export class PosDatabase {
           discount: Math.min(gross, Math.max(0, Number(line.discount) || 0)),
         };
       });
-      const subtotal = lines.reduce(
+      const subtotal = round(lines.reduce(
         (sum, line) => sum + line.quantity * line.unitPrice,
         0,
-      );
-      const lineDiscounts = lines.reduce((sum, line) => sum + line.discount, 0);
+      ));
+      const lineDiscounts = round(lines.reduce((sum, line) => sum + line.discount, 0));
       const orderDiscount = Math.min(
         Math.max(0, Number(draft.discount) || 0),
         Math.max(0, subtotal - lineDiscounts),
       );
       const discount = round(lineDiscounts + orderDiscount);
       const total = round(Math.max(0, subtotal - discount));
-      const amountTendered =
-        draft.amountTendered == null ? null : Number(draft.amountTendered);
-      if (draft.paymentMethod === "debt" && !draft.customerId)
-        throw new Error("Choose a customer before recording a debt sale");
+      const payments: SalePayment[] = draft.payments ?? (draft.paymentMethod === 'debt' || total === 0 ? [] : [{amount: total, methodCode: draft.paymentMethod, tendered: draft.amountTendered}]);
+      for (const payment of payments) {
+        if (!Number.isFinite(payment.amount) || payment.amount < 0) throw new Error('Payment amounts must be non-negative');
+        const method = this.paymentMethod(payment.methodCode);
+        payment.methodName = method.name;
+        if (payment.tendered != null && (!Number.isFinite(payment.tendered) || payment.tendered < payment.amount)) throw new Error('Cash received is less than the payment');
+      }
+      const paid = round(payments.reduce((sum,p) => sum+p.amount,0));
+      const outstanding = round(total-paid);
+      if (outstanding < 0) throw new Error('Payments exceed the sale total');
+      if (outstanding > 0 && !draft.customerId) throw new Error('Choose a customer for the unpaid balance');
+      if (draft.customerId && !this.sqlite.prepare('SELECT id FROM customers WHERE id = ? AND deletedAt IS NULL').get(draft.customerId)) throw new Error('Customer not found');
       const openSession = this.sqlite
         .prepare(
           "SELECT id FROM cash_sessions WHERE status = 'open' AND deletedAt IS NULL ORDER BY openedAt DESC LIMIT 1",
@@ -1044,12 +1021,12 @@ export class PosDatabase {
           unitPrice: line.unitPrice,
           unitCost: product.cost,
           discount: line.discount,
-          subtotal: itemSubtotal,
+          subtotal: round(itemSubtotal),
         });
         this.writeLocal("stock_movements", {
           id: randomUUID(),
           productId: product.id,
-          type: "sale",
+          type: "sale_out",
           quantityDelta: -line.quantity,
           unitCost: product.cost,
           referenceId: saleId,
@@ -1060,19 +1037,11 @@ export class PosDatabase {
         });
         this.recomputeStock(product.id);
       }
-      if (draft.paymentMethod !== "debt")
-        this.writeLocal("payments", {
-          id: randomUUID(),
-          saleId,
-          customerId: draft.customerId ?? null,
-          amount: total,
-          methodCode: draft.paymentMethod,
-          methodName: draft.paymentMethod,
-          tendered: amountTendered,
-          cashSessionId,
-          note: null,
-          paidAt: soldAt,
-        });
+      for (const payment of payments.filter(p => p.amount > 0)) this.writeLocal('payments', {
+        id: randomUUID(), saleId, customerId: draft.customerId ?? null, amount: round(payment.amount),
+        methodCode: payment.methodCode, methodName: payment.methodName, tendered: payment.tendered ?? null,
+        cashSessionId, note: null, paidAt: soldAt,
+      });
       if (discount > 0)
         this.writeLocal("activity_log", {
           id: randomUUID(),
@@ -1083,30 +1052,8 @@ export class PosDatabase {
           referenceId: saleId,
           occurredAt: soldAt,
         });
-      this.writeLocal("activity_log", {
-        id: randomUUID(),
-        actor: draft.staffName ?? "Desktop",
-        action: "sale.create",
-        detail: voucherId,
-        amount: total,
-        referenceId: saleId,
-        occurredAt: soldAt,
-      });
-      const shopName = this.getShopSetting("shop.name") ?? "Store POS";
-      return {
-        voucherId,
-        shopName,
-        shopPhone: this.getShopSetting("shop.phone"),
-        soldAt,
-        paymentMethod: draft.paymentMethod,
-        subtotal,
-        discount,
-        total,
-        amountTendered,
-        change:
-          amountTendered == null ? null : Math.max(0, amountTendered - total),
-        lines,
-      };
+      this.setState("cart.draft", null);
+      return this.receiptForSale(voucherId)!;
     });
   }
 
@@ -1121,19 +1068,17 @@ export class PosDatabase {
     if (from && to) {
       clauses.push("s.soldAt >= ?", "s.soldAt <= ?");
       params.push(from, to);
-      console.log("[listSales] Date filter:", { from, to });
-    } else {
-      console.log("[listSales] No date filter (all time)");
+
+
     }
 
     const query = `SELECT s.id, s.voucherId, s.type, s.total, s.soldAt, c.name AS customerName,
-      COALESCE((SELECT p.methodCode FROM payments p WHERE p.saleId = s.id AND p.deletedAt IS NULL ORDER BY p.paidAt LIMIT 1), 'debt') AS paymentMethod
+      COALESCE((SELECT GROUP_CONCAT(DISTINCT p.methodCode) FROM payments p WHERE p.saleId = s.id AND p.deletedAt IS NULL), 'debt') AS paymentMethod
       FROM sales s LEFT JOIN customers c ON c.id = s.customerId
       WHERE ${clauses.join(" AND ")}
-      ORDER BY s.soldAt DESC, s.id DESC LIMIT 200`;
+      ORDER BY s.soldAt DESC, s.id DESC`;
 
-    console.log("[listSales] Query:", query);
-    console.log("[listSales] Params:", params);
+
 
     const results = this.sqlite
       .prepare(query)
@@ -1148,29 +1093,23 @@ export class PosDatabase {
         paymentMethod: String(row.paymentMethod),
       }));
 
-    console.log("[listSales] Backend returning", results.length, "results");
-    results.forEach((sale, idx) => {
-      console.log(`  [${idx}] ${sale.voucherId} @ ${sale.soldAt}`);
-    });
-
     return results;
   }
 
   receiptForSale(voucherId: string): Receipt | null {
     const sale = this.sqlite
       .prepare(
-        `SELECT voucherId, subtotal, discount, total, soldAt FROM sales WHERE voucherId = ? AND deletedAt IS NULL`,
+        `SELECT id, customerId, voucherId, subtotal, discount, total, soldAt FROM sales WHERE voucherId = ? AND deletedAt IS NULL`,
       )
       .get(voucherId) as any;
     if (!sale) return null;
-    const payment = this.sqlite
-      .prepare(
-        `SELECT methodCode, tendered FROM payments WHERE saleId = (SELECT id FROM sales WHERE voucherId = ? AND deletedAt IS NULL) AND deletedAt IS NULL ORDER BY paidAt LIMIT 1`,
-      )
-      .get(voucherId) as any;
+    const payments = this.sqlite.prepare('SELECT amount, methodCode, methodName, tendered, paidAt FROM payments WHERE saleId = ? AND deletedAt IS NULL ORDER BY paidAt, id').all(sale.id) as unknown as SalePayment[];
+    const paid = round(payments.reduce((sum,p) => sum + Number(p.amount),0));
+    const cash = payments.filter(p => p.methodCode === 'cash');
+    const tendered = cash.filter(p => p.tendered != null);
     const lines = this.sqlite
       .prepare(
-        `SELECT productId, productName AS name, unit, quantity, unitPrice, unitCost, discount FROM sale_items WHERE saleId = (SELECT id FROM sales WHERE voucherId = ? AND deletedAt IS NULL) AND deletedAt IS NULL ORDER BY id`,
+        `SELECT productId, productName AS name, unit, quantity, unitPrice, unitCost, discount, subtotal FROM sale_items WHERE saleId = (SELECT id FROM sales WHERE voucherId = ? AND deletedAt IS NULL) AND deletedAt IS NULL ORDER BY id`,
       )
       .all(voucherId)
       .map((row: any) => ({
@@ -1181,15 +1120,17 @@ export class PosDatabase {
         unitPrice: Number(row.unitPrice),
         unitCost: Number(row.unitCost),
         discount: Number(row.discount),
+        subtotal: Number(row.subtotal),
       }));
     const amountTendered =
-      payment?.tendered == null ? null : Number(payment.tendered);
+      tendered.length ? round(tendered.reduce((sum,p) => sum + Number(p.tendered),0)) : null;
     return {
       voucherId: String(sale.voucherId),
       shopName: this.getShopSetting("shop.name") ?? "Store POS",
       shopPhone: this.getShopSetting("shop.phone"),
       soldAt: String(sale.soldAt),
-      paymentMethod: payment?.methodCode ?? "debt",
+      paymentMethod: [...new Set(payments.map(p => p.methodCode))].join(' + ') || 'debt',
+      customerId: sale.customerId, payments, outstanding: sale.customerId ? this.customerLedger(String(sale.customerId)).sales.find(row=>row.id===String(sale.id))?.remaining ?? 0 : Math.max(0, round(Number(sale.total) - paid)),
       subtotal: Number(sale.subtotal),
       discount: Number(sale.discount),
       total: Number(sale.total),
@@ -1197,7 +1138,7 @@ export class PosDatabase {
       change:
         amountTendered == null
           ? null
-          : Math.max(0, amountTendered - Number(sale.total)),
+          : round(tendered.reduce((sum,p) => sum + Math.max(0, Number(p.tendered)-Number(p.amount)),0)),
       lines,
     };
   }
@@ -1205,7 +1146,7 @@ export class PosDatabase {
   returnableSale(voucherId: string): ReturnableLine[] | null {
     const sale = this.sqlite
       .prepare(
-        "SELECT id, type, discount FROM sales WHERE voucherId = ? AND deletedAt IS NULL",
+        "SELECT id, type, total FROM sales WHERE voucherId = ? AND deletedAt IS NULL",
       )
       .get(voucherId) as any;
     if (!sale || sale.type !== "sale") return null;
@@ -1222,34 +1163,12 @@ export class PosDatabase {
     const returned = new Map(
       returnedRows.map((row) => [String(row.productId), Number(row.quantity)]),
     );
-    const netBeforeOrderDiscount = items.reduce(
-      (sum, item) =>
-        sum +
-        Math.max(
-          0,
-          Number(item.quantity) * Number(item.unitPrice) -
-            Number(item.discount),
-        ),
-      0,
-    );
-    const lineDiscounts = items.reduce(
-      (sum, item) => sum + Math.max(0, Number(item.discount)),
-      0,
-    );
-    const orderDiscount = Math.max(0, Number(sale.discount) - lineDiscounts);
+    const netBeforeOrderDiscount = items.reduce((sum,item)=>sum+Number(item.subtotal),0);
     return items
       .map((item) => {
         const quantity = Number(item.quantity);
         const prior = returned.get(String(item.productId)) ?? 0;
-        const lineValue = Math.max(
-          0,
-          quantity * Number(item.unitPrice) - Number(item.discount),
-        );
-        const value =
-          lineValue -
-          (netBeforeOrderDiscount > 0
-            ? (orderDiscount * lineValue) / netBeforeOrderDiscount
-            : 0);
+        const value = round(netBeforeOrderDiscount > 0 ? Number(sale.total)*Number(item.subtotal)/netBeforeOrderDiscount : 0);
         return {
           productId: String(item.productId),
           name: String(item.name),
@@ -1258,6 +1177,7 @@ export class PosDatabase {
           returned: prior,
           returnable: round(Math.max(0, quantity - prior)),
           refundPerUnit: quantity ? round(value / quantity) : 0,
+          unitPrice: Number(item.unitPrice),
           unitCost: Number(item.unitCost),
         };
       })
@@ -1269,6 +1189,7 @@ export class PosDatabase {
     wanted: Array<{ productId: string; quantity: number }>,
     refundMethod: string,
     note?: string,
+    refundAmount?: number,
   ): Receipt {
     const source = this.sqlite
       .prepare(
@@ -1279,6 +1200,7 @@ export class PosDatabase {
     if (!source || !available || source.type !== "sale")
       throw new Error("That transaction cannot be returned");
     const byProduct = new Map(available.map((line) => [line.productId, line]));
+    if (new Set(wanted.map(line => line.productId)).size !== wanted.length) throw new Error('Choose each return product once');
     const lines = wanted
       .filter((line) => line.quantity > 0)
       .map((line) => {
@@ -1295,8 +1217,7 @@ export class PosDatabase {
         return { ...original, quantity };
       });
     if (!lines.length) throw new Error("Choose at least one item to return");
-    if (!["cash", "card", "transfer", "debt"].includes(refundMethod))
-      throw new Error("Choose a valid refund method");
+    const refundName = refundMethod === 'debt' ? null : this.paymentMethod(refundMethod).name;
     if (refundMethod === "debt" && !source.customerId)
       throw new Error(
         "Customer credit requires a customer on the original sale",
@@ -1304,12 +1225,13 @@ export class PosDatabase {
     const value = round(
       lines.reduce((sum, line) => sum + line.refundPerUnit * line.quantity, 0),
     );
+    const refunded = refundMethod === 'debt' ? 0 : refundAmount ?? value;
+    if (!Number.isFinite(refunded) || refunded < 0 || refunded > value) throw new Error('Refund must be between zero and the return value');
+    if (refunded < value && !source.customerId) throw new Error('A partial refund needs a customer to credit');
     const soldAt = now();
     const movementAt = this.nextMovementAt();
-    const sequence = Number(this.getState("voucher.sequence") ?? "0") + 1;
-    this.setState("voucher.sequence", String(sequence));
     const returnId = randomUUID();
-    const returnVoucher = `${this.getState("device.code") ?? "D"}-${String(sequence).padStart(6, "0")}`;
+    const returnVoucher = this.nextVoucher();
     const session = this.sqlite
       .prepare(
         "SELECT id FROM cash_sessions WHERE status = 'open' AND deletedAt IS NULL ORDER BY openedAt DESC LIMIT 1",
@@ -1340,7 +1262,7 @@ export class PosDatabase {
           productName: line.name,
           unit: line.unit,
           quantity: -line.quantity,
-          unitPrice: line.refundPerUnit,
+          unitPrice: line.unitPrice,
           unitCost: line.unitCost,
           discount: 0,
           subtotal,
@@ -1348,7 +1270,7 @@ export class PosDatabase {
         this.writeLocal("stock_movements", {
           id: randomUUID(),
           productId: line.productId,
-          type: "return",
+          type: "return_in",
           quantityDelta: line.quantity,
           unitCost: line.unitCost,
           referenceId: returnId,
@@ -1359,14 +1281,14 @@ export class PosDatabase {
         });
         this.recomputeStock(line.productId);
       }
-      if (refundMethod !== "debt")
+      if (refunded > 0)
         this.writeLocal("payments", {
           id: randomUUID(),
           saleId: returnId,
           customerId: source.customerId ?? null,
-          amount: -value,
+          amount: -refunded,
           methodCode: refundMethod,
-          methodName: refundMethod,
+          methodName: refundName,
           tendered: null,
           cashSessionId: session?.id ?? null,
           note: note?.trim() || `Refund for ${voucherId}`,
@@ -1377,7 +1299,7 @@ export class PosDatabase {
         actor: "Desktop",
         action: "return",
         detail: `${returnVoucher} for ${voucherId}`,
-        amount: -value,
+        amount: value,
         referenceId: returnId,
         occurredAt: soldAt,
       });
@@ -1391,9 +1313,9 @@ export class PosDatabase {
     const day = since.toISOString();
     const total = this.sqlite
       .prepare(
-        "SELECT COUNT(*) AS salesToday, COALESCE(SUM(total), 0) AS revenueToday FROM sales WHERE type = 'sale' AND deletedAt IS NULL AND soldAt >= ?",
+        "SELECT COUNT(*) AS salesToday, COALESCE(SUM(total), 0) AS revenueToday FROM sales WHERE deletedAt IS NULL AND soldAt >= ? AND soldAt <= ?",
       )
-      .get(day) as any;
+      .get(day, new Date(new Date(since).setHours(23,59,59,999)).toISOString()) as any;
     const low = this.sqlite
       .prepare(
         "SELECT COUNT(*) AS count FROM products WHERE deletedAt IS NULL AND isActive = 1 AND quantity <= minStock",
@@ -1418,7 +1340,7 @@ export class PosDatabase {
       throw new Error("Choose a valid report period");
     const sales = this.sqlite
       .prepare(
-        `SELECT COALESCE(SUM(CASE WHEN type = 'sale' THEN total ELSE 0 END), 0) AS grossSales, COALESCE(SUM(CASE WHEN type = 'return' THEN -total ELSE 0 END), 0) AS refunds, COALESCE(SUM(total), 0) AS netSales, COALESCE(SUM(discount), 0) AS discounts, COALESCE(SUM(CASE WHEN type = 'sale' THEN 1 ELSE 0 END), 0) AS saleCount FROM sales WHERE deletedAt IS NULL AND soldAt >= ? AND soldAt <= ?`,
+        `SELECT COALESCE(SUM(CASE WHEN type = 'sale' THEN total ELSE 0 END), 0) AS grossSales, COALESCE(SUM(CASE WHEN type = 'return' THEN -total ELSE 0 END), 0) AS refunds, COALESCE(SUM(total), 0) AS netSales, COALESCE(SUM(discount), 0) AS discounts, COUNT(*) AS saleCount FROM sales WHERE deletedAt IS NULL AND soldAt >= ? AND soldAt <= ?`,
       )
       .get(from, to) as any;
     const cost = Number(
@@ -1488,7 +1410,7 @@ export class PosDatabase {
   } {
     const topProducts = this.sqlite
       .prepare(
-        `SELECT i.productName, SUM(i.quantity) AS quantity, SUM(i.subtotal) AS revenue FROM sale_items i JOIN sales s ON s.id = i.saleId WHERE i.deletedAt IS NULL AND s.deletedAt IS NULL AND s.type = 'sale' AND s.soldAt >= ? AND s.soldAt <= ? GROUP BY i.productId, i.productName ORDER BY quantity DESC, revenue DESC LIMIT 10`,
+        `SELECT i.productName, SUM(i.quantity) AS quantity, SUM(i.subtotal) AS revenue FROM sale_items i JOIN sales s ON s.id = i.saleId WHERE i.deletedAt IS NULL AND s.deletedAt IS NULL AND s.soldAt >= ? AND s.soldAt <= ? GROUP BY i.productId ORDER BY revenue DESC LIMIT 10`,
       )
       .all(from, to)
       .map((row: any) => ({
@@ -1498,7 +1420,7 @@ export class PosDatabase {
       }));
     const slowMoving = this.sqlite
       .prepare(
-        `SELECT p.name AS productName, COALESCE(SUM(CASE WHEN s.type = 'sale' THEN i.quantity ELSE 0 END), 0) AS quantity FROM products p LEFT JOIN sale_items i ON i.productId = p.id AND i.deletedAt IS NULL LEFT JOIN sales s ON s.id = i.saleId AND s.deletedAt IS NULL AND s.soldAt >= ? AND s.soldAt <= ? WHERE p.deletedAt IS NULL GROUP BY p.id, p.name ORDER BY quantity, p.name LIMIT 10`,
+        `SELECT p.name AS productName, COALESCE(SUM(CASE WHEN s.id IS NOT NULL THEN i.quantity ELSE 0 END), 0) AS quantity FROM products p LEFT JOIN sale_items i ON i.productId = p.id AND i.deletedAt IS NULL LEFT JOIN sales s ON s.id = i.saleId AND s.deletedAt IS NULL AND s.soldAt >= ? AND s.soldAt <= ? WHERE p.deletedAt IS NULL GROUP BY p.id, p.name ORDER BY quantity, p.name LIMIT 10`,
       )
       .all(from, to)
       .map((row: any) => ({
@@ -1507,7 +1429,7 @@ export class PosDatabase {
       }));
     const categories = this.sqlite
       .prepare(
-        `SELECT COALESCE(c.name, 'Uncategorized') AS categoryName, SUM(i.subtotal) AS revenue FROM sale_items i JOIN sales s ON s.id = i.saleId LEFT JOIN products p ON p.id = i.productId LEFT JOIN categories c ON c.id = p.categoryId WHERE i.deletedAt IS NULL AND s.deletedAt IS NULL AND s.type = 'sale' AND s.soldAt >= ? AND s.soldAt <= ? GROUP BY COALESCE(c.name, 'Uncategorized') ORDER BY revenue DESC`,
+        `SELECT COALESCE(c.name, 'Uncategorized') AS categoryName, SUM(i.subtotal) AS revenue FROM sale_items i JOIN sales s ON s.id = i.saleId LEFT JOIN products p ON p.id = i.productId LEFT JOIN categories c ON c.id = p.categoryId WHERE i.deletedAt IS NULL AND s.deletedAt IS NULL AND s.soldAt >= ? AND s.soldAt <= ? GROUP BY COALESCE(c.name, 'Uncategorized') ORDER BY revenue DESC`,
       )
       .all(from, to)
       .map((row: any) => ({
@@ -1632,8 +1554,10 @@ export class PosDatabase {
     amount: number,
     methodCode: string,
     note?: string,
+    saleId?: string,
+    date?: string,
   ): Receipt {
-    if (!(amount > 0))
+    if (!Number.isFinite(amount) || !(amount > 0))
       throw new Error("Collection amount must be more than zero");
     const customer = this.sqlite
       .prepare("SELECT id FROM customers WHERE id = ? AND deletedAt IS NULL")
@@ -1644,32 +1568,27 @@ export class PosDatabase {
         "SELECT id FROM cash_sessions WHERE status = 'open' AND deletedAt IS NULL ORDER BY openedAt DESC LIMIT 1",
       )
       .get() as any;
-    const paidAt = now();
+    const method = this.paymentMethod(methodCode);
+    if (saleId && !this.sqlite.prepare('SELECT id FROM sales WHERE id = ? AND customerId = ? AND deletedAt IS NULL').get(saleId,customerId)) throw new Error('Sale not found for this customer');
+    const paymentId = randomUUID();
+    const paidAt = date ? new Date(date).toISOString() : now();
     this.transaction(() => {
       this.writeLocal("payments", {
-        id: randomUUID(),
-        saleId: null,
+        id: paymentId,
+        saleId: saleId ?? null,
         customerId,
         amount,
         methodCode,
-        methodName: methodCode,
+        methodName: method.name,
         tendered: null,
         cashSessionId: session?.id ?? null,
         note: note?.trim() || null,
         paidAt,
       });
-      this.writeLocal("activity_log", {
-        id: randomUUID(),
-        actor: "Desktop",
-        action: "debt.collection",
-        detail: note?.trim() || null,
-        amount,
-        referenceId: customerId,
-        occurredAt: paidAt,
-      });
+
     });
     return {
-      voucherId: `PAY-${paidAt.replace(/\D/g, "").slice(0, 14)}`,
+      voucherId: `PAY-${paymentId.slice(0,8)}`,
       shopName: this.getShopSetting("shop.name") ?? "Store POS",
       shopPhone: this.getShopSetting("shop.phone"),
       soldAt: paidAt,
@@ -1726,24 +1645,17 @@ export class PosDatabase {
         "SELECT id, amount, methodCode, methodName, saleId, paidAt, note FROM payments WHERE customerId = ? AND deletedAt IS NULL ORDER BY paidAt, id",
       )
       .all(customerId) as any[];
-    const remaining = new Map(
-      sales.map((sale) => [String(sale.id), Math.max(0, Number(sale.total))]),
-    );
+    const direct = new Map<string, number>();
     let unallocated = 0;
     for (const payment of payments) {
-      const amount = Number(payment.amount);
-      if (payment.saleId && remaining.has(String(payment.saleId)))
-        remaining.set(
-          String(payment.saleId),
-          Math.max(0, (remaining.get(String(payment.saleId)) ?? 0) - amount),
-        );
-      else unallocated += amount;
+      if (payment.saleId) direct.set(String(payment.saleId),(direct.get(String(payment.saleId))??0)+Number(payment.amount));
+      else unallocated += Number(payment.amount);
     }
+    const remaining = new Map<string,number>();
     for (const sale of sales) {
-      const due = remaining.get(String(sale.id)) ?? 0;
-      const applied = Math.min(due, Math.max(0, unallocated));
-      remaining.set(String(sale.id), due - applied);
-      unallocated -= applied;
+      let due = round(Number(sale.total)-(direct.get(String(sale.id))??0));
+      if(due>0 && unallocated>0){const applied=Math.min(due,unallocated);due=round(due-applied);unallocated=round(unallocated-applied);}
+      remaining.set(String(sale.id),Math.max(0,due));
     }
     const ledgerSales = sales.map((sale) => ({
       id: String(sale.id),
@@ -1754,14 +1666,14 @@ export class PosDatabase {
     }));
     return {
       balance: round(
-        ledgerSales.reduce((sum, sale) => sum + sale.remaining, 0),
+        sales.reduce((sum, sale) => sum + Number(sale.total), 0) - payments.reduce((sum,p) => sum+Number(p.amount),0),
       ),
       sales: ledgerSales,
       payments: payments.map((row) => ({
         id: String(row.id),
         amount: Number(row.amount),
         methodCode: String(row.methodCode),
-        methodName: String(row.methodName),
+        methodName: row.methodName ?? row.methodCode,
         saleId: row.saleId ?? null,
         paidAt: String(row.paidAt),
         note: row.note ?? null,
@@ -1802,9 +1714,11 @@ export class PosDatabase {
   }
 
   openCashSession(openingFloat: number): any {
+    if (!Number.isFinite(openingFloat) || openingFloat < 0) throw new Error("Enter a non-negative opening float");
     if (this.cashSession()) throw new Error("A till session is already open");
     const openedAt = now();
-    const id = randomUUID();
+    const date = new Date(openedAt);
+    const id = 'cash-' + date.getFullYear() + '-' + String(date.getMonth()+1).padStart(2,'0') + '-' + String(date.getDate()).padStart(2,'0');
     this.writeLocal("cash_sessions", {
       id,
       status: "open",
@@ -1857,41 +1771,26 @@ export class PosDatabase {
     return { expected, counted, difference: counted - expected };
   }
 
-  listExpenses(): any[] {
-    return this.sqlite
-      .prepare(
-        "SELECT id, name, amount, note, spentAt FROM expenses WHERE deletedAt IS NULL ORDER BY spentAt DESC LIMIT 100",
-      )
-      .all()
-      .map((row: any) => ({ ...row, amount: Number(row.amount) }));
+  listExpenses(from?: string, to?: string): Expense[] {
+    const range = from && to ? ' AND spentAt >= ? AND spentAt <= ?' : '';
+    return this.sqlite.prepare('SELECT id,name,amount,note,spentAt,categoryId FROM expenses WHERE deletedAt IS NULL'+range+' ORDER BY spentAt DESC').all(...(from && to ? [from,to] : [])) as unknown as Expense[];
   }
-
-  saveExpense(name: string, amount: number, note?: string): void {
-    if (!name.trim() || !(amount > 0))
-      throw new Error("Expense name and amount are required");
-    const session = this.cashSession();
-    const spentAt = now();
-    this.transaction(() => {
-      this.writeLocal("expenses", {
-        id: randomUUID(),
-        categoryId: null,
-        name: name.trim(),
-        amount,
-        note: note?.trim() || null,
-        attachmentUrl: null,
-        cashSessionId: session?.id ?? null,
-        spentAt,
-      });
-      this.writeLocal("activity_log", {
-        id: randomUUID(),
-        actor: "Desktop",
-        action: "expense.create",
-        detail: name.trim(),
-        amount,
-        referenceId: null,
-        occurredAt: spentAt,
-      });
+  expenseCategories(): Array<{id:string;name:string}> {
+    return this.sqlite.prepare('SELECT id,name FROM expense_categories WHERE deletedAt IS NULL ORDER BY name').all() as unknown as Array<{id:string;name:string}>;
+  }
+  saveExpense(name:string, amount:number, note?:string, details?:{id?:string;categoryId?:string|null;spentAt?:string}):void {
+    if (!name.trim() || !Number.isFinite(amount) || amount <= 0) throw new Error('Expense name and positive amount are required');
+    const existing = details?.id ? this.sqlite.prepare('SELECT * FROM expenses WHERE id = ? AND deletedAt IS NULL').get(details.id) : null;
+    if (details?.id && !existing) throw new Error('Expense not found');
+    this.writeLocal('expenses', {
+      id:details?.id ?? randomUUID(), categoryId:details?.categoryId !== undefined ? details.categoryId : existing?.categoryId ?? null,
+      name:name.trim(),amount,note:note?.trim() || null,attachmentUrl:existing?.attachmentUrl ?? null,
+      cashSessionId:existing ? existing.cashSessionId : this.cashSession()?.id ?? null,
+      spentAt:details?.spentAt ? new Date(details.spentAt).toISOString() : existing?.spentAt ?? now(),
     });
+  }
+  removeExpense(id:string):void {
+    const date=now(); this.sqlite.prepare('UPDATE expenses SET deletedAt = ?, updatedAt = ?, dirty = 1 WHERE id = ?').run(date,date,id);
   }
 
   getShopSetting(key: string): string | null {
@@ -1941,6 +1840,79 @@ export class PosDatabase {
         this.writeLocal("shop_settings", { id: key, key, value });
     });
     return next;
+  }
+
+  nextVoucher(): string {
+    const code = this.getState('device.code') ?? 'D';
+    let sequence = Number(this.getState('voucher.sequence') ?? 0);
+    let voucher: string;
+    do { voucher = code + '-' + String(++sequence).padStart(6,'0'); }
+    while (this.sqlite.prepare('SELECT id FROM sales WHERE voucherId = ?').get(voucher));
+    this.setState('voucher.sequence',String(sequence));
+    return voucher;
+  }
+
+  private paymentMethod(code: string): PaymentMethod {
+    const method = this.listPaymentMethods().find(m => m.code === code && m.isActive && code !== 'debt');
+    if (!method) throw new Error('Choose an active payment method');
+    return method;
+  }
+
+  capabilities(): Capabilities {
+    const rawTier = this.getState('entitlement.tier') ?? 'free';
+    const tier = rawTier === 'premium' ? 'cloud_pro' : ['cloud_pro','offline_plus'].includes(rawTier) ? rawTier : 'free';
+    const premiumUntil = this.getState('entitlement.premiumUntil');
+    const effectivePlan = premiumUntil && Date.parse(premiumUntil) > Date.now() ? tier : 'free';
+    const advanced = ['offline_plus', 'cloud_pro'].includes(effectivePlan);
+    const flags = {debt: this.getShopSetting('feature.debt') !== '0', expenses: this.getShopSetting('feature.expenses') !== '0', dayEnd: this.getShopSetting('feature.dayEnd') !== '0'};
+    return {owner: this.getState('device.role') !== 'cashier', tier, premiumUntil, effectivePlan, cloud: effectivePlan === 'cloud_pro', debt: advanced && flags.debt, expenses: advanced && flags.expenses, dayEnd: advanced && flags.dayEnd, flags};
+  }
+
+  setFeature(name: 'debt' | 'expenses' | 'dayEnd', enabled: boolean): void {
+    if (!this.capabilities().owner) throw new Error('Only the owner can change shop features');
+    if (!['debt','expenses','dayEnd'].includes(name)) throw new Error('Unknown feature');
+    const key = 'feature.' + name;
+    this.writeLocal('shop_settings', {id:key,key,value:enabled?'1':'0'});
+  }
+
+  cartDraft(): CartDraft {
+    const empty: CartDraft = {lines:[],orderDiscount:0,customerId:'',note:'',soldAt:'',priceLevelId:'level-retail'};
+    try {
+      const value = JSON.parse(this.getState('cart.draft') ?? 'null');
+      if (!value || !Array.isArray(value.entries)) return empty;
+      const priceLevelId = typeof value.priceLevelId === 'string' ? value.priceLevelId : empty.priceLevelId;
+      const lines: CartLine[] = [];
+      for (const entry of value.entries) {
+        if (!Array.isArray(entry) || typeof entry[0] !== 'string') continue;
+        const [id, amounts] = entry;
+        if (!amounts || !Number.isFinite(amounts.quantity) || amounts.quantity <= 0) continue;
+        const product = this.findProduct(id);
+        if (!product || !product.isActive) continue;
+        lines.push({productId:id,name:product.name,unit:product.unit,quantity:amounts.quantity,discount:Number.isFinite(amounts.discount)?Math.max(0,amounts.discount):0,unitPrice:this.priceFor(id,priceLevelId,amounts.quantity),unitCost:product.cost});
+      }
+      return {lines,priceLevelId,orderDiscount:Number.isFinite(value.orderDiscount)?Math.max(0,value.orderDiscount):0,customerId:typeof value.customerId==='string'?value.customerId:'',note:typeof value.note==='string'?value.note:'',soldAt:typeof value.soldAt==='string'?value.soldAt:''};
+    } catch { return empty; }
+  }
+
+  saveCartDraft(draft: CartDraft): void {
+    if (!draft || !Array.isArray(draft.lines) || !Number.isFinite(draft.orderDiscount)) throw new Error('Invalid cart draft');
+    const entries = draft.lines.map(line => {
+      if (typeof line.productId !== 'string' || !Number.isFinite(line.quantity) || line.quantity <= 0 || !Number.isFinite(line.discount)) throw new Error('Invalid cart line');
+      return [line.productId,{quantity:round(line.quantity),discount:Math.max(0,line.discount)}];
+    });
+    this.setState('cart.draft', JSON.stringify({entries,orderDiscount:Math.max(0,draft.orderDiscount),customerId:draft.customerId||null,note:draft.note||'',soldAt:draft.soldAt||null,priceLevelId:draft.priceLevelId||'level-retail'}));
+  }
+
+  wipeShopData(): void {
+    this.transaction(() => {
+      for (const table of SYNC_TABLES) this.sqlite.exec('DELETE FROM '+table.name);
+      this.sqlite.exec('DELETE FROM sync_conflicts');
+      this.sqlite.exec("DELETE FROM sync_state WHERE key LIKE 'identity.%'");
+      for (const key of ['data.shopId','cart.draft','cloud.lastSyncedAt']) this.setState(key,null);
+      this.setState('cloud.cursor','0'); this.setState('voucher.sequence','0');
+      for (const [id,name,isDefault,sortOrder] of [['level-retail','Retail',1,0],['level-wholesale','Wholesale',0,1]])
+        this.sqlite.prepare('INSERT INTO price_levels (id,updatedAt,name,isDefault,sortOrder) VALUES (?,?,?,?,?)').run(id,now(),name,isDefault,sortOrder);
+    });
   }
 
   countDirty(): number {
@@ -2010,6 +1982,10 @@ export class PosDatabase {
             `UPDATE ${skipped.table} SET dirty = 0 WHERE id = ? AND updatedAt = ?`,
           )
           .run(skipped.id, change.updatedAt);
+      if (skipped.reason === 'voucher_taken' && skipped.table === 'sales') {
+        const sequence = this.nextVoucher();
+        this.sqlite.prepare('UPDATE sales SET voucherId = ?, updatedAt = ?, dirty = 1 WHERE id = ? AND updatedAt = ?').run(sequence, now(), skipped.id, change.updatedAt);
+      }
       if (skipped.reason === "stale") {
         this.recordConflict(skipped.table, skipped.id, change.data);
         this.sqlite
@@ -2021,7 +1997,7 @@ export class PosDatabase {
     }
   }
 
-  applyPulled(rows: any[]): void {
+  applyPulled(rows: any[], nextSince?: number): void {
     this.transaction(() => {
       const touched = new Set<string>();
       for (const row of rows) {
@@ -2063,13 +2039,16 @@ export class PosDatabase {
             `INSERT INTO ${table.name} (${fields.join(",")}) VALUES (${fields.map(() => "?").join(",")}) ON CONFLICT(id) DO UPDATE SET ${update}`,
           )
           .run(...values);
+        if (table.name === 'products') touched.add(String(row.id));
         if (
           table.name === "stock_movements" &&
           typeof row.productId === "string"
         )
           touched.add(row.productId);
       }
+      reconcileIdentities(this.sqlite);
       for (const id of touched) this.recomputeStock(id);
+      if (nextSince != null) this.setState('cloud.cursor', String(nextSince));
     });
   }
 
@@ -2084,9 +2063,11 @@ export class PosDatabase {
       "dirty",
       ...table.columns.filter((column) => column in row),
     ];
+    const previous = row.id ? this.sqlite.prepare('SELECT updatedAt FROM '+tableName+' WHERE id = ?').get(String(row.id)) : null;
+    const timestamp = new Date(Math.max(Date.now(), previous ? Date.parse(String(previous.updatedAt)) + 1 : 0)).toISOString();
     const values = [
       row.id ?? randomUUID(),
-      now(),
+      timestamp,
       null,
       0,
       1,

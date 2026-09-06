@@ -1,8 +1,10 @@
+import { useCapabilities } from '../../useCapabilities';
 import { useState } from "react";
 import { ProductsTab } from "./ProductsTab";
 import { SuppliersTab } from "./SuppliersTab";
 
 export function InventoryPage({ notify }: { notify: (s: string) => void }) {
+  const {owner}=useCapabilities();
   const [tab, setTab] = useState<"products" | "suppliers">("products");
 
   return (
@@ -21,16 +23,16 @@ export function InventoryPage({ notify }: { notify: (s: string) => void }) {
         >
           Products & Stock
         </button>
-        <button
+        {owner && <button
           role="tab"
           className={`tab tab-sm ${tab === "suppliers" ? "tab-active" : ""}`}
           onClick={() => setTab("suppliers")}
         >
           Suppliers
-        </button>
+        </button>}
       </div>
-      {tab === "products" && <ProductsTab notify={notify} />}
-      {tab === "suppliers" && <SuppliersTab notify={notify} />}
+      {(tab === "products" || !owner) && <ProductsTab notify={notify} />}
+      {owner && tab === "suppliers" && <SuppliersTab notify={notify} />}
     </section>
   );
 }

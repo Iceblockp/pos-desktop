@@ -1,9 +1,15 @@
+import { CloudPanel } from './CloudPanel';
+import { FeatureSettings } from './FeatureSettings';
+import { PaymentSlips } from './PaymentSlips';
+import { NotificationSettings } from './NotificationSettings';
+import { useCapabilities } from '../useCapabilities';
 import { FormEvent, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 const money = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
 
 export function Settings({ notify }: { notify: (s: string) => void }) {
+  const capabilities=useCapabilities();
   const [tab, setTab] = useState<
     | "general"
     | "payment"
@@ -13,6 +19,7 @@ export function Settings({ notify }: { notify: (s: string) => void }) {
     | "diagnostics"
   >("general");
 
+  if(!capabilities.owner)return <div className="space-y-4"><CloudPanel notify={notify}/><PrinterTab notify={notify}/><DiagnosticsTab notify={notify}/></div>;
   return (
     <section className="h-full">
       {/* Compact Header */}
@@ -72,7 +79,7 @@ export function Settings({ notify }: { notify: (s: string) => void }) {
       {/* Tab Content */}
       {tab === "general" && <GeneralTab notify={notify} />}
       {tab === "payment" && <PaymentTab notify={notify} />}
-      {tab === "pricing" && <PricingTab notify={notify} />}
+      {tab === "pricing" && (capabilities.effectivePlan !== "free" ? <PricingTab notify={notify} /> : <p>Price levels require an active paid plan.</p>)}
       {tab === "printer" && <PrinterTab notify={notify} />}
       {tab === "subscription" && <SubscriptionTab notify={notify} />}
       {tab === "diagnostics" && <DiagnosticsTab notify={notify} />}
@@ -109,9 +116,9 @@ function DiagnosticsTab({ notify }: { notify: (message: string) => void }) {
 
   const syncNow = useMutation({
     mutationFn: () => window.storePos.cloud.syncNow(),
-    onSuccess: () => {
-      void client.invalidateQueries({ queryKey: ["cloud-state"] });
-      notify("Sync completed");
+    onSuccess: (state) => {
+      void client.invalidateQueries();
+      notify(state.error || `Sync: ${state.status}`);
     },
     onError: (e: Error) => notify(e.message),
   });
@@ -692,14 +699,14 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
   const status = useQuery({
     queryKey: ["billing-status"],
     queryFn: () => window.storePos.cloud.billingStatus(),
-    enabled: cloud.data?.status !== "signed_out",
+    enabled: Boolean(cloud.data?.deviceId),
   });
   const client = useQueryClient();
   const redeem = useMutation({
     mutationFn: () => window.storePos.cloud.redeemCode(code.trim()),
     onSuccess: (result) => {
       setCode("");
-      void client.invalidateQueries({ queryKey: ["billing-status"] });
+      void client.invalidateQueries();
       notify(
         result.daysAdded
           ? `${result.daysAdded} days added to your plan`
@@ -716,7 +723,7 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
     ? Math.max(0, Math.floor((until.getTime() - Date.now()) / 86400000))
     : 0;
   const isPremium = until && until.getTime() > Date.now();
-  const isExpiringSoon = days > 0 && days < 7;
+  const isExpiringSoon = !!isPremium && days <= 7;
 
   const tierName =
     status.data?.tier === "cloud_pro"
@@ -823,100 +830,14 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
         </div>
       </div>
 
-      {/* Features List */}
-      <div className="card bg-white shadow-lg mb-6">
-        <div className="card-body">
-          <h3 className="text-xl font-bold mb-4">Features</h3>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between p-3 border border-gray-200 rounded">
-              <div className="flex items-start gap-3">
-                <span className="text-green-600 text-xl">✓</span>
-                <div>
-                  <p className="font-medium">Offline POS</p>
-                  <p className="text-sm text-gray-500">
-                    Full point-of-sale system without internet
-                  </p>
-                </div>
-              </div>
-              <span className="badge badge-success">Available</span>
-            </div>
-            <div className="flex items-center justify-between p-3 border border-gray-200 rounded">
-              <div className="flex items-start gap-3">
-                <span className="text-green-600 text-xl">✓</span>
-                <div>
-                  <p className="font-medium">Receipt Printing</p>
-                  <p className="text-sm text-gray-500">
-                    Thermal printer support (58mm & 80mm)
-                  </p>
-                </div>
-              </div>
-              <span className="badge badge-success">Available</span>
-            </div>
-            <div className="flex items-center justify-between p-3 border border-gray-200 rounded">
-              <div className="flex items-start gap-3">
-                <span
-                  className={`text-xl ${isPremium ? "text-green-600" : "text-gray-400"}`}
-                >
-                  {isPremium ? "✓" : "🔒"}
-                </span>
-                <div>
-                  <p className="font-medium">Multi-Device Sync</p>
-                  <p className="text-sm text-gray-500">
-                    Real-time sync across all devices
-                  </p>
-                </div>
-              </div>
-              <span
-                className={`badge ${isPremium ? "badge-success" : "badge-ghost"}`}
-              >
-                {isPremium ? "Available" : "Premium"}
-              </span>
-            </div>
-            <div className="flex items-center justify-between p-3 border border-gray-200 rounded">
-              <div className="flex items-start gap-3">
-                <span
-                  className={`text-xl ${isPremium ? "text-green-600" : "text-gray-400"}`}
-                >
-                  {isPremium ? "✓" : "🔒"}
-                </span>
-                <div>
-                  <p className="font-medium">Cloud Backup</p>
-                  <p className="text-sm text-gray-500">
-                    Automatic cloud backup and recovery
-                  </p>
-                </div>
-              </div>
-              <span
-                className={`badge ${isPremium ? "badge-success" : "badge-ghost"}`}
-              >
-                {isPremium ? "Available" : "Premium"}
-              </span>
-            </div>
-            <div className="flex items-center justify-between p-3 border border-gray-200 rounded">
-              <div className="flex items-start gap-3">
-                <span
-                  className={`text-xl ${isPremium ? "text-green-600" : "text-gray-400"}`}
-                >
-                  {isPremium ? "✓" : "🔒"}
-                </span>
-                <div>
-                  <p className="font-medium">Advanced Reports</p>
-                  <p className="text-sm text-gray-500">
-                    Detailed analytics and insights
-                  </p>
-                </div>
-              </div>
-              <span
-                className={`badge ${isPremium ? "badge-success" : "badge-ghost"}`}
-              >
-                {isPremium ? "Available" : "Premium"}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Redeem Code Form */}
+      <div className="card bg-white shadow-lg mb-6"><div className="card-body">
+        <h3 className="text-xl font-bold">Plan features</h3>
+        {[
+          ['Offline POS and receipt printing',true,'All plans'],
+          ['Debt, expenses, day end and price levels',!!isPremium && status.data?.tier !== 'free','Offline Plus or Cloud Pro'],
+          ['Cloud backup and multi-device sync',!!isPremium && ['cloud_pro','premium'].includes(status.data?.tier ?? ''),'Cloud Pro'],
+        ].map(([label,available,required])=><div className="flex justify-between py-2" key={String(label)}><span>{label}</span><span>{available?'Available':required}</span></div>)}
+      </div></div>
       <form
         className="card bg-white shadow-lg"
         onSubmit={(event) => {
@@ -950,7 +871,7 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
             />
             <label className="label">
               <span className="label-text-alt text-gray-500">
-                Codes are case-insensitive and include a checksum character
+                Enter the code from your prepaid card
               </span>
             </label>
           </div>
@@ -963,6 +884,7 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
           </button>
         </div>
       </form>
+      <PaymentSlips notify={notify}/>
     </section>
   );
 }
@@ -1177,400 +1099,18 @@ function PrinterTab({ notify }: { notify: (s: string) => void }) {
   );
 }
 
-function GeneralTab({ notify }: { notify: (s: string) => void }) {
-  const [apiUrl, setApiUrl] = useState(
-    import.meta.env.VITE_API_URL ?? "http://localhost:3000/api",
-  );
-  const [phone, setPhone] = useState("");
-  const [password, setPassword] = useState("");
-  const [deviceName, setDeviceName] = useState("Desktop counter");
-  const [profile, setProfile] = useState({
-    name: "",
-    address: "",
-    phone: "",
-    receiptFooter: "",
-  });
-  const [printers, setPrinters] = useState<
-    { name: string; displayName: string }[]
-  >([]);
-  const cloud = useQuery({
-    queryKey: ["cloud"],
-    queryFn: () => window.storePos.cloud.state(),
-  });
-  const printer = useQuery({
-    queryKey: ["printer"],
-    queryFn: () => window.storePos.printer.settings(),
-  });
-  const storedProfile = useQuery({
-    queryKey: ["shop-profile"],
-    queryFn: () => window.storePos.pos.shopProfile(),
-  });
-  const devices = useQuery({
-    queryKey: ["cloud-devices"],
-    queryFn: () => window.storePos.cloud.devices(),
-    enabled: cloud.data?.status === "idle" || cloud.data?.status === "syncing",
-  });
-  const client = useQueryClient();
-  useEffect(() => {
-    if (storedProfile.data) setProfile(storedProfile.data);
-  }, [storedProfile.data]);
-  const refresh = () => void client.invalidateQueries({ queryKey: ["cloud"] });
-  const login = useMutation({
-    mutationFn: async () => {
-      await window.storePos.cloud.setApiUrl(apiUrl);
-      return window.storePos.cloud.login({ phone, password, deviceName });
-    },
-    onSuccess: () => {
-      setPassword("");
-      refresh();
-      notify("Desktop paired and synced");
-    },
-    onError: (e: Error) => notify(e.message),
-  });
-  const saveProfile = useMutation({
-    mutationFn: () => window.storePos.pos.saveShopProfile(profile),
-    onSuccess: () => {
-      void client.invalidateQueries({ queryKey: ["shop-profile"] });
-      notify("Shop profile saved");
-    },
-    onError: (error: Error) => notify(error.message),
-  });
-  const revoke = useMutation({
-    mutationFn: (id: string) => window.storePos.cloud.revokeDevice(id),
-    onSuccess: () => {
-      void client.invalidateQueries({ queryKey: ["cloud-devices"] });
-      notify("Device removed");
-    },
-    onError: (error: Error) => notify(error.message),
-  });
-  const connected = cloud.data?.status !== "signed_out";
-  return (
-    <section>
-      <header className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">
-          General Settings
-        </h2>
-        <p className="text-gray-600">
-          Receipt profile, cloud backup, paired devices, and desktop printing.
-        </p>
-      </header>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <form
-          className="card bg-white shadow-lg"
-          onSubmit={(event) => {
-            event.preventDefault();
-            saveProfile.mutate();
-          }}
-        >
-          <div className="card-body">
-            <h3 className="text-xl font-bold mb-4">Shop & receipt</h3>
-            <div className="form-control mb-4">
-              <label className="label">
-                <span className="label-text">Shop name</span>
-              </label>
-              <input
-                type="text"
-                value={profile.name}
-                onChange={(e) =>
-                  setProfile({ ...profile, name: e.target.value })
-                }
-                className="input input-bordered"
-              />
-            </div>
-            <div className="form-control mb-4">
-              <label className="label">
-                <span className="label-text">Address</span>
-              </label>
-              <input
-                type="text"
-                value={profile.address}
-                onChange={(e) =>
-                  setProfile({ ...profile, address: e.target.value })
-                }
-                className="input input-bordered"
-              />
-            </div>
-            <div className="form-control mb-4">
-              <label className="label">
-                <span className="label-text">Phone</span>
-              </label>
-              <input
-                type="text"
-                value={profile.phone}
-                onChange={(e) =>
-                  setProfile({ ...profile, phone: e.target.value })
-                }
-                className="input input-bordered"
-              />
-            </div>
-            <div className="form-control mb-4">
-              <label className="label">
-                <span className="label-text">Receipt footer</span>
-              </label>
-              <input
-                type="text"
-                value={profile.receiptFooter}
-                onChange={(e) =>
-                  setProfile({ ...profile, receiptFooter: e.target.value })
-                }
-                className="input input-bordered"
-              />
-            </div>
-            <div className="p-4 bg-gray-50 rounded mb-4">
-              <p className="font-medium">{profile.name.trim() || "My Shop"}</p>
-              <p className="text-sm text-gray-500">
-                {profile.address}
-                {profile.phone ? ` · ${profile.phone}` : ""}
-              </p>
-            </div>
-            <button
-              type="submit"
-              className="btn btn-primary w-full"
-              disabled={saveProfile.isPending}
-            >
-              {saveProfile.isPending ? "Saving…" : "Save profile"}
-            </button>
-          </div>
-        </form>
-        {connected ? (
-          <div className="card bg-white shadow-lg">
-            <div className="card-body">
-              <h3 className="text-xl font-bold mb-4">Connected to Cloud</h3>
-              <div className="space-y-4">
-                <div>
-                  <p className="font-bold text-lg">{cloud.data?.shopName}</p>
-                  <p className="text-sm text-gray-500">
-                    This desktop · {cloud.data?.deviceCode} ·{" "}
-                    {cloud.data?.role ?? "staff"}
-                  </p>
-                </div>
-                <button
-                  className="btn btn-primary w-full"
-                  onClick={() =>
-                    window.storePos.cloud
-                      .syncNow()
-                      .then(() => {
-                        refresh();
-                        notify("Sync finished");
-                      })
-                      .catch((e) => notify(e.message))
-                  }
-                >
-                  Sync now
-                </button>
-                <p className="text-sm text-gray-500">
-                  {cloud.data?.pending ?? 0} changes waiting ·{" "}
-                  {cloud.data?.lastSyncedAt
-                    ? `last synced ${new Date(cloud.data.lastSyncedAt).toLocaleString()}`
-                    : "not synced yet"}
-                </p>
-
-                <div className="divider"></div>
-                <h4 className="font-bold">Paired devices</h4>
-                <div className="space-y-2">
-                  {devices.data?.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex justify-between items-start p-3 border border-gray-200 rounded"
-                    >
-                      <div>
-                        <p className="font-medium">
-                          {item.name} ({item.deviceCode})
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          {item.isCurrent
-                            ? "This desktop"
-                            : item.lastSyncedAt
-                              ? `Last synced ${new Date(item.lastSyncedAt).toLocaleString()}`
-                              : "Never synced"}
-                        </p>
-                      </div>
-                      {cloud.data?.role === "owner" && !item.isCurrent ? (
-                        <button
-                          className="btn btn-ghost btn-sm text-red-600"
-                          disabled={revoke.isPending}
-                          onClick={() => {
-                            if (
-                              window.confirm(
-                                `Remove ${item.name}? It will no longer connect to this shop.`,
-                              )
-                            )
-                              revoke.mutate(item.id);
-                          }}
-                        >
-                          Remove
-                        </button>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-
-                <button
-                  className="btn btn-outline btn-error w-full"
-                  onClick={() =>
-                    window.storePos.cloud.signOut().then(() => {
-                      refresh();
-                      notify(
-                        "Cloud disconnected; local data remains on this desktop.",
-                      );
-                    })
-                  }
-                >
-                  Disconnect Cloud
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="card bg-white shadow-lg">
-            <div className="card-body">
-              <h3 className="text-xl font-bold mb-4">Cloud backup</h3>
-              <p className="text-gray-600 mb-4">
-                Use POS offline first, or connect this desktop to back up and
-                sync with the shop.
-              </p>
-              <div className="space-y-4">
-                <div className="form-control">
-                  <label className="label">
-                    <span className="label-text">API URL</span>
-                  </label>
-                  <input
-                    value={apiUrl}
-                    onChange={(e) => setApiUrl(e.target.value)}
-                    className="input input-bordered input-sm"
-                  />
-                </div>
-                <div className="form-control">
-                  <label className="label">
-                    <span className="label-text">Shop phone</span>
-                  </label>
-                  <input
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="input input-bordered input-sm"
-                  />
-                </div>
-                <div className="form-control">
-                  <label className="label">
-                    <span className="label-text">Password</span>
-                  </label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="input input-bordered input-sm"
-                  />
-                </div>
-                <div className="form-control">
-                  <label className="label">
-                    <span className="label-text">This desktop name</span>
-                  </label>
-                  <input
-                    value={deviceName}
-                    onChange={(e) => setDeviceName(e.target.value)}
-                    className="input input-bordered input-sm"
-                  />
-                </div>
-                <button
-                  className="btn btn-primary w-full"
-                  onClick={() => login.mutate()}
-                >
-                  {login.isPending ? "Connecting…" : "Connect desktop"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-        <div className="card bg-white shadow-lg">
-          <div className="card-body">
-            <h3 className="text-xl font-bold mb-4">Receipt printer</h3>
-            <div className="space-y-4">
-              <button
-                className="btn btn-outline w-full"
-                onClick={() =>
-                  window.storePos.printer
-                    .list()
-                    .then(setPrinters)
-                    .catch((e) => notify(e.message))
-                }
-              >
-                Find installed printers
-              </button>
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text">Printer</span>
-                </label>
-                <select
-                  value={printer.data?.deviceName ?? ""}
-                  onChange={(e) =>
-                    printer.data &&
-                    window.storePos.printer
-                      .saveSettings({
-                        ...printer.data,
-                        deviceName: e.target.value || null,
-                      })
-                      .then(() =>
-                        client.invalidateQueries({ queryKey: ["printer"] }),
-                      )
-                  }
-                  className="select select-bordered"
-                >
-                  <option value="">Choose printer</option>
-                  {printers.map((item) => (
-                    <option key={item.name} value={item.name}>
-                      {item.displayName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text">Paper width</span>
-                </label>
-                <select
-                  value={printer.data?.paperWidth ?? 80}
-                  onChange={(e) =>
-                    printer.data &&
-                    window.storePos.printer
-                      .saveSettings({
-                        ...printer.data,
-                        paperWidth: Number(e.target.value) as 58 | 80,
-                      })
-                      .then(() =>
-                        client.invalidateQueries({ queryKey: ["printer"] }),
-                      )
-                  }
-                  className="select select-bordered"
-                >
-                  <option value={58}>58 mm</option>
-                  <option value={80}>80 mm</option>
-                </select>
-              </div>
-              <div className="form-control">
-                <label className="label cursor-pointer">
-                  <span className="label-text">Auto-print receipts</span>
-                  <input
-                    type="checkbox"
-                    checked={printer.data?.autoPrint ?? false}
-                    onChange={(e) =>
-                      printer.data &&
-                      window.storePos.printer
-                        .saveSettings({
-                          ...printer.data,
-                          autoPrint: e.target.checked,
-                        })
-                        .then(() =>
-                          client.invalidateQueries({ queryKey: ["printer"] }),
-                        )
-                    }
-                    className="checkbox"
-                  />
-                </label>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
+function GeneralTab({notify}:{notify:(message:string)=>void}) {
+  const client=useQueryClient();
+  const profile=useQuery({queryKey:['shop-profile'],queryFn:()=>window.storePos.pos.shopProfile()});
+  const [value,setValue]=useState({name:'',address:'',phone:'',receiptFooter:''});
+  useEffect(()=>{if(profile.data)setValue(profile.data);},[profile.data]);
+  const save=useMutation({mutationFn:()=>window.storePos.pos.saveShopProfile(value),onSuccess:()=>{void client.invalidateQueries();notify('Shop profile saved');},onError:(e:Error)=>notify(e.message)});
+  return <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+    <form className="card bg-white shadow-lg" onSubmit={e=>{e.preventDefault();save.mutate();}}><div className="card-body gap-3">
+      <h3 className="text-xl font-bold">Shop & receipt</h3>
+      {(['name','address','phone','receiptFooter'] as const).map(key=><label className="form-control" key={key}>{key==='receiptFooter'?'Receipt footer':key}<input className="input input-bordered" value={value[key]} onChange={e=>setValue({...value,[key]:e.target.value})}/></label>)}
+      <button className="btn btn-primary" disabled={save.isPending}>Save profile</button>
+    </div></form>
+    <CloudPanel notify={notify}/><FeatureSettings notify={notify}/><NotificationSettings notify={notify}/>
+  </div>;
 }

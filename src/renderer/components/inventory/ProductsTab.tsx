@@ -1,3 +1,4 @@
+import { useCapabilities } from '../../useCapabilities';
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Product, StockMovement, Supplier } from "../../../shared/models";
@@ -7,6 +8,7 @@ import type { TierDraft } from "./types";
 const money = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
 
 export function ProductsTab({ notify }: { notify: (s: string) => void }) {
+  const {owner,effectivePlan}=useCapabilities();
   const emptyForm = {
     id: "",
     name: "",
@@ -67,7 +69,7 @@ export function ProductsTab({ notify }: { notify: (s: string) => void }) {
   const selected = products.data?.find(
     (product) => product.id === selectedProductId,
   );
-  const extraLevels = levels.data?.filter((level) => !level.isDefault) ?? [];
+  const extraLevels = effectivePlan !== "free" ? levels.data?.filter((level) => !level.isDefault) ?? [] : [];
   useEffect(() => {
     if (modal !== "product") return;
     if (!form.id) {
@@ -77,7 +79,7 @@ export function ProductsTab({ notify }: { notify: (s: string) => void }) {
     if (!existingTiers.data) return;
     const grouped: Record<string, TierDraft[]> = {};
     for (const tier of existingTiers.data)
-      (grouped[tier.priceLevelId] ??= []).push({
+      (grouped[tier.priceLevelId ?? "level-retail"] ??= []).push({
         key: tier.id,
         id: tier.id,
         minQuantity: String(tier.minQuantity),
@@ -159,8 +161,9 @@ export function ProductsTab({ notify }: { notify: (s: string) => void }) {
     onError: (error: Error) => notify(error.message),
   });
   const adjustStock = useMutation({
-    mutationFn: () =>
-      window.storePos.pos.adjustStock(
+    mutationFn: () => stock.action === 'adjustment'
+      ? window.storePos.pos.setStockTo(selectedProductId, Number(stock.quantity), stock.reason || undefined)
+      : window.storePos.pos.adjustStock(
         selectedProductId,
         stock.action === "waste"
           ? -Math.abs(Number(stock.quantity))
@@ -274,12 +277,12 @@ export function ProductsTab({ notify }: { notify: (s: string) => void }) {
           </p>
         </div>
         <div className="flex gap-2">
-          <button
+          {owner && <button
             className="btn btn-outline btn-xs"
             onClick={() => setModal("categories")}
           >
             Categories
-          </button>
+          </button>}
           <button
             className="btn btn-primary btn-xs"
             onClick={() => openProduct()}
@@ -446,7 +449,7 @@ export function ProductsTab({ notify }: { notify: (s: string) => void }) {
                 />
               </div>
 
-              <div className="form-control">
+              {owner && (<div className="form-control">
                 <label className="label">
                   <span className="label-text">Cost</span>
                 </label>
@@ -458,7 +461,7 @@ export function ProductsTab({ notify }: { notify: (s: string) => void }) {
                   }
                   className="input input-bordered"
                 />
-              </div>
+              </div>)}
 
               {extraLevels.map((level) => (
                 <div
@@ -570,7 +573,7 @@ export function ProductsTab({ notify }: { notify: (s: string) => void }) {
                 </select>
               </div>
 
-              <div className="form-control">
+              {owner && (<div className="form-control">
                 <label className="label">
                   <span className="label-text">Supplier</span>
                 </label>
@@ -588,7 +591,7 @@ export function ProductsTab({ notify }: { notify: (s: string) => void }) {
                     </option>
                   ))}
                 </select>
-              </div>
+              </div>)}
 
               <div className="modal-action">
                 <button
@@ -610,7 +613,7 @@ export function ProductsTab({ notify }: { notify: (s: string) => void }) {
           </div>
         </div>
       )}
-      {modal === "categories" && (
+      {modal === "categories" && owner && (
         <div className="modal modal-open">
           <div className="modal-box max-w-2xl">
             <h3 className="font-bold text-lg mb-4">Categories</h3>
@@ -678,7 +681,7 @@ export function ProductsTab({ notify }: { notify: (s: string) => void }) {
           </div>
         </div>
       )}
-      {modal === "category" && (
+      {modal === "category" && owner && (
         <div className="modal modal-open">
           <div className="modal-box">
             <h3 className="font-bold text-lg mb-4">
@@ -747,6 +750,7 @@ export function ProductsTab({ notify }: { notify: (s: string) => void }) {
           setReferenceNumber={(referenceNumber) =>
             setStock({ ...stock, referenceNumber })
           }
+          showCost={owner}
           unitCost={stock.unitCost}
           setUnitCost={(unitCost) => setStock({ ...stock, unitCost })}
           suppliers={suppliers.data ?? []}
@@ -805,7 +809,7 @@ export function ProductsTab({ notify }: { notify: (s: string) => void }) {
                         {movement.quantityDelta} {selected.unit}
                       </p>
                       <p className="text-sm text-gray-500">
-                        {movement.unitCost != null
+                        {owner && movement.unitCost != null
                           ? `Cost: ${money.format(movement.unitCost)} · `
                           : ""}
                         Balance: {movement.balance} {selected.unit}

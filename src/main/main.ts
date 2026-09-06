@@ -1,3 +1,4 @@
+import { NotificationService } from './notifications';
 import { app, BrowserWindow, ipcMain } from "electron";
 import { join } from "node:path";
 import { PosDatabase } from "./database";
@@ -13,6 +14,7 @@ import {
 let mainWindow: BrowserWindow | null = null;
 let database: PosDatabase;
 let cloud: CloudService;
+let notifications: NotificationService;
 
 function assertTrustedSender(event: Electron.IpcMainInvokeEvent): void {
   const url = event.senderFrame?.url;
@@ -54,6 +56,23 @@ function createWindow(): void {
 }
 
 function registerIpc(): void {
+  const handle = (channel:string, fn:(...args:any[])=>unknown) => ipcMain.handle(channel,(event,...args) => { assertTrustedSender(event); return fn(...args); });
+  handle('pos:notification-preferences',() => notifications.preferences());
+  handle('pos:save-notification-preferences',prefs => notifications.save(prefs));
+  handle('pos:cart-draft',() => database.cartDraft());
+  handle('pos:save-cart-draft',draft => database.saveCartDraft(draft));
+  handle('pos:capabilities',() => database.capabilities());
+  handle('pos:set-feature',(name,enabled) => { database.setFeature(name,enabled); void cloud.syncNow(); });
+  handle('cloud:complete-login',input => cloud.completeLogin(input));
+  handle('cloud:join',input => cloud.join(input));
+  handle('cloud:pairing-code',() => cloud.createPairingCode());
+  handle('cloud:confirm-switch',() => cloud.confirmSwitch());
+  handle('cloud:cancel-switch',() => cloud.cancelSwitch());
+  handle('cloud:submit-slip',input => cloud.submitSlip(input));
+  handle('cloud:list-slips',() => cloud.listSlips());
+  handle('pos:cart-products',(ids) => database.cartProducts(Array.isArray(ids) ? ids : []));
+  handle('pos:expense-categories',() => database.expenseCategories());
+  handle('pos:remove-expense',(id) => { database.removeExpense(String(id)); void cloud.syncNow(); });
   ipcMain.handle("app:version", (event) => {
     assertTrustedSender(event);
     return app.getVersion();
@@ -247,6 +266,12 @@ function registerIpc(): void {
       return result;
     },
   );
+  ipcMain.handle('pos:set-stock-to', (event, productId, counted, reason) => {
+    assertTrustedSender(event);
+    const result = database.setStockTo(String(productId), Number(counted), typeof reason === 'string' ? reason : undefined);
+    void cloud.syncNow();
+    return result;
+  });
   ipcMain.handle("pos:customers", (event) => {
     assertTrustedSender(event);
     return database.listCustomers();
@@ -268,7 +293,9 @@ function registerIpc(): void {
   });
   ipcMain.handle("pos:checkout", async (event, draft: unknown) => {
     assertTrustedSender(event);
+    const before = database.cartProducts(((draft as any)?.lines ?? []).map((line:any)=>line.productId));
     const receipt = database.checkout(draft as any);
+    void notifications.afterSale(before).catch(()=>{});
     void cloud.syncNow();
     if (getPrinterSettings(database).autoPrint) {
       try {
@@ -304,13 +331,14 @@ function registerIpc(): void {
   });
   ipcMain.handle(
     "pos:return-sale",
-    async (event, voucherId, lines, refundMethod, note) => {
+    async (event, voucherId, lines, refundMethod, note, refundAmount) => {
       assertTrustedSender(event);
       const receipt = database.returnSale(
         String(voucherId),
         Array.isArray(lines) ? (lines as any) : [],
         String(refundMethod),
         typeof note === "string" ? note : undefined,
+        typeof refundAmount === "number" ? refundAmount : undefined,
       );
       void cloud.syncNow();
       if (getPrinterSettings(database).autoPrint) {
@@ -329,13 +357,15 @@ function registerIpc(): void {
   });
   ipcMain.handle(
     "pos:collect-debt",
-    (event, customerId, amount, methodCode, note) => {
+    (event, customerId, amount, methodCode, note, saleId, paidAt) => {
       assertTrustedSender(event);
       const receipt = database.collectDebt(
         String(customerId),
         Number(amount),
         String(methodCode),
         typeof note === "string" ? note : undefined,
+        typeof saleId === "string" ? saleId : undefined,
+        typeof paidAt === "string" ? paidAt : undefined,
       );
       void cloud.syncNow();
       return receipt;
@@ -357,16 +387,17 @@ function registerIpc(): void {
     void cloud.syncNow();
     return result;
   });
-  ipcMain.handle("pos:expenses", (event) => {
+  ipcMain.handle("pos:expenses", (event, from, to) => {
     assertTrustedSender(event);
-    return database.listExpenses();
+    return database.listExpenses(from,to);
   });
-  ipcMain.handle("pos:save-expense", (event, name, amount, note) => {
+  ipcMain.handle("pos:save-expense", (event, name, amount, note, details) => {
     assertTrustedSender(event);
     database.saveExpense(
       String(name),
       Number(amount),
       typeof note === "string" ? note : undefined,
+      details,
     );
     void cloud.syncNow();
   });
@@ -448,8 +479,18 @@ app.whenReady().then(() => {
     join(app.getPath("userData"), "store-pos.sqlite3"),
   );
   cloud = new CloudService(database);
+  notifications = new NotificationService(database, page => {
+    const send = () => {mainWindow?.show();mainWindow?.focus();mainWindow?.webContents.send('app:navigate',page);};
+    if(!mainWindow || mainWindow.isDestroyed()){createWindow();mainWindow!.webContents.once('did-finish-load',send);}else send();
+  });
+  app.setAppUserModelId('com.storepos.desktop');
   registerIpc();
   createWindow();
+  const timer = setInterval(() => { void cloud.syncNow(); },60_000);
+  timer.unref();
+  const reminderTimer=setInterval(()=>{void notifications.tick();},30_000);
+  reminderTimer.unref();
+  app.on('browser-window-focus',() => { void cloud.syncNow(); });
   if (cloud.state().status !== "signed_out") void cloud.syncNow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

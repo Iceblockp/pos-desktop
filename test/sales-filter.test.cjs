@@ -7,21 +7,8 @@ const ts = require('typescript');
 
 const root = join(__dirname, '..');
 
-function loadSource(relativePath, overrides = {}) {
-  const filename = join(root, relativePath);
-  const { outputText } = ts.transpileModule(readFileSync(filename, 'utf8'), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-    fileName: filename,
-  });
-  const module = { exports: {} };
-  vm.runInNewContext(outputText, {
-    module,
-    exports: module.exports,
-    require: (name) => overrides[name] ?? require(name),
-    console: { ...console, log() {} },
-  }, { filename });
-  return module.exports;
-}
+const {createLoader}=require('./helpers.cjs');
+const loadSource=(file,overrides={})=>createLoader(root,overrides)(file);
 
 const { PosDatabase } = loadSource('src/main/database.ts');
 // September 5 in Myanmar spans two UTC dates.

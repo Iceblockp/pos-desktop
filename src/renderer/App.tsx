@@ -1,3 +1,4 @@
+import { useCapabilities } from './useCapabilities';
 import {
   FormEvent,
   KeyboardEvent,
@@ -8,6 +9,7 @@ import {
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
+  CartDraft,
   CartLine,
   CashSessionSummary,
   Product,
@@ -44,9 +46,25 @@ const money = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
 
 export function App() {
   const [page, setPage] = useState<Page>("counter");
-  const [cart, setCart] = useState<CartLine[]>([]);
+  const capabilities = useCapabilities();
+  const [draft,setDraft] = useState<CartDraft|null>(null);
+  const cart = draft?.lines ?? [];
+  const setCart: React.Dispatch<React.SetStateAction<CartLine[]>> = value => setDraft(current => current ? {...current,lines:typeof value==='function'?value(current.lines):value} : current);
+  const updateDraft = (patch:Partial<CartDraft>) => setDraft(current => current ? {...current,...patch} : current);
+  useEffect(() => { window.storePos.pos.cartDraft().then(setDraft).catch(error=>setNotice(error.message)); }, []);
+  useEffect(() => { if(draft)void window.storePos.pos.saveCartDraft(draft).catch(error=>setNotice('Cart could not be saved: '+error.message)); }, [draft]);
   const [notice, setNotice] = useState<string | null>(null);
   const client = useQueryClient();
+  const cloud = useQuery({queryKey:['cloud'], queryFn:()=>window.storePos.cloud.state(), refetchInterval:5000});
+  const lastRevision = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (cloud.data?.dataRevision !== lastRevision.current) {
+      lastRevision.current = cloud.data?.dataRevision;
+      void client.invalidateQueries({predicate:q => !['cloud','cloud-state'].includes(String(q.queryKey[0]))});
+    }
+  }, [cloud.data?.dataRevision, client]);
+  useEffect(() => { const sync=()=>{void window.storePos.cloud.syncNow();};window.addEventListener("online",sync);return()=>window.removeEventListener("online",sync);},[]);
+  useEffect(()=>window.storePos.app.onNavigate(setPage),[]);
   const dashboard = useQuery({
     queryKey: ["dashboard"],
     queryFn: () => window.storePos.pos.dashboard(),
@@ -72,8 +90,8 @@ export function App() {
     };
   }, []);
   const afterSale = () => {
-    setCart([]);
-    void client.invalidateQueries({ queryKey: ["dashboard"] });
+    setDraft({lines:[],orderDiscount:0,customerId:'',note:'',soldAt:'',priceLevelId:'level-retail'});
+    void client.invalidateQueries();
   };
   return (
     <div className="flex min-h-screen bg-stone-50">
@@ -105,7 +123,7 @@ export function App() {
             key={key}
             onClick={() => setPage(key)}
           >
-            {label}
+            {key === "reports" && !capabilities.owner ? "🧰 Shop tools" : label}
           </button>
         ))}
         <div className="mt-auto p-3 text-xs leading-relaxed bg-white/5 rounded-lg border border-white/10">
@@ -123,8 +141,10 @@ export function App() {
             {notice}
           </div>
         )}
-        {page === "counter" && (
+        {page === "counter" && draft && (
           <Counter
+            draft={draft}
+            updateDraft={updateDraft}
             cart={cart}
             setCart={setCart}
             afterSale={afterSale}

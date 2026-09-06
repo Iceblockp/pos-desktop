@@ -1,19 +1,10 @@
+import { useCapabilities } from '../useCapabilities';
+import { PeriodFilter, usePeriod } from "./PeriodFilter";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 const money = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
 
-function reportRange(period: "today" | "week" | "month"): {
-  from: string;
-  to: string;
-} {
-  const now = new Date();
-  const from = new Date(now);
-  from.setHours(0, 0, 0, 0);
-  if (period === "week") from.setDate(from.getDate() - 6);
-  if (period === "month") from.setDate(1);
-  return { from: from.toISOString(), to: now.toISOString() };
-}
 
 export function Money({
   dashboard,
@@ -27,29 +18,35 @@ export function Money({
   };
   notify: (s: string) => void;
 }) {
-  const [period, setPeriod] = useState<"today" | "week" | "month">("today");
+  const {range: selectedRange,label: periodLabel}=usePeriod();
+  const range=selectedRange!;
+  const capabilities=useCapabilities();
   const [modal, setModal] = useState<"cash" | "expense" | null>(null);
   const [opening, setOpening] = useState("");
   const [counted, setCounted] = useState("");
-  const [expense, setExpense] = useState({ name: "", amount: "", note: "" });
+  const emptyExpense={id:'',name:'',amount:'',note:'',categoryId:'',spentAt:''};
+  const [expense,setExpense]=useState(emptyExpense);
+  const categories=useQuery({queryKey:['expense-categories'],queryFn:()=>window.storePos.pos.expenseCategories()});
   const client = useQueryClient();
 
-  const range = useMemo(() => reportRange(period), [period]);
+
   const report = useQuery({
     queryKey: ["report", range.from, range.to],
     queryFn: () => window.storePos.pos.report(range.from, range.to),
+    enabled:capabilities.owner,
   });
   const analytics = useQuery({
     queryKey: ["report-analytics", range.from, range.to],
     queryFn: () => window.storePos.pos.reportAnalytics(range.from, range.to),
+    enabled:capabilities.owner,
   });
   const session = useQuery({
     queryKey: ["cash-session"],
     queryFn: () => window.storePos.pos.cashSession(),
   });
   const expenses = useQuery({
-    queryKey: ["expenses"],
-    queryFn: () => window.storePos.pos.expenses(),
+    queryKey: ["expenses",range.from,range.to],
+    queryFn: () => window.storePos.pos.expenses(range.from,range.to),
   });
   const stock = useQuery({
     queryKey: ["stock-discrepancies"],
@@ -61,7 +58,7 @@ export function Money({
   });
 
   const data = report.data;
-  const revenue = data?.grossSales ?? 0;
+  const revenue = data?.netSales ?? 0;
   const profit = data?.grossProfit ?? 0;
   const expenseTotal = data?.expenses ?? 0;
   const net = profit - expenseTotal;
@@ -70,12 +67,6 @@ export function Money({
   const debt = debtors.data?.reduce((sum, debtor) => sum + debtor.debt, 0) ?? 0;
   const debtorCount = debtors.data?.length ?? 0;
 
-  const periodLabel =
-    period === "today"
-      ? "Today"
-      : period === "week"
-        ? "Last 7 days"
-        : "This month";
   const current = session.data;
 
   const refresh = () => {
@@ -116,10 +107,11 @@ export function Money({
         expense.name,
         Number(expense.amount),
         expense.note || undefined,
+        {id:expense.id||undefined,categoryId:expense.categoryId||null,spentAt:expense.spentAt?new Date(expense.spentAt).toISOString():undefined},
       ),
     onSuccess: () => {
       setModal(null);
-      setExpense({ name: "", amount: "", note: "" });
+      setExpense(emptyExpense);
       refresh();
       notify("Expense saved");
     },
@@ -136,18 +128,11 @@ export function Money({
             Financial overview · {periodLabel}
           </p>
         </div>
-        <select
-          value={period}
-          onChange={(e) => setPeriod(e.target.value as typeof period)}
-          className="select select-bordered select-sm"
-        >
-          <option value="today">Today</option>
-          <option value="week">Last 7 days</option>
-          <option value="month">This month</option>
-        </select>
+        <PeriodFilter/>
       </header>
 
       <div className="flex-1 overflow-y-auto space-y-3">
+        {capabilities.owner && <>
         {/* Compact Revenue Card */}
         <div className="card bg-gradient-to-br from-green-500 to-green-700 text-white shadow-lg">
           <div className="card-body p-3">
@@ -166,7 +151,7 @@ export function Money({
           </div>
           <div
             className="stat bg-white shadow-lg rounded-lg p-3 cursor-pointer hover:shadow-xl transition-shadow"
-            onClick={() => setModal("expense")}
+            onClick={() => {if(capabilities.expenses){setExpense(emptyExpense);setModal("expense");}}}
           >
             <div className="stat-title text-xs">Expenses</div>
             <div className="stat-value text-lg text-orange-600">
@@ -304,7 +289,9 @@ export function Money({
           </div>
         ) : null}
 
+        </>}
         {/* Compact Cash Session Card */}
+        {capabilities.dayEnd && <>
         <div className="card bg-white shadow-lg">
           <div className="card-body p-3">
             <div className="flex justify-between items-center mb-2">
@@ -346,7 +333,9 @@ export function Money({
           </div>
         </div>
 
+        </>}
         {/* Compact Recent Expenses */}
+        {capabilities.expenses && <>
         <div className="card bg-white shadow-lg">
           <div className="card-body p-3">
             <div className="flex justify-between items-center mb-2">
@@ -355,7 +344,7 @@ export function Money({
               </h3>
               <button
                 className="btn btn-outline btn-xs"
-                onClick={() => setModal("expense")}
+                onClick={() => {setExpense(emptyExpense);setModal("expense");}}
               >
                 Add
               </button>
@@ -363,7 +352,7 @@ export function Money({
             {expenses.data && expenses.data.length > 0 ? (
               <div className="space-y-1">
                 {expenses.data
-                  .slice(0, 5)
+                  .slice(0)
                   .map(
                     (item: {
                       id: string;
@@ -371,6 +360,7 @@ export function Money({
                       amount: number;
                       note: string | null;
                       spentAt: string;
+                      categoryId?: string | null;
                     }) => (
                       <div
                         key={item.id}
@@ -387,6 +377,8 @@ export function Money({
                         </div>
                         <span className="text-xs font-bold ml-2">
                           {money.format(item.amount)}
+                          <button className="btn btn-xs ml-2" onClick={()=>{setExpense({id:item.id,name:item.name,amount:String(item.amount),note:item.note??'',categoryId:item.categoryId??'',spentAt:localDateTime(item.spentAt)});setModal('expense');}}>Edit</button>
+                          <button className="btn btn-xs ml-1" onClick={()=>{if(window.confirm('Remove this expense?'))void window.storePos.pos.removeExpense(item.id).then(refresh).catch(e=>notify(e.message));}}>Remove</button>
                         </span>
                       </div>
                     ),
@@ -401,10 +393,11 @@ export function Money({
             )}
           </div>
         </div>
+        </>}
       </div>
 
       {/* Compact Cash Session Modal */}
-      {modal === "cash" && (
+      {modal === "cash" && capabilities.dayEnd && (
         <div className="modal modal-open">
           <form
             className="modal-box max-w-sm"
@@ -481,7 +474,7 @@ export function Money({
       )}
 
       {/* Compact Expense Modal */}
-      {modal === "expense" && (
+      {modal === "expense" && capabilities.expenses && (
         <div className="modal modal-open">
           <form
             className="modal-box max-w-sm"
@@ -542,6 +535,8 @@ export function Money({
                   className="input input-bordered input-sm"
                 />
               </div>
+              <label className="form-control text-xs">Date<input type="datetime-local" className="input input-bordered input-sm" value={expense.spentAt} onChange={e=>setExpense({...expense,spentAt:e.target.value})}/></label>
+              <label className="form-control text-xs">Category<select className="select select-bordered select-sm" value={expense.categoryId} onChange={e=>setExpense({...expense,categoryId:e.target.value})}><option value="">Uncategorized</option>{categories.data?.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
               <button
                 className="btn btn-primary btn-sm w-full"
                 disabled={saveExpense.isPending}
@@ -556,3 +551,5 @@ export function Money({
     </section>
   );
 }
+
+function localDateTime(value:string):string {const date=new Date(value);date.setMinutes(date.getMinutes()-date.getTimezoneOffset());return date.toISOString().slice(0,16);}

@@ -3,6 +3,7 @@ import type { StockAction } from "./types";
 
 interface StockModalProps {
   open: boolean;
+  showCost?: boolean;
   product?: Product;
   action: StockAction;
   setAction: (value: StockAction) => void;
@@ -24,6 +25,7 @@ interface StockModalProps {
 
 export function StockModal({
   open,
+  showCost=true,
   product,
   action,
   setAction,
@@ -85,20 +87,20 @@ export function StockModal({
             >
               <option value="stock_in">Receive stock</option>
               <option value="waste">Waste / damaged</option>
-              <option value="adjustment">Manual adjustment</option>
+              <option value="adjustment">Stock count</option>
             </select>
           </div>
 
           <div className="form-control">
             <label className="label">
               <span className="label-text">
-                {action === "adjustment" ? "Quantity change" : "Quantity"}
+                {action === "adjustment" ? "Counted stock" : "Quantity"}
               </span>
             </label>
             <input
               required
               inputMode="decimal"
-              placeholder={action === "adjustment" ? "+5 or -2" : "5"}
+              placeholder={action === "adjustment" ? "Actual quantity on shelf" : "5"}
               value={quantity}
               onChange={(event) => setQuantity(event.target.value)}
               className="input input-bordered"
@@ -125,7 +127,7 @@ export function StockModal({
                 </select>
               </div>
 
-              <div className="form-control">
+              {showCost && <div className="form-control">
                 <label className="label">
                   <span className="label-text">Unit cost</span>
                 </label>
@@ -136,7 +138,7 @@ export function StockModal({
                   onChange={(event) => setUnitCost(event.target.value)}
                   className="input input-bordered"
                 />
-              </div>
+              </div>}
 
               <div className="form-control">
                 <label className="label">

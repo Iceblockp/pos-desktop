@@ -3,8 +3,24 @@ import type { DesktopApi } from '../shared/models';
 
 /** One explicit method per IPC channel; raw ipcRenderer is never exposed. */
 const api: DesktopApi = {
-  app: { version: () => ipcRenderer.invoke('app:version') },
+  app: {
+    version: () => ipcRenderer.invoke('app:version'),
+    onNavigate: listener => {
+      const handler = (_event: Electron.IpcRendererEvent, page: string) => {if(page==='inventory'||page==='reports')listener(page);};
+      ipcRenderer.on('app:navigate',handler);
+      return () => {ipcRenderer.removeListener('app:navigate',handler);};
+    },
+  },
   pos: {
+    cartDraft: () => ipcRenderer.invoke('pos:cart-draft'),
+    saveCartDraft: draft => ipcRenderer.invoke('pos:save-cart-draft',draft),
+    capabilities: () => ipcRenderer.invoke('pos:capabilities'),
+    setFeature: (name,enabled) => ipcRenderer.invoke('pos:set-feature',name,enabled),
+    notificationPreferences: () => ipcRenderer.invoke('pos:notification-preferences'),
+    saveNotificationPreferences: prefs => ipcRenderer.invoke('pos:save-notification-preferences',prefs),
+    cartProducts: (ids) => ipcRenderer.invoke('pos:cart-products',ids),
+    expenseCategories: () => ipcRenderer.invoke('pos:expense-categories'),
+    removeExpense: (id) => ipcRenderer.invoke('pos:remove-expense',id),
     dashboard: () => ipcRenderer.invoke('pos:dashboard'),
     report: (from, to) => ipcRenderer.invoke('pos:report', from, to),
     reportAnalytics: (from, to) => ipcRenderer.invoke('pos:report-analytics', from, to),
@@ -37,6 +53,7 @@ const api: DesktopApi = {
     supplierPurchases: (supplierId, from, to) => ipcRenderer.invoke('pos:supplier-purchases', supplierId, from, to),
     supplierSpend: (supplierId, from, to) => ipcRenderer.invoke('pos:supplier-spend', supplierId, from, to),
     stockHistory: (productId) => ipcRenderer.invoke('pos:stock-history', productId),
+    setStockTo: (productId, counted, reason) => ipcRenderer.invoke('pos:set-stock-to', productId, counted, reason),
     adjustStock: (productId, quantityDelta, type, reason, details) => ipcRenderer.invoke('pos:adjust-stock', productId, quantityDelta, type, reason, details),
     customers: () => ipcRenderer.invoke('pos:customers'),
     saveCustomer: (input) => ipcRenderer.invoke('pos:save-customer', input),
@@ -46,18 +63,25 @@ const api: DesktopApi = {
     sales: (search, from, to) => ipcRenderer.invoke('pos:sales', search, from, to),
     receipt: (voucherId) => ipcRenderer.invoke('pos:receipt', voucherId),
     returnableSale: (voucherId) => ipcRenderer.invoke('pos:returnable-sale', voucherId),
-    returnSale: (voucherId, lines, refundMethod, note) => ipcRenderer.invoke('pos:return-sale', voucherId, lines, refundMethod, note),
+    returnSale: (voucherId, lines, refundMethod, note, amount) => ipcRenderer.invoke('pos:return-sale', voucherId, lines, refundMethod, note, amount),
     debtors: () => ipcRenderer.invoke('pos:debtors'),
-    collectDebt: (customerId, amount, methodCode, note) => ipcRenderer.invoke('pos:collect-debt', customerId, amount, methodCode, note),
+    collectDebt: (customerId, amount, methodCode, note, saleId, paidAt) => ipcRenderer.invoke('pos:collect-debt', customerId, amount, methodCode, note, saleId, paidAt),
     cashSession: () => ipcRenderer.invoke('pos:cash-session'),
     openCashSession: (openingFloat) => ipcRenderer.invoke('pos:open-cash-session', openingFloat),
     closeCashSession: (countedCash) => ipcRenderer.invoke('pos:close-cash-session', countedCash),
-    expenses: () => ipcRenderer.invoke('pos:expenses'),
-    saveExpense: (name, amount, note) => ipcRenderer.invoke('pos:save-expense', name, amount, note),
+    expenses: (from,to) => ipcRenderer.invoke('pos:expenses',from,to),
+    saveExpense: (name, amount, note, details) => ipcRenderer.invoke('pos:save-expense', name, amount, note, details),
     shopProfile: () => ipcRenderer.invoke('pos:shop-profile'),
     saveShopProfile: (profile) => ipcRenderer.invoke('pos:save-shop-profile', profile),
   },
   cloud: {
+    completeLogin: input => ipcRenderer.invoke('cloud:complete-login',input),
+    join: input => ipcRenderer.invoke('cloud:join',input),
+    createPairingCode: () => ipcRenderer.invoke('cloud:pairing-code'),
+    confirmSwitch: () => ipcRenderer.invoke('cloud:confirm-switch'),
+    cancelSwitch: () => ipcRenderer.invoke('cloud:cancel-switch'),
+    submitSlip: input => ipcRenderer.invoke('cloud:submit-slip',input),
+    listSlips: () => ipcRenderer.invoke('cloud:list-slips'),
     state: () => ipcRenderer.invoke('cloud:state'),
     setApiUrl: (url) => ipcRenderer.invoke('cloud:set-api-url', url),
     register: (input) => ipcRenderer.invoke('cloud:register', input),

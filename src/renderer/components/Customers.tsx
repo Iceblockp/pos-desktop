@@ -1,10 +1,14 @@
-import { FormEvent, useState } from "react";
+import { useCapabilities } from '../useCapabilities';
+import { FormEvent, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Receipt } from "../../shared/models";
 
 const money = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
 
 export function Customers({ notify }: { notify: (s: string) => void }) {
+  const capabilities=useCapabilities();
+  const methods=useQuery({queryKey:['payment-methods'],queryFn:()=>window.storePos.pos.paymentMethods()});
+  const [saleId,setSaleId]=useState(''),[paidAt,setPaidAt]=useState('');
   const empty = { id: "", name: "", phone: "", note: "" };
   const [modal, setModal] = useState<"customer" | "collect" | null>(null);
   const [form, setForm] = useState(empty);
@@ -13,6 +17,11 @@ export function Customers({ notify }: { notify: (s: string) => void }) {
   const [method, setMethod] = useState("cash");
   const [note, setNote] = useState("");
   const [debtReceipt, setDebtReceipt] = useState<Receipt | null>(null);
+  useEffect(() => {
+    const active = methods.data?.filter(m => m.isActive && m.code !== 'debt');
+    if (method !== 'debt' && active?.length && !active.some(m => m.code === method)) setMethod(active[0].code);
+  }, [methods.data, method]);
+  useEffect(() => { setSaleId(''); }, [customerId]);
   const client = useQueryClient();
   const customers = useQuery({
     queryKey: ["customers"],
@@ -27,6 +36,7 @@ export function Customers({ notify }: { notify: (s: string) => void }) {
     queryFn: () => window.storePos.pos.customerLedger(form.id),
     enabled: modal === "customer" && Boolean(form.id),
   });
+  const collectionLedger=useQuery({queryKey:['customer-ledger',customerId],queryFn:()=>window.storePos.pos.customerLedger(customerId),enabled:modal==='collect'&&!!customerId});
   const save = useMutation({
     mutationFn: () =>
       window.storePos.pos.saveCustomer({
@@ -49,9 +59,12 @@ export function Customers({ notify }: { notify: (s: string) => void }) {
         Number(amount),
         method,
         note || undefined,
+        saleId || undefined, paidAt ? new Date(paidAt).toISOString() : undefined,
       ),
     onSuccess: (receipt) => {
       setDebtReceipt(receipt);
+      setSaleId("");setPaidAt("");
+      void client.invalidateQueries();
       setAmount("");
       setNote("");
       setCustomerId("");
@@ -74,6 +87,7 @@ export function Customers({ notify }: { notify: (s: string) => void }) {
   });
   const openCollect = (id = "") => {
     setCustomerId(id);
+    if(!capabilities.debt){notify("Customer debt requires an active paid plan and an enabled Debt feature");return;}
     setModal("collect");
   };
   const edit = (customer: {
@@ -369,7 +383,7 @@ export function Customers({ notify }: { notify: (s: string) => void }) {
       )}
 
       {/* Compact Collect Debt Modal */}
-      {modal === "collect" && (
+      {modal === "collect" && capabilities.debt && (
         <div className="modal modal-open">
           <div className="modal-box">
             <h3 className="font-bold text-lg mb-4">Collect debt</h3>
@@ -432,9 +446,7 @@ export function Customers({ notify }: { notify: (s: string) => void }) {
                   onChange={(event) => setMethod(event.target.value)}
                   className="select select-bordered select-sm w-full"
                 >
-                  <option value="cash">Cash</option>
-                  <option value="card">Card</option>
-                  <option value="transfer">Transfer</option>
+                  {methods.data?.filter(m=>m.isActive&&m.code!=='debt').map(m=><option key={m.id} value={m.code}>{m.name}</option>)}
                 </select>
               </div>
 
@@ -449,6 +461,8 @@ export function Customers({ notify }: { notify: (s: string) => void }) {
                 />
               </div>
 
+              <label className="form-control text-xs">Apply to<select className="select select-bordered select-sm" value={saleId} onChange={e=>setSaleId(e.target.value)}><option value="">Customer balance (oldest first)</option>{collectionLedger.data?.sales.filter(s=>s.remaining>0).map(s=><option key={s.id} value={s.id}>{s.voucherId} · {s.remaining} due</option>)}</select></label>
+              <label className="form-control text-xs">Payment date (optional)<input className="input input-bordered input-sm" type="datetime-local" value={paidAt} onChange={e=>setPaidAt(e.target.value)}/></label>
               <div className="modal-action">
                 <button
                   type="button"

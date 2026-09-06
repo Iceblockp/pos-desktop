@@ -1,3 +1,5 @@
+import { useCapabilities } from '../useCapabilities';
+import { PeriodFilter, usePeriod } from "./PeriodFilter";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type {
@@ -36,18 +38,6 @@ function ReportRow({
   );
 }
 
-function reportRange(period: "today" | "week" | "month") {
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const from =
-    period === "today"
-      ? today
-      : period === "week"
-        ? new Date(today.getTime() - 6 * 24 * 60 * 60 * 1000)
-        : new Date(now.getFullYear(), now.getMonth(), 1);
-  const to = new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1);
-  return { from: from.toISOString(), to: to.toISOString() };
-}
 
 export function Reports({
   dashboard,
@@ -61,8 +51,10 @@ export function Reports({
   };
   notify: (s: string) => void;
 }) {
+  const capabilities=useCapabilities();
   const [tab, setTab] = useState<"money" | "reports" | "activity">("money");
 
+  if(!capabilities.owner)return <MoneyPage notify={notify}/>;
   return (
     <section className="h-full flex flex-col">
       {/* Compact Header */}
@@ -109,8 +101,9 @@ export function Reports({
 }
 
 function ReportsTab() {
-  const [period, setPeriod] = useState<"today" | "week" | "month">("today");
-  const range = useMemo(() => reportRange(period), [period]);
+  const {range: selectedRange,label: periodLabel}=usePeriod();
+  const range=selectedRange!;
+
   const report = useQuery({
     queryKey: ["report", range.from, range.to],
     queryFn: () => window.storePos.pos.report(range.from, range.to),
@@ -137,15 +130,7 @@ function ReportsTab() {
             actually moving.
           </p>
         </div>
-        <select
-          value={period}
-          onChange={(e) => setPeriod(e.target.value as typeof period)}
-          className="select select-bordered select-sm mb-2"
-        >
-          <option value="today">Today</option>
-          <option value="week">Last 7 days</option>
-          <option value="month">This month</option>
-        </select>
+        <PeriodFilter/>
       </header>
 
       {/* Metrics Cards */}
