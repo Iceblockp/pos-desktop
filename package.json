@@ -9,13 +9,18 @@
     "build": "npm run typecheck && npm run build:electron && vite build",
     "build:electron": "tsc -p tsconfig.electron.json",
     "start": "npm run build && electron .",
-    "package": "npm run build && electron-builder --win nsis --mac dmg",
+    "package": "npm run build && electron-builder",
+    "package:win": "npm run build && electron-builder --win nsis",
+    "package:mac": "npm run build && electron-builder --mac dmg",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.electron.json",
     "test": "node --experimental-sqlite --test test/*.test.cjs"
   },
   "build": {
     "appId": "com.storepos.desktop",
     "productName": "Store POS",
+    "directories": {
+      "output": "release"
+    },
     "files": [
       "dist/**/*",
       "package.json"
