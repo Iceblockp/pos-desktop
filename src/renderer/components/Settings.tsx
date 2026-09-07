@@ -969,7 +969,7 @@ function PrinterTab({ notify }: { notify: (s: string) => void }) {
               <div className="p-3 border border-gray-200 rounded">
                 <p className="font-medium mb-1">2. Find and choose it</p>
                 <p className="text-sm text-gray-500">
-                  On macOS, select Bluetooth / serial for a paired thermal printer. Installed printers use their operating system driver.
+                  For Xprinter over USB on macOS, select USB thermal (ESC/POS). This bypasses the PostScript driver. Bluetooth / serial remains available for paired printers.
                 </p>
               </div>
               <div className="p-3 border border-gray-200 rounded">
@@ -1008,7 +1008,7 @@ function PrinterTab({ notify }: { notify: (s: string) => void }) {
                     void save({
                       ...printer.data,
                       deviceName: event.target.value || null,
-                      paperWidth: event.target.value.startsWith("serial:") ? 58 : printer.data.paperWidth,
+                      paperWidth: (event.target.value.startsWith("serial:") || event.target.value.startsWith("usb-raw:")) ? 58 : printer.data.paperWidth,
                     }).then(() =>
                       setStatus(
                         event.target.value

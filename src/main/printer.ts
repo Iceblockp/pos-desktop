@@ -1,3 +1,4 @@
+import { USB_PREFIX, usbQueueName, usbQueues, sendUsb } from './usb-printer';
 import { SERIAL_PREFIX, serialPath, serialPrinters, rasterCommands, sendSerial } from './thermal';
 import { BrowserWindow, webContents } from 'electron';
 import type { PrinterInfo, PrinterSettings, Receipt } from '../shared/models';
@@ -7,7 +8,10 @@ export async function listPrinters(): Promise<PrinterInfo[]> {
   const contents = webContents.getFocusedWebContents() ?? BrowserWindow.getAllWindows()[0]?.webContents;
   const installed = (await contents?.getPrintersAsync() ?? []).map(printer => ({name:printer.name, displayName:printer.displayName, isDefault:false, status:0}));
   const serial = (await serialPrinters()).map(path => ({name:SERIAL_PREFIX + path, displayName:path.slice('/dev/cu.'.length) + ' — Bluetooth / serial', isDefault:false, status:0}));
-  return [...installed, ...serial];
+  const usb = await usbQueues();
+  const direct = usb.map(queue => ({name:USB_PREFIX+queue.name,displayName:queue.name.replaceAll('_',' ')+' — USB thermal (ESC/POS)',isDefault:false,status:0}));
+  // Hide the known incompatible Xprinter driver entry; keep other OS printers.
+  return [...direct, ...installed.filter(printer => !usb.some(queue => queue.name === printer.name && /xprinter/i.test(queue.uri))), ...serial];
 }
 
 export function getPrinterSettings(db: PosDatabase): PrinterSettings {
@@ -17,6 +21,7 @@ export function getPrinterSettings(db: PosDatabase): PrinterSettings {
 export function savePrinterSettings(db: PosDatabase, settings: PrinterSettings): PrinterSettings {
   if (settings.paperWidth !== 58 && settings.paperWidth !== 80) throw new Error('Paper width must be 58mm or 80mm');
   if (settings.deviceName?.startsWith(SERIAL_PREFIX)) serialPath(settings.deviceName);
+  if (settings.deviceName?.startsWith(USB_PREFIX)) usbQueueName(settings.deviceName);
   db.setState('printer.deviceName', settings.deviceName);
   db.setState('printer.paperWidth', String(settings.paperWidth));
   db.setState('printer.autoPrint', settings.autoPrint ? '1' : '0');
@@ -34,20 +39,28 @@ export function printReceipt(db: PosDatabase, receipt: Receipt): Promise<void> {
 async function printReceiptNow(db: PosDatabase, receipt: Receipt): Promise<void> {
   const settings = getPrinterSettings(db);
   if (!settings.deviceName) throw new Error('Install or pair the printer in Windows or macOS first, then choose it in Settings.');
-  const direct = settings.deviceName.startsWith(SERIAL_PREFIX);
+  let device = settings.deviceName;
+  // Existing Xprinter selections must also bypass the Generic PostScript driver.
+  if (!device.startsWith(SERIAL_PREFIX) && !device.startsWith(USB_PREFIX)) {
+    const queue = (await usbQueues()).find(item => item.name === device && /xprinter/i.test(item.uri));
+    if (queue) device = USB_PREFIX + queue.name;
+  }
+  const direct = device.startsWith(SERIAL_PREFIX) || device.startsWith(USB_PREFIX);
   const dots = settings.paperWidth === 58 ? 384 : 576;
   const window = new BrowserWindow({ show: false, width:dots, height:600, useContentSize:true, webPreferences: { offscreen:direct, sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling:false } });
   try {
     await window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(receiptHtml(db, receipt, settings.paperWidth, direct))}`);
     if (direct) {
       const height = await window.webContents.executeJavaScript('document.fonts.ready.then(() => Math.ceil(document.body.getBoundingClientRect().height))') as number;
-      if (!Number.isFinite(height) || height < 1 || height > 12000) throw new Error('Receipt is too long for Bluetooth printing');
+      if (!Number.isFinite(height) || height < 1 || height > 12000) throw new Error('Receipt is too long for thermal printing');
       window.setContentSize(dots, height);
       await window.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
       const image = await window.webContents.capturePage({x:0,y:0,width:dots,height}, {stayHidden:true,stayAwake:true});
       if (image.isEmpty()) throw new Error('Could not render the receipt');
       const bitmap = image.resize({width:dots,height}).toBitmap({scaleFactor:1});
-      await sendSerial(settings.deviceName, rasterCommands(bitmap, dots, height));
+      const commands = rasterCommands(bitmap, dots, height);
+      if (device.startsWith(USB_PREFIX)) await sendUsb(device, commands);
+      else await sendSerial(device, commands);
       return;
     }
     await new Promise<void>((resolve, reject) => window.webContents.print({ silent: true, deviceName: settings.deviceName!, printBackground: true, pageSize: { width: settings.paperWidth * 1000, height: 297000 }, margins: { marginType: 'none' } }, (success, failureReason) => success ? resolve() : reject(new Error(failureReason || 'The printer rejected the receipt'))));
