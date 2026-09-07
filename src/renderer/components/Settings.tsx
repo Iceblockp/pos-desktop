@@ -913,14 +913,14 @@ function PrinterTab({ notify }: { notify: (s: string) => void }) {
       setPrinters(found);
       setStatus(
         found.length
-          ? `${found.length} installed printer${found.length === 1 ? "" : "s"} found. Choose your receipt printer below.`
-          : "No printers found. Pair or install the printer in Windows or macOS, then search again.",
+          ? `${found.length} printer${found.length === 1 ? "" : "s"} found. Choose your receipt printer below.`
+          : "No printers found. Pair your Bluetooth printer or install a USB/Wi-Fi printer, then search again.",
       );
     } catch (error) {
       setStatus(
         error instanceof Error
           ? error.message
-          : "Could not read installed printers.",
+          : "Could not find printers.",
       );
     } finally {
       setFinding(false);
@@ -962,15 +962,14 @@ function PrinterTab({ notify }: { notify: (s: string) => void }) {
               <div className="p-3 border border-gray-200 rounded">
                 <p className="font-medium mb-1">1. Pair or install</p>
                 <p className="text-sm text-gray-500">
-                  Connect USB, Bluetooth, or Wi‑Fi printers in Windows or macOS
+                  Pair Bluetooth printers in macOS, or install USB and Wi‑Fi printers in Windows or macOS
                   first.
                 </p>
               </div>
               <div className="p-3 border border-gray-200 rounded">
                 <p className="font-medium mb-1">2. Find and choose it</p>
                 <p className="text-sm text-gray-500">
-                  Store POS uses the operating system printer driver for
-                  reliable printing.
+                  On macOS, select Bluetooth / serial for a paired thermal printer. Installed printers use their operating system driver.
                 </p>
               </div>
               <div className="p-3 border border-gray-200 rounded">
@@ -995,7 +994,7 @@ function PrinterTab({ notify }: { notify: (s: string) => void }) {
                 disabled={finding}
                 onClick={() => void find()}
               >
-                {finding ? "Finding printers…" : "Find installed printers"}
+                {finding ? "Finding printers…" : "Find printers"}
               </button>
               <div className="form-control mb-4">
                 <label className="label">
@@ -1009,6 +1008,7 @@ function PrinterTab({ notify }: { notify: (s: string) => void }) {
                     void save({
                       ...printer.data,
                       deviceName: event.target.value || null,
+                      paperWidth: event.target.value.startsWith("serial:") ? 58 : printer.data.paperWidth,
                     }).then(() =>
                       setStatus(
                         event.target.value

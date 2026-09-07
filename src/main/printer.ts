@@ -1,9 +1,13 @@
+import { SERIAL_PREFIX, serialPath, serialPrinters, rasterCommands, sendSerial } from './thermal';
 import { BrowserWindow, webContents } from 'electron';
 import type { PrinterInfo, PrinterSettings, Receipt } from '../shared/models';
 import { PosDatabase } from './database';
 
 export async function listPrinters(): Promise<PrinterInfo[]> {
-  return (await webContents.getFocusedWebContents()?.getPrintersAsync() ?? []).map((printer) => ({ name: printer.name, displayName: printer.displayName, isDefault: false, status: 0 }));
+  const contents = webContents.getFocusedWebContents() ?? BrowserWindow.getAllWindows()[0]?.webContents;
+  const installed = (await contents?.getPrintersAsync() ?? []).map(printer => ({name:printer.name, displayName:printer.displayName, isDefault:false, status:0}));
+  const serial = (await serialPrinters()).map(path => ({name:SERIAL_PREFIX + path, displayName:path.slice('/dev/cu.'.length) + ' — Bluetooth / serial', isDefault:false, status:0}));
+  return [...installed, ...serial];
 }
 
 export function getPrinterSettings(db: PosDatabase): PrinterSettings {
@@ -12,19 +16,40 @@ export function getPrinterSettings(db: PosDatabase): PrinterSettings {
 
 export function savePrinterSettings(db: PosDatabase, settings: PrinterSettings): PrinterSettings {
   if (settings.paperWidth !== 58 && settings.paperWidth !== 80) throw new Error('Paper width must be 58mm or 80mm');
+  if (settings.deviceName?.startsWith(SERIAL_PREFIX)) serialPath(settings.deviceName);
   db.setState('printer.deviceName', settings.deviceName);
   db.setState('printer.paperWidth', String(settings.paperWidth));
   db.setState('printer.autoPrint', settings.autoPrint ? '1' : '0');
   return settings;
 }
 
-/** Prints through the OS driver, covering USB, Bluetooth, and Wi-Fi printers. */
-export async function printReceipt(db: PosDatabase, receipt: Receipt): Promise<void> {
+/** Serial jobs use raster ESC/POS; installed printers keep the OS driver route. */
+let printQueue: Promise<void> = Promise.resolve();
+export function printReceipt(db: PosDatabase, receipt: Receipt): Promise<void> {
+  const job = printQueue.then(() => printReceiptNow(db, receipt));
+  printQueue = job.catch(() => {});
+  return job;
+}
+
+async function printReceiptNow(db: PosDatabase, receipt: Receipt): Promise<void> {
   const settings = getPrinterSettings(db);
   if (!settings.deviceName) throw new Error('Install or pair the printer in Windows or macOS first, then choose it in Settings.');
-  const window = new BrowserWindow({ show: false, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false } });
+  const direct = settings.deviceName.startsWith(SERIAL_PREFIX);
+  const dots = settings.paperWidth === 58 ? 384 : 576;
+  const window = new BrowserWindow({ show: false, width:dots, height:600, useContentSize:true, webPreferences: { offscreen:direct, sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling:false } });
   try {
-    await window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(receiptHtml(db, receipt, settings.paperWidth))}`);
+    await window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(receiptHtml(db, receipt, settings.paperWidth, direct))}`);
+    if (direct) {
+      const height = await window.webContents.executeJavaScript('document.fonts.ready.then(() => Math.ceil(document.body.getBoundingClientRect().height))') as number;
+      if (!Number.isFinite(height) || height < 1 || height > 12000) throw new Error('Receipt is too long for Bluetooth printing');
+      window.setContentSize(dots, height);
+      await window.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+      const image = await window.webContents.capturePage({x:0,y:0,width:dots,height}, {stayHidden:true,stayAwake:true});
+      if (image.isEmpty()) throw new Error('Could not render the receipt');
+      const bitmap = image.resize({width:dots,height}).toBitmap({scaleFactor:1});
+      await sendSerial(settings.deviceName, rasterCommands(bitmap, dots, height));
+      return;
+    }
     await new Promise<void>((resolve, reject) => window.webContents.print({ silent: true, deviceName: settings.deviceName!, printBackground: true, pageSize: { width: settings.paperWidth * 1000, height: 297000 }, margins: { marginType: 'none' } }, (success, failureReason) => success ? resolve() : reject(new Error(failureReason || 'The printer rejected the receipt'))));
   } finally { window.destroy(); }
 }
@@ -50,10 +75,10 @@ export async function printTestReceipt(db: PosDatabase): Promise<void> {
   });
 }
 
-function receiptHtml(db: PosDatabase, receipt: Receipt, width: 58 | 80): string {
+function receiptHtml(db: PosDatabase, receipt: Receipt, width: 58 | 80, raster = false): string {
   const esc = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[char]!);
   const rows = receipt.lines.map((line) => `<tr><td>${esc(line.name)}<br><small>${line.quantity} ${esc(line.unit)} × ${line.unitPrice.toFixed(2)}</small></td><td>${(line.subtotal ?? (line.quantity * line.unitPrice - line.discount)).toFixed(2)}</td></tr>`).join('');
   const payments = receipt.payments?.map(p => '<p>'+esc(p.methodName || p.methodCode)+': '+p.amount.toFixed(2)+'</p>').join('') ?? '<p>'+esc(receipt.paymentMethod)+'</p>';
   const balance = receipt.outstanding ? '<p>Balance: '+receipt.outstanding.toFixed(2)+'</p>' : '';
-  return `<!doctype html><html><head><meta charset="utf-8"><style>@page{size:${width}mm auto;margin:3mm}body{font-family:Arial,'Myanmar Text',sans-serif;font-size:11px;width:${width - 6}mm}h1,p{text-align:center;margin:3px 0}table{width:100%;border-collapse:collapse}td:last-child{text-align:right}tfoot td{border-top:1px dashed #000;padding-top:4px}.total{font-size:14px;font-weight:bold}small{color:#444}</style></head><body><h1>${esc(receipt.shopName)}</h1>${db.getShopSetting('shop.address') ? `<p>${esc(db.getShopSetting('shop.address'))}</p>` : ''}${receipt.shopPhone ? `<p>${esc(receipt.shopPhone)}</p>` : ''}<p>${esc(receipt.voucherId)}<br>${esc(new Date(receipt.soldAt).toLocaleString())}</p><table><tbody>${rows}</tbody><tfoot><tr><td>Subtotal</td><td>${receipt.subtotal.toFixed(2)}</td></tr><tr><td>Discount</td><td>${receipt.discount.toFixed(2)}</td></tr><tr class="total"><td>Total</td><td>${receipt.total.toFixed(2)}</td></tr>${receipt.change != null ? `<tr><td>Change</td><td>${receipt.change.toFixed(2)}</td></tr>` : ''}</tfoot></table>${payments}${balance}<p>${esc(db.getShopSetting('shop.receiptFooter') || 'Thank you')}</p></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><style>@page{size:${width}mm auto;margin:3mm}body{font-family:Arial,'Myanmar Text',sans-serif;font-size:11px;width:${width - 6}mm}h1,p{text-align:center;margin:3px 0}table{width:100%;border-collapse:collapse}td:last-child{text-align:right}tfoot td{border-top:1px dashed #000;padding-top:4px}.total{font-size:14px;font-weight:bold}small{color:#444}${raster ? `html{margin:0;padding:0;background:white}body{box-sizing:border-box;margin:0;padding:12px;width:${width === 58 ? 384 : 576}px;font-family:'Myanmar Sangam MN','Myanmar MN','Myanmar Text',Arial,sans-serif;font-size:22px;color:#000;background:#fff;overflow-wrap:anywhere}h1{font-size:30px}.total{font-size:28px}small{color:#000}table{table-layout:fixed}td{vertical-align:top}td:last-child{width:145px;white-space:nowrap}` : ''}</style></head><body><h1>${esc(receipt.shopName)}</h1>${db.getShopSetting('shop.address') ? `<p>${esc(db.getShopSetting('shop.address'))}</p>` : ''}${receipt.shopPhone ? `<p>${esc(receipt.shopPhone)}</p>` : ''}<p>${esc(receipt.voucherId)}<br>${esc(new Date(receipt.soldAt).toLocaleString())}</p><table><tbody>${rows}</tbody><tfoot><tr><td>Subtotal</td><td>${receipt.subtotal.toFixed(2)}</td></tr><tr><td>Discount</td><td>${receipt.discount.toFixed(2)}</td></tr><tr class="total"><td>Total</td><td>${receipt.total.toFixed(2)}</td></tr>${receipt.change != null ? `<tr><td>Change</td><td>${receipt.change.toFixed(2)}</td></tr>` : ''}</tfoot></table>${payments}${balance}<p>${esc(db.getShopSetting('shop.receiptFooter') || 'Thank you')}</p></body></html>`;
 }
