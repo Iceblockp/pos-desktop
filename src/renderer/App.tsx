@@ -1,23 +1,13 @@
 import { useCapabilities } from './useCapabilities';
 import {
-  FormEvent,
-  KeyboardEvent,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   CartDraft,
   CartLine,
-  CashSessionSummary,
-  Product,
-  Receipt,
-  ReportSummary,
-  SaleSummary,
-  StockMovement,
-  Supplier,
 } from "../shared/models";
 import { Money as MoneyPage } from "./components/Money";
 import { Counter } from "./components/Counter";
@@ -32,43 +22,120 @@ type Page =
   | "sales"
   | "inventory"
   | "customers"
+  | "cash-drawer"
   | "reports"
   | "settings";
 
-type TierDraft = {
-  key: string;
-  id: string;
-  minQuantity: string;
-  bulkPrice: string;
-};
+interface Toast {
+  id: number;
+  message: string;
+  type: "success" | "error" | "info";
+}
 
 const money = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
 
 export function App() {
   const [page, setPage] = useState<Page>("counter");
   const capabilities = useCapabilities();
-  const [draft,setDraft] = useState<CartDraft|null>(null);
+  const [draft, setDraft] = useState<CartDraft | null>(null);
   const cart = draft?.lines ?? [];
-  const setCart: React.Dispatch<React.SetStateAction<CartLine[]>> = value => setDraft(current => current ? {...current,lines:typeof value==='function'?value(current.lines):value} : current);
-  const updateDraft = (patch:Partial<CartDraft>) => setDraft(current => current ? {...current,...patch} : current);
-  useEffect(() => { window.storePos.pos.cartDraft().then(setDraft).catch(error=>setNotice(error.message)); }, []);
-  useEffect(() => { if(draft)void window.storePos.pos.saveCartDraft(draft).catch(error=>setNotice('Cart could not be saved: '+error.message)); }, [draft]);
-  const [notice, setNotice] = useState<string | null>(null);
+  const setCart: React.Dispatch<React.SetStateAction<CartLine[]>> = (value) =>
+    setDraft((current) =>
+      current
+        ? {
+            ...current,
+            lines: typeof value === "function" ? value(current.lines) : value,
+          }
+        : current,
+    );
+  const updateDraft = (patch: Partial<CartDraft>) =>
+    setDraft((current) => (current ? { ...current, ...patch } : current));
+
+  // Toasts
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const showToast = (message: string, type?: "success" | "error" | "info") => {
+    const inferredType: "success" | "error" | "info" =
+      type ??
+      (/fail|error|reject|cannot|denied|invalid|err/i.test(message)
+        ? "error"
+        : "success");
+    const id = Date.now() + Math.random();
+    setToasts((prev) => [...prev.slice(-3), { id, message, type: inferredType }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  };
+
+  useEffect(() => {
+    window.storePos.pos
+      .cartDraft()
+      .then(setDraft)
+      .catch((error) => showToast(error.message, "error"));
+  }, []);
+
+  useEffect(() => {
+    if (draft)
+      void window.storePos.pos
+        .saveCartDraft(draft)
+        .catch((error) =>
+          showToast("Cart could not be saved: " + error.message, "error"),
+        );
+  }, [draft]);
+
   const client = useQueryClient();
-  const cloud = useQuery({queryKey:['cloud'], queryFn:()=>window.storePos.cloud.state(), refetchInterval:5000});
+  const cloud = useQuery({
+    queryKey: ["cloud"],
+    queryFn: () => window.storePos.cloud.state(),
+    refetchInterval: 5000,
+  });
+
+  const session = useQuery({
+    queryKey: ["cash-session"],
+    queryFn: () => window.storePos.pos.cashSession(),
+    refetchInterval: 15000,
+  });
+
+  const [isSyncing, setIsSyncing] = useState(false);
+  const handleManualSync = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsSyncing(true);
+    try {
+      await window.storePos.cloud.syncNow();
+      await client.invalidateQueries();
+      showToast("Cloud sync completed", "success");
+    } catch (err: any) {
+      showToast(err?.message || "Sync failed", "error");
+    } finally {
+      setTimeout(() => setIsSyncing(false), 600);
+    }
+  };
+
   const lastRevision = useRef<number | undefined>(undefined);
   useEffect(() => {
     if (cloud.data?.dataRevision !== lastRevision.current) {
       lastRevision.current = cloud.data?.dataRevision;
-      void client.invalidateQueries({predicate:q => !['cloud','cloud-state'].includes(String(q.queryKey[0]))});
+      void client.invalidateQueries({
+        predicate: (q) =>
+          !["cloud", "cloud-state"].includes(String(q.queryKey[0])),
+      });
     }
   }, [cloud.data?.dataRevision, client]);
-  useEffect(() => { const sync=()=>{void window.storePos.cloud.syncNow();};window.addEventListener("online",sync);return()=>window.removeEventListener("online",sync);},[]);
-  useEffect(()=>window.storePos.app.onNavigate(setPage),[]);
+
+  useEffect(() => {
+    const sync = () => {
+      void window.storePos.cloud.syncNow();
+    };
+    window.addEventListener("online", sync);
+    return () => window.removeEventListener("online", sync);
+  }, []);
+
+  useEffect(() => window.storePos.app.onNavigate(setPage as any), []);
+
   const dashboard = useQuery({
     queryKey: ["dashboard"],
     queryFn: () => window.storePos.pos.dashboard(),
   });
+
   useEffect(() => {
     const log = (message: string, source: string) => {
       void window.storePos.pos.logCrash(message, source).catch(() => {});
@@ -89,58 +156,232 @@ export function App() {
       window.removeEventListener("unhandledrejection", onRejection);
     };
   }, []);
+
   const afterSale = () => {
-    setDraft({lines:[],orderDiscount:0,customerId:'',note:'',soldAt:'',priceLevelId:'level-retail'});
+    setDraft({
+      lines: [],
+      orderDiscount: 0,
+      customerId: "",
+      note: "",
+      soldAt: "",
+      priceLevelId: "level-retail",
+    });
     void client.invalidateQueries();
   };
+
+  const isDrawerOpen = session.data?.status === "open";
+  const syncStatus = cloud.data?.status;
+  const pendingCount = cloud.data?.pending ?? 0;
+
+  const navItems: {
+    key: Page;
+    label: string;
+    icon: string;
+    badge?: React.ReactNode;
+  }[] = [
+    { key: "counter", label: "Counter", icon: "🛒" },
+    { key: "sales", label: "Sales", icon: "📊" },
+    { key: "inventory", label: "Inventory", icon: "📦" },
+    { key: "customers", label: "Customers", icon: "👥" },
+    {
+      key: "cash-drawer",
+      label: "Cash Drawer",
+      icon: "💵",
+      badge: isDrawerOpen ? (
+        <span className="badge badge-success badge-xs py-0.5 px-1.5 text-[10px] text-white">
+          Open
+        </span>
+      ) : (
+        <span className="badge badge-ghost badge-xs py-0.5 px-1.5 text-[10px] text-gray-400 bg-white/10 border-0">
+          Closed
+        </span>
+      ),
+    },
+    {
+      key: "reports",
+      label: "Reports",
+      icon: "📈",
+      badge: !capabilities.owner ? (
+        <span className="badge badge-neutral badge-xs py-0.5 px-1.5 text-[10px] text-gray-400 bg-white/10 border-0">
+          Owner
+        </span>
+      ) : undefined,
+    },
+    { key: "settings", label: "Settings", icon: "⚙️" },
+  ];
+
   return (
-    <div className="flex min-h-screen bg-stone-50">
-      <aside className="w-60 bg-gradient-to-b from-gray-800 to-gray-900 text-gray-100 p-7 flex flex-col gap-1.5 shadow-xl">
-        <div className="px-3 pb-8">
-          <h1 className="text-2xl font-bold tracking-tight">
-            Store <span className="text-green-400 font-extrabold">POS</span>
-          </h1>
-          <p className="text-xs uppercase tracking-wider text-green-200/60 mt-1.5 font-semibold">
-            Desktop
-          </p>
+    <div className="flex min-h-screen bg-stone-50 font-sans antialiased text-gray-800">
+      {/* Sidebar */}
+      <aside className="w-64 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 text-slate-100 p-5 flex flex-col gap-2 shadow-2xl border-r border-slate-800 select-none">
+        {/* Brand & Shop Profile Header */}
+        <div className="px-2 pb-5 border-b border-slate-800/80">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-black text-lg shadow-inner">
+              P
+            </div>
+            <div>
+              <h1 className="text-xl font-bold tracking-tight leading-tight text-white">
+                Store <span className="text-emerald-400 font-extrabold">POS</span>
+              </h1>
+              <p className="text-[11px] text-emerald-400/90 font-medium truncate max-w-[150px]">
+                {cloud.data?.shopName || "Offline Counter"}
+              </p>
+            </div>
+          </div>
+          <div className="mt-2.5 flex items-center gap-1.5 text-[11px] text-slate-400 bg-slate-800/50 px-2.5 py-1 rounded-md border border-slate-700/50">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+            <span className="truncate flex-1">
+              {cloud.data?.deviceName || "Desktop"}
+              {cloud.data?.role ? ` (${cloud.data.role})` : ""}
+            </span>
+          </div>
         </div>
-        {(
-          [
-            ["counter", "🛒 Counter"],
-            ["sales", "📊 Sales"],
-            ["inventory", "📦 Inventory"],
-            ["customers", "👥 Customers"],
-            ["reports", "💰 Reports"],
-            ["settings", "⚙️ Settings"],
-          ] as [Page, string][]
-        ).map(([key, label]) => (
-          <button
-            className={`px-4 py-3.5 rounded-lg text-left font-medium transition-all text-sm ${
-              page === key
-                ? "bg-gradient-to-r from-green-600 to-green-700 text-white shadow-lg"
-                : "text-gray-300 hover:bg-green-600/10 hover:text-white"
-            }`}
-            key={key}
-            onClick={() => setPage(key)}
+
+        {/* Primary Navigation Links */}
+        <nav className="flex-1 flex flex-col gap-1 pt-2">
+          {navItems.map(({ key, label, icon, badge }) => {
+            const isActive = page === key;
+            return (
+              <button
+                key={key}
+                onClick={() => setPage(key)}
+                className={`group flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  isActive
+                    ? "bg-emerald-600 text-white shadow-md shadow-emerald-900/30"
+                    : "text-slate-300 hover:bg-slate-800/70 hover:text-white"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-base leading-none">{icon}</span>
+                  <span>{label}</span>
+                </div>
+                {badge}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Status Widgets in Sidebar Footer */}
+        <div className="mt-auto flex flex-col gap-2 pt-3 border-t border-slate-800/80">
+          {/* Live Drawer Status Widget */}
+          <div
+            onClick={() => setPage("cash-drawer")}
+            className="p-2.5 rounded-lg bg-slate-800/40 border border-slate-700/50 hover:bg-slate-800/80 transition cursor-pointer"
+            title="Click to view Cash Drawer"
           >
-            {key === "reports" && !capabilities.owner ? "🧰 Shop tools" : label}
-          </button>
-        ))}
-        <div className="mt-auto p-3 text-xs leading-relaxed bg-white/5 rounded-lg border border-white/10">
-          Offline-first
-          <br />
-          Cloud sync is optional
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">
+                Cash Drawer
+              </span>
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  isDrawerOpen ? "bg-emerald-400 animate-pulse" : "bg-slate-500"
+                }`}
+              />
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-medium text-slate-200">
+                {isDrawerOpen ? "Session Open" : "Drawer Closed"}
+              </span>
+              {isDrawerOpen && session.data?.openingFloat != null && (
+                <span className="text-[11px] text-emerald-400 font-mono">
+                  {money.format(session.data.openingFloat)}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Live Cloud & Sync Status Widget */}
+          <div className="p-2.5 rounded-lg bg-slate-800/40 border border-slate-700/50 flex items-center justify-between">
+            <div className="min-w-0 flex-1 pr-2">
+              <div className="flex items-center gap-1.5">
+                <span
+                  className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                    syncStatus === "syncing" || isSyncing
+                      ? "bg-amber-400 animate-spin"
+                      : syncStatus === "error"
+                        ? "bg-rose-400"
+                        : cloud.data?.deviceId
+                          ? "bg-emerald-400"
+                          : "bg-slate-500"
+                  }`}
+                />
+                <span className="text-xs font-medium text-slate-200 truncate">
+                  {syncStatus === "syncing" || isSyncing
+                    ? "Syncing data..."
+                    : syncStatus === "error"
+                      ? "Sync error"
+                      : cloud.data?.deviceId
+                        ? "Cloud Online"
+                        : "Offline Mode"}
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-400 mt-0.5 truncate pl-3.5">
+                {pendingCount > 0
+                  ? `${pendingCount} pending upload`
+                  : "All records synced"}
+              </p>
+            </div>
+
+            {/* Quick Sync Button */}
+            <button
+              onClick={handleManualSync}
+              disabled={isSyncing || syncStatus === "syncing"}
+              title="Sync now with cloud"
+              className="btn btn-ghost btn-xs btn-square text-slate-300 hover:text-white hover:bg-slate-700"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={2}
+                stroke="currentColor"
+                className={`w-3.5 h-3.5 ${
+                  isSyncing || syncStatus === "syncing" ? "animate-spin" : ""
+                }`}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"
+                />
+              </svg>
+            </button>
+          </div>
         </div>
       </aside>
-      <main className="flex-1 p-10 max-w-screen-2xl mx-auto">
-        {notice && (
-          <div
-            className="fixed top-5 right-6 z-50 bg-green-600 text-white px-5 py-3 rounded-lg shadow-lg cursor-pointer"
-            onClick={() => setNotice(null)}
-          >
-            {notice}
-          </div>
-        )}
+
+      {/* Main Content Area */}
+      <main className="flex-1 p-8 max-w-screen-2xl mx-auto overflow-y-auto min-h-screen">
+        {/* Floating Toast Notification Stack */}
+        <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none">
+          {toasts.map((toast) => (
+            <div
+              key={toast.id}
+              onClick={() =>
+                setToasts((prev) => prev.filter((t) => t.id !== toast.id))
+              }
+              className={`pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-lg shadow-xl border text-sm cursor-pointer transition-all transform translate-y-0 ${
+                toast.type === "error"
+                  ? "bg-rose-600 text-white border-rose-500 shadow-rose-900/20"
+                  : toast.type === "info"
+                    ? "bg-blue-600 text-white border-blue-500 shadow-blue-900/20"
+                    : "bg-emerald-600 text-white border-emerald-500 shadow-emerald-900/20"
+              }`}
+            >
+              <span>
+                {toast.type === "error"
+                  ? "✕"
+                  : toast.type === "info"
+                    ? "ℹ"
+                    : "✓"}
+              </span>
+              <span className="font-medium">{toast.message}</span>
+            </div>
+          ))}
+        </div>
+
         {page === "counter" && draft && (
           <Counter
             draft={draft}
@@ -148,16 +389,19 @@ export function App() {
             cart={cart}
             setCart={setCart}
             afterSale={afterSale}
-            notify={setNotice}
+            notify={showToast}
           />
         )}
-        {page === "sales" && <Sales notify={setNotice} />}
-        {page === "inventory" && <Inventory notify={setNotice} />}
-        {page === "customers" && <Customers notify={setNotice} />}
-        {page === "reports" && (
-          <Reports dashboard={dashboard.data} notify={setNotice} />
+        {page === "sales" && <Sales notify={showToast} />}
+        {page === "inventory" && <Inventory notify={showToast} />}
+        {page === "customers" && <Customers notify={showToast} />}
+        {page === "cash-drawer" && (
+          <MoneyPage dashboard={dashboard.data} notify={showToast} />
         )}
-        {page === "settings" && <Settings notify={setNotice} />}
+        {page === "reports" && (
+          <Reports dashboard={dashboard.data} notify={showToast} />
+        )}
+        {page === "settings" && <Settings notify={showToast} />}
       </main>
     </div>
   );

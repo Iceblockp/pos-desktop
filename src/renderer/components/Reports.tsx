@@ -7,7 +7,6 @@ import type {
   ReportSummary,
   StockMovement,
 } from "../../shared/models";
-import { Money as MoneyPage } from "./Money";
 
 const money = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
 
@@ -51,41 +50,47 @@ export function Reports({
   };
   notify: (s: string) => void;
 }) {
-  const capabilities=useCapabilities();
-  const [tab, setTab] = useState<"money" | "reports" | "activity">("money");
+  const capabilities = useCapabilities();
+  const [tab, setTab] = useState<"reports" | "activity">("reports");
 
-  if(!capabilities.owner)return <MoneyPage notify={notify}/>;
+  if (!capabilities.owner) {
+    return (
+      <section className="h-full flex flex-col items-center justify-center text-center p-8">
+        <div className="card bg-white shadow-xl max-w-md p-8 border border-gray-100">
+          <div className="text-4xl mb-3">🔒</div>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Owner Access Required</h2>
+          <p className="text-sm text-gray-500 mb-4">
+            Sales analytics and profit reports are restricted to the store owner account.
+          </p>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="h-full flex flex-col">
-      {/* Compact Header */}
+      {/* Header */}
       <header className="mb-3">
         <h1 className="text-2xl font-bold text-gray-900">
-          💰 Reports & Analytics
+          📈 Reports & Analytics
         </h1>
         <p className="text-xs text-gray-500">
-          Track money, sales performance, and activity
+          Track sales performance, profit margins, and audit activity
         </p>
       </header>
 
-      {/* Compact Tabs */}
-      <div role="tablist" className="tabs tabs-boxed mb-3 bg-white shadow-sm">
+      {/* Tabs */}
+      <div role="tablist" className="tabs tabs-boxed mb-3 bg-white shadow-sm border border-gray-100 w-fit">
         <button
           role="tab"
-          className={`tab tab-sm ${tab === "money" ? "tab-active" : ""}`}
-          onClick={() => setTab("money")}
-        >
-          Money & Cash
-        </button>
-        <button
-          role="tab"
-          className={`tab tab-sm ${tab === "reports" ? "tab-active" : ""}`}
+          className={`tab tab-sm ${tab === "reports" ? "tab-active font-semibold" : ""}`}
           onClick={() => setTab("reports")}
         >
-          Sales Reports
+          Sales Analytics
         </button>
         <button
           role="tab"
-          className={`tab tab-sm ${tab === "activity" ? "tab-active" : ""}`}
+          className={`tab tab-sm ${tab === "activity" ? "tab-active font-semibold" : ""}`}
           onClick={() => setTab("activity")}
         >
           Activity Log
@@ -93,7 +98,6 @@ export function Reports({
       </div>
 
       {/* Tab Content */}
-      {tab === "money" && <MoneyPage dashboard={dashboard} notify={notify} />}
       {tab === "reports" && <ReportsTab />}
       {tab === "activity" && <ActivityTab />}
     </section>

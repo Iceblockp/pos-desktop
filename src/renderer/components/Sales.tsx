@@ -6,40 +6,64 @@ import type { Receipt, SaleSummary } from "../../shared/models";
 
 const money = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
 
-export function Sales({ notify }: { notify: (s: string) => void }) {
-  const capabilities=useCapabilities();
+export function Sales({ notify }: { notify: (s: string, type?: "success" | "error" | "info") => void }) {
+  const capabilities = useCapabilities();
   const [search, setSearch] = useState("");
-  const {range,label:periodLabel}=usePeriod(true);
-  const methods=useQuery({queryKey:['payment-methods'],queryFn:()=>window.storePos.pos.paymentMethods()});
-  const [refundAmount,setRefundAmount]=useState('');
+  const { range, label: periodLabel } = usePeriod(true);
+  const methods = useQuery({
+    queryKey: ["payment-methods"],
+    queryFn: () => window.storePos.pos.paymentMethods(),
+  });
+
+  const [typeFilter, setTypeFilter] = useState<"all" | "sales" | "debt" | "returns">("all");
   const [voucherId, setVoucherId] = useState<string | null>(null);
-  const [showReturn, setShowReturn] = useState(false);
-  const [returnQuantities, setReturnQuantities] = useState<
-    Record<string, string>
-  >({});
+
+  // Return state
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [returnQuantities, setReturnQuantities] = useState<Record<string, string>>({});
   const [refundMethod, setRefundMethod] = useState("cash");
+  const [refundAmount, setRefundAmount] = useState("");
   const [returnNote, setReturnNote] = useState("");
-  useEffect(() => {
-    const active = methods.data?.filter(m => m.isActive && m.code !== 'debt');
-    if (refundMethod !== 'debt' && active?.length && !active.some(m => m.code === refundMethod)) setRefundMethod(active[0].code);
-  }, [methods.data, refundMethod]);
 
   const client = useQueryClient();
 
   const sales = useQuery({
     queryKey: ["sales", search, range?.from, range?.to],
-    queryFn: () => window.storePos.pos.sales(search,range?.from,range?.to),
+    queryFn: () => window.storePos.pos.sales(search, range?.from, range?.to),
   });
+
   const receipt = useQuery({
     queryKey: ["receipt", voucherId],
     queryFn: () => window.storePos.pos.receipt(voucherId!),
     enabled: Boolean(voucherId),
   });
+
   const returnable = useQuery({
     queryKey: ["returnable-sale", voucherId],
     queryFn: () => window.storePos.pos.returnableSale(voucherId!),
     enabled: Boolean(voucherId),
   });
+
+  // Auto-select latest transaction when sales list updates
+  useEffect(() => {
+    if (!voucherId && sales.data?.length) {
+      setVoucherId(sales.data[0].voucherId);
+    } else if (voucherId && sales.data?.length && !sales.data.some((s) => s.voucherId === voucherId)) {
+      setVoucherId(sales.data[0].voucherId);
+    }
+  }, [sales.data, voucherId]);
+
+  useEffect(() => {
+    const active = methods.data?.filter((m) => m.isActive && m.code !== "debt");
+    if (
+      refundMethod !== "debt" &&
+      active?.length &&
+      !active.some((m) => m.code === refundMethod)
+    ) {
+      setRefundMethod(active[0].code);
+    }
+  }, [methods.data, refundMethod]);
+
   const returnSale = useMutation({
     mutationFn: () =>
       window.storePos.pos.returnSale(
@@ -55,7 +79,7 @@ export function Sales({ notify }: { notify: (s: string) => void }) {
         refundAmount ? Number(refundAmount) : undefined,
       ),
     onSuccess: (result) => {
-      setShowReturn(false);
+      setShowReturnModal(false);
       setReturnQuantities({});
       setReturnNote("");
       setRefundAmount("");
@@ -65,268 +89,565 @@ export function Sales({ notify }: { notify: (s: string) => void }) {
       void client.invalidateQueries({ queryKey: ["products"] });
       void client.invalidateQueries({ queryKey: ["returnable-sale"] });
       void client.invalidateQueries({ queryKey: ["dashboard"] });
-      notify(`Return saved: ${result.voucherId}`);
+      notify(`Return processed: #${result.voucherId}`, "success");
     },
-    onError: (e: Error) => notify(e.message),
+    onError: (e: Error) => notify(e.message, "error"),
   });
-  const choose = (id: string) => {
-    setVoucherId(id);
-    setShowReturn(false);
-    setReturnQuantities({});
-    setReturnNote("");
+
+  // Print helper with toast
+  const handlePrint = (r: Receipt) => {
+    window.storePos.printer
+      .printReceipt(r)
+      .then(() => notify(`Receipt #${r.voucherId} printed`, "success"))
+      .catch((e) => notify(e.message, "error"));
   };
 
-  const handleReturnClick = () => {
-    setShowReturn(true);
-    setReturnQuantities({});
-    setReturnNote("");
+  // Keyboard shortcut Ctrl+P / Cmd+P to print selected receipt
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "p") {
+        if (receipt.data) {
+          e.preventDefault();
+          handlePrint(receipt.data);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [receipt.data]);
+
+  // Summary Metrics
+  const rawList = sales.data ?? [];
+  const totalVolume = rawList.reduce(
+    (sum, s) => sum + (s.type === "return" ? -s.total : s.total),
+    0,
+  );
+  const returnCount = rawList.filter((s) => s.type === "return").length;
+  const debtCount = rawList.filter(
+    (s) => s.paymentMethod === "debt" || s.paymentMethod === "On Account",
+  ).length;
+
+  // Filtered List
+  const filteredSales = useMemo(() => {
+    return rawList.filter((sale) => {
+      if (typeFilter === "returns") return sale.type === "return";
+      if (typeFilter === "debt")
+        return (
+          sale.paymentMethod === "debt" || sale.paymentMethod === "On Account"
+        );
+      if (typeFilter === "sales") return sale.type !== "return";
+      return true;
+    });
+  }, [rawList, typeFilter]);
+
+  const handleReturnAll = () => {
+    if (!returnable.data) return;
+    const all: Record<string, string> = {};
+    for (const line of returnable.data) {
+      all[line.productId] = String(line.returnable);
+    }
+    setReturnQuantities(all);
   };
+
+  const calculatedRefundTotal = useMemo(() => {
+    if (!returnable.data) return 0;
+    return Object.entries(returnQuantities).reduce((sum, [pId, qtyStr]) => {
+      const q = Number(qtyStr) || 0;
+      const line = returnable.data?.find((l) => l.productId === pId);
+      return sum + q * (line?.refundPerUnit ?? 0);
+    }, 0);
+  }, [returnable.data, returnQuantities]);
+
   return (
-    <section className="h-full flex flex-col">
-      {/* Compact Header with Filter Button */}
-      <header className="mb-3 flex justify-between items-start">
+    <section className="h-full flex flex-col gap-3">
+      {/* Overview Stats & Period Header */}
+      <header className="flex flex-wrap items-center justify-between gap-3 bg-white px-5 py-3 rounded-xl border border-gray-200/80 shadow-sm">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Sales history</h1>
+          <h1 className="text-xl font-bold text-gray-900 leading-tight">
+            📊 Sales History & Receipts
+          </h1>
           <p className="text-xs text-gray-500">
-            {periodLabel}
+            {periodLabel} · Showing {filteredSales.length} of {rawList.length} transactions
           </p>
         </div>
-        <PeriodFilter allowAll/>
+
+        <div className="flex items-center gap-3">
+          <PeriodFilter allowAll />
+        </div>
       </header>
 
-      {/* Compact Main Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 overflow-hidden">
-        {/* Recent Transactions Panel */}
-        <div className="card bg-white shadow-lg flex flex-col overflow-hidden">
-          <div className="card-body p-3 flex flex-col overflow-hidden">
-            <div className="mb-3">
-              <input
-                autoFocus
-                placeholder="Search voucher or customer"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="input input-bordered input-sm w-full"
-              />
-            </div>
-
-            <h2 className="text-sm font-semibold mb-2 text-gray-700">
-              Recent transactions
-            </h2>
-
-            <div className="space-y-1 flex-1 overflow-y-auto">
-              {sales.data?.length ? (
-                sales.data.map((sale: SaleSummary) => (
-                  <button
-                    key={sale.id}
-                    className="w-full text-left p-2 rounded border border-gray-200 hover:border-green-500 hover:bg-green-50 transition-colors"
-                    onClick={() => choose(sale.voucherId)}
-                  >
-                    <div className="flex justify-between items-start gap-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-sm text-gray-900">
-                          {sale.voucherId}
-                        </p>
-                        <p className="text-xs text-gray-500 truncate">
-                          {new Date(sale.soldAt).toLocaleString()} ·{" "}
-                          {sale.customerName ?? "Walk-in"} ·{" "}
-                          {sale.paymentMethod}
-                        </p>
-                      </div>
-                      <p
-                        className={`font-bold text-sm ${sale.type === "return" ? "text-red-600" : "text-gray-900"}`}
-                      >
-                        {money.format(sale.total)}
-                      </p>
-                    </div>
-                  </button>
-                ))
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-gray-400 text-sm">
-                    No transactions found.
-                  </p>
-                </div>
-              )}
-            </div>
+      {/* Metric Cards Bar */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div
+          onClick={() => setTypeFilter("all")}
+          className={`p-3 rounded-xl border shadow-sm flex items-center justify-between cursor-pointer transition ${
+            typeFilter === "all"
+              ? "bg-slate-900 text-white border-slate-900 shadow-md"
+              : "bg-white border-gray-200/80 text-gray-800 hover:bg-gray-50"
+          }`}
+        >
+          <div>
+            <p className={`text-[11px] font-semibold uppercase tracking-wider ${typeFilter === "all" ? "text-slate-300" : "text-gray-400"}`}>
+              Transactions
+            </p>
+            <p className="text-xl font-black mt-0.5">{rawList.length}</p>
           </div>
+          <span className="text-2xl">🧾</span>
         </div>
 
-        {/* Receipt Details Panel */}
-        <div className="card bg-white shadow-lg flex flex-col overflow-hidden">
-          <div className="card-body p-3 flex flex-col overflow-hidden">
-            <h2 className="text-sm font-semibold mb-2 text-gray-700">
-              {receipt.data ? receipt.data.voucherId : "Receipt details"}
-            </h2>
+        <div
+          onClick={() => setTypeFilter("sales")}
+          className={`p-3 rounded-xl border shadow-sm flex items-center justify-between cursor-pointer transition ${
+            typeFilter === "sales"
+              ? "bg-emerald-700 text-white border-emerald-700 shadow-md"
+              : "bg-white border-gray-200/80 text-gray-800 hover:bg-emerald-50/50"
+          }`}
+        >
+          <div>
+            <p className={`text-[11px] font-semibold uppercase tracking-wider ${typeFilter === "sales" ? "text-emerald-100" : "text-emerald-600"}`}>
+              Net Sales Volume
+            </p>
+            <p className="text-xl font-black mt-0.5">{money.format(totalVolume)}</p>
+          </div>
+          <span className="text-2xl">💰</span>
+        </div>
 
-            {receipt.isFetching ? (
-              <div className="flex justify-center py-8">
-                <span className="loading loading-spinner loading-md text-green-600"></span>
-              </div>
-            ) : receipt.data ? (
-              <div className="space-y-3 flex-1 overflow-y-auto">
-                <p className="text-xs text-gray-600">
-                  {new Date(receipt.data.soldAt).toLocaleString()} ·{" "}
-                  {receipt.data.paymentMethod}
-                </p>
+        <div
+          onClick={() => setTypeFilter("debt")}
+          className={`p-3 rounded-xl border shadow-sm flex items-center justify-between cursor-pointer transition ${
+            typeFilter === "debt"
+              ? "bg-amber-600 text-white border-amber-600 shadow-md"
+              : "bg-white border-gray-200/80 text-gray-800 hover:bg-amber-50/50"
+          }`}
+        >
+          <div>
+            <p className={`text-[11px] font-semibold uppercase tracking-wider ${typeFilter === "debt" ? "text-amber-100" : "text-amber-600"}`}>
+              On Account (Credit)
+            </p>
+            <p className="text-xl font-black mt-0.5">{debtCount}</p>
+          </div>
+          <span className="text-2xl">👥</span>
+        </div>
 
-                {/* Receipt Lines */}
-                <div className="space-y-2 border-t border-b border-gray-200 py-2">
-                  {receipt.data.lines.map((line) => (
-                    <div
-                      key={line.productId}
-                      className="flex justify-between items-start gap-2"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-xs text-gray-900">
-                          {line.name}
-                        </p>
-                        <p className="text-[10px] text-gray-500">
-                          {line.quantity} {line.unit} ×{" "}
-                          {money.format(line.unitPrice)}
-                        </p>
-                      </div>
-                      <p className="font-bold text-sm">
-                        {money.format(
-                          line.subtotal ?? (line.quantity * line.unitPrice - line.discount),
-                        )}
-                      </p>
-                    </div>
-                  ))}
-                </div>
+        <div
+          onClick={() => setTypeFilter("returns")}
+          className={`p-3 rounded-xl border shadow-sm flex items-center justify-between cursor-pointer transition ${
+            typeFilter === "returns"
+              ? "bg-rose-600 text-white border-rose-600 shadow-md"
+              : "bg-white border-gray-200/80 text-gray-800 hover:bg-rose-50/50"
+          }`}
+        >
+          <div>
+            <p className={`text-[11px] font-semibold uppercase tracking-wider ${typeFilter === "returns" ? "text-rose-100" : "text-rose-600"}`}>
+              Refunds / Returns
+            </p>
+            <p className="text-xl font-black mt-0.5">{returnCount}</p>
+          </div>
+          <span className="text-2xl">↩️</span>
+        </div>
+      </div>
 
-                {/* Compact Total */}
-                <div className="flex justify-between items-center text-lg font-bold pt-2">
-                  <span>Total</span>
-                  <span className="text-green-600">
-                    {money.format(receipt.data.total)}
-                  </span>
-                </div>
+      {/* Main Split Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-4 flex-1 overflow-hidden">
+        {/* Left Column: Search & Transactions List */}
+        <div className="flex flex-col bg-white rounded-xl border border-gray-200/80 shadow-sm overflow-hidden p-3.5">
+          {/* Search Box */}
+          <div className="relative mb-3">
+            <span className="absolute inset-y-0 left-3 flex items-center text-gray-400">
+              🔍
+            </span>
+            <input
+              type="text"
+              placeholder="Search voucher # or customer name..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="input input-bordered input-sm w-full pl-9 text-xs bg-gray-50 focus:bg-white"
+              autoFocus
+            />
+          </div>
 
-                {/* Compact Action Buttons */}
-                <div className="flex gap-2">
+          {/* Transactions List */}
+          <div className="flex-1 overflow-y-auto space-y-1.5 pr-1">
+            {filteredSales.length > 0 ? (
+              filteredSales.map((sale: SaleSummary) => {
+                const isSelected = sale.voucherId === voucherId;
+                const isReturn = sale.type === "return";
+                const isDebt =
+                  sale.paymentMethod === "debt" ||
+                  sale.paymentMethod === "On Account";
+
+                return (
                   <button
-                    className="btn btn-primary btn-sm flex-1"
-                    onClick={() =>
-                      window.storePos.printer
-                        .printReceipt(receipt.data!)
-                        .then(() => notify("Receipt sent to printer"))
-                        .catch((e) => notify(e.message))
-                    }
+                    key={sale.id}
+                    onClick={() => setVoucherId(sale.voucherId)}
+                    className={`w-full text-left p-3 rounded-xl border transition-all ${
+                      isSelected
+                        ? "bg-emerald-50/80 border-emerald-500 shadow-sm ring-1 ring-emerald-500/30"
+                        : "bg-white border-gray-200/80 hover:border-gray-300 hover:bg-gray-50/60"
+                    }`}
                   >
-                    Print receipt
-                  </button>
-                  {returnable.data?.length && !showReturn ? (
-                    <button
-                      className="btn btn-warning btn-sm flex-1"
-                      onClick={handleReturnClick}
-                    >
-                      Return
-                    </button>
-                  ) : null}
-                </div>
-
-                {receipt.data.payments?.map((p,i)=><p className="text-sm" key={i}>{p.methodName??p.methodCode}: {money.format(p.amount)}</p>)}
-                {!!receipt.data.outstanding && <p className="text-sm">Balance: {money.format(receipt.data.outstanding)}</p>}
-                {/* Compact Return Items Section - Only show when button clicked */}
-                {showReturn && returnable.data?.length ? (
-                  <div className="mt-3 p-3 bg-orange-50 rounded-lg border border-orange-200">
-                    <div className="flex justify-between items-center mb-2">
-                      <h3 className="text-sm font-semibold text-orange-900">
-                        Return items
-                      </h3>
-                      <button
-                        className="btn btn-xs btn-circle btn-ghost"
-                        onClick={() => setShowReturn(false)}
-                      >
-                        ✕
-                      </button>
-                    </div>
-
-                    <div className="space-y-2">
-                      {returnable.data.map((line) => (
-                        <div key={line.productId} className="form-control">
-                          <label className="label py-1">
-                            <span className="label-text text-xs font-medium">
-                              {line.name}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-bold text-sm text-gray-900 font-mono">
+                            #{sale.voucherId}
+                          </span>
+                          {isReturn ? (
+                            <span className="badge badge-error badge-xs text-white">
+                              Return
                             </span>
-                            <span className="label-text-alt text-[10px] text-gray-600">
-                              up to {line.returnable} {line.unit} ·{" "}
-                              {money.format(line.refundPerUnit)} each
+                          ) : isDebt ? (
+                            <span className="badge badge-warning badge-xs">
+                              On Account
                             </span>
-                          </label>
-                          <input
-                            type="number"
-                            min="0"
-                            max={line.returnable}
-                            inputMode="decimal"
-                            placeholder="Return quantity"
-                            value={returnQuantities[line.productId] ?? ""}
-                            onChange={(e) =>
-                              setReturnQuantities({
-                                ...returnQuantities,
-                                [line.productId]: e.target.value,
-                              })
-                            }
-                            className="input input-bordered input-sm"
-                          />
+                          ) : (
+                            <span className="badge badge-success badge-xs text-white">
+                              Paid
+                            </span>
+                          )}
                         </div>
-                      ))}
 
-                      <div className="form-control">
-                        <label className="label py-1">
-                          <span className="label-text text-xs font-medium">
-                            Refund method
-                          </span>
-                        </label>
-                        <select
-                          value={refundMethod}
-                          onChange={(e) => setRefundMethod(e.target.value)}
-                          className="select select-bordered select-sm w-full"
+                        <p className="text-xs text-gray-600 truncate">
+                          {sale.customerName ? (
+                            <strong className="text-gray-900">
+                              {sale.customerName}
+                            </strong>
+                          ) : (
+                            "Walk-in Customer"
+                          )}{" "}
+                          · {sale.paymentMethod}
+                        </p>
+                        <p className="text-[11px] text-gray-400 mt-0.5">
+                          {new Date(sale.soldAt).toLocaleString()}
+                        </p>
+                      </div>
+
+                      <div className="text-right">
+                        <span
+                          className={`font-black text-base ${
+                            isReturn ? "text-rose-600" : "text-gray-900"
+                          }`}
                         >
-                          {methods.data?.filter(m=>m.isActive&&m.code!=='debt').map(m=><option key={m.id} value={m.code}>{m.name}</option>)}
-                          {capabilities.debt && receipt.data?.customerId && <option value="debt">Customer credit</option>}
-                        </select>
+                          {isReturn ? `-${money.format(sale.total)}` : money.format(sale.total)}
+                        </span>
                       </div>
-
-                      {refundMethod !== 'debt' && capabilities.debt && receipt.data?.customerId && <label className="form-control text-xs">Refund amount (blank = full refund)<input type="number" min="0" step="0.001" className="input input-bordered input-sm" value={refundAmount} onChange={e=>setRefundAmount(e.target.value)}/></label>}
-                      <div className="form-control">
-                        <label className="label py-1">
-                          <span className="label-text text-xs font-medium">
-                            Note
-                          </span>
-                        </label>
-                        <input
-                          value={returnNote}
-                          onChange={(e) => setReturnNote(e.target.value)}
-                          className="input input-bordered input-sm"
-                          placeholder="Optional return note"
-                        />
-                      </div>
-
-                      <button
-                        className="btn btn-warning btn-sm w-full mt-2"
-                        disabled={returnSale.isPending}
-                        onClick={() => returnSale.mutate()}
-                      >
-                        {returnSale.isPending
-                          ? "Saving return…"
-                          : "Record return"}
-                      </button>
                     </div>
-                  </div>
-                ) : null}
-              </div>
+                  </button>
+                );
+              })
             ) : (
-              <div className="text-center py-8">
-                <p className="text-gray-400 text-sm">
-                  Choose a transaction to view its receipt.
-                </p>
+              <div className="flex flex-col items-center justify-center h-48 text-gray-400">
+                <span className="text-3xl mb-1">🧾</span>
+                <p className="text-sm font-medium">No transactions found</p>
+                <p className="text-xs">Adjust your search query or period filter</p>
               </div>
             )}
           </div>
         </div>
+
+        {/* Right Column: Thermal-Style Receipt Preview */}
+        <div className="flex flex-col bg-white rounded-xl border border-gray-200/80 shadow-lg overflow-hidden">
+          {receipt.isFetching ? (
+            <div className="flex flex-col items-center justify-center h-full text-gray-400">
+              <span className="loading loading-spinner loading-md text-emerald-600 mb-2"></span>
+              <p className="text-xs font-medium">Loading receipt...</p>
+            </div>
+          ) : receipt.data ? (
+            <div className="flex-1 flex flex-col overflow-hidden">
+              {/* Receipt Header Bar */}
+              <div className="px-5 py-3.5 border-b border-gray-200 bg-gray-50/70 flex items-center justify-between">
+                <div>
+                  <h3 className="font-bold text-sm text-gray-800 font-mono">
+                    Receipt #{receipt.data.voucherId}
+                  </h3>
+                  <p className="text-[11px] text-gray-500">
+                    {new Date(receipt.data.soldAt).toLocaleString()}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  {returnable.data && returnable.data.length > 0 && (
+                    <button
+                      onClick={() => setShowReturnModal(true)}
+                      className="btn btn-warning btn-xs font-semibold"
+                    >
+                      ↩ Return
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handlePrint(receipt.data!)}
+                    className="btn btn-primary btn-xs font-bold gap-1 shadow-sm"
+                    title="Print Receipt (Ctrl+P / Cmd+P)"
+                  >
+                    <span>🖨️</span>
+                    <span>Print</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Receipt Body (Paper Aesthetic) */}
+              <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                {/* Store Header & Customer Info */}
+                <div className="text-center pb-3 border-b border-dashed border-gray-200">
+                  <h2 className="font-black text-lg text-gray-900 tracking-tight">
+                    {receipt.data.shopName || "STORE POS"}
+                  </h2>
+                  <p className="text-xs text-gray-500">
+                    Customer:{" "}
+                    <strong>
+                      {sales.data?.find((s) => s.voucherId === receipt.data?.voucherId)?.customerName || "Walk-in Customer"}
+                    </strong>
+                  </p>
+                  <p className="text-[11px] text-gray-400">
+                    Payment: {receipt.data.paymentMethod}
+                  </p>
+                </div>
+
+                {/* Line Items */}
+                <div className="space-y-2">
+                  <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex justify-between pb-1 border-b border-gray-100">
+                    <span>Item</span>
+                    <span>Total</span>
+                  </div>
+
+                  {receipt.data.lines.map((line) => (
+                    <div
+                      key={line.productId}
+                      className="flex justify-between items-start text-xs py-1"
+                    >
+                      <div className="min-w-0 flex-1 pr-2">
+                        <p className="font-semibold text-gray-900 leading-snug">
+                          {line.name}
+                        </p>
+                        <p className="text-[11px] text-gray-500 mt-0.5">
+                          {line.quantity} {line.unit} × {money.format(line.unitPrice)}
+                          {line.discount > 0 && (
+                            <span className="text-orange-600 font-medium ml-1">
+                              (-{money.format(line.discount)})
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <span className="font-bold font-mono text-gray-900">
+                        {money.format(
+                          line.subtotal ??
+                            line.quantity * line.unitPrice - line.discount,
+                        )}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Total & Payments Calculation */}
+                <div className="pt-3 border-t border-dashed border-gray-300 space-y-1.5 text-xs">
+                  {receipt.data.payments?.map((p, i) => (
+                    <div key={i} className="flex justify-between text-gray-600">
+                      <span>{p.methodName ?? p.methodCode}</span>
+                      <span className="font-mono">{money.format(p.amount)}</span>
+                    </div>
+                  ))}
+
+                  <div className="flex justify-between items-baseline pt-2 border-t border-gray-200">
+                    <span className="text-sm font-bold text-gray-900">
+                      Total
+                    </span>
+                    <span className="text-xl font-black text-emerald-700">
+                      {money.format(receipt.data.total)}
+                    </span>
+                  </div>
+
+                  {receipt.data.change != null && receipt.data.change > 0 && (
+                    <div className="flex justify-between text-emerald-800 bg-emerald-50 p-2 rounded font-semibold mt-1">
+                      <span>Change Given</span>
+                      <span className="font-mono">
+                        {money.format(receipt.data.change)}
+                      </span>
+                    </div>
+                  )}
+
+                  {!!receipt.data.outstanding && (
+                    <div className="flex justify-between text-amber-800 bg-amber-50 p-2 rounded font-semibold mt-1">
+                      <span>Outstanding Balance</span>
+                      <span className="font-mono">
+                        {money.format(receipt.data.outstanding)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="text-center pt-4 text-[11px] text-gray-400">
+                  <p>Thank you for your visit!</p>
+                  <p className="font-mono mt-0.5 text-[10px]">
+                    Press Cmd+P / Ctrl+P to reprint
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full text-gray-400 p-8 text-center">
+              <span className="text-4xl mb-2">🧾</span>
+              <p className="text-sm font-semibold text-gray-700">
+                Select a transaction
+              </p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Click any sale from the left list to view its receipt breakdown and options.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
 
+      {/* Return Items Dialog Modal */}
+      {showReturnModal && returnable.data && (
+        <div className="modal modal-open">
+          <div className="modal-box max-w-lg p-6">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div>
+                <h3 className="font-bold text-lg text-gray-900">
+                  Process Return / Refund
+                </h3>
+                <p className="text-xs text-gray-500 font-mono">
+                  Receipt #{voucherId}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn btn-sm btn-circle btn-ghost"
+                onClick={() => setShowReturnModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="mt-3 space-y-4">
+              <div className="flex justify-between items-center bg-gray-50 p-2.5 rounded-lg border border-gray-200">
+                <span className="text-xs text-gray-600">
+                  Select items to return:
+                </span>
+                <button
+                  type="button"
+                  onClick={handleReturnAll}
+                  className="btn btn-xs btn-outline font-semibold"
+                >
+                  Return All Items
+                </button>
+              </div>
+
+              {/* Returnable Items List */}
+              <div className="max-h-52 overflow-y-auto space-y-2 pr-1">
+                {returnable.data.map((line) => (
+                  <div
+                    key={line.productId}
+                    className="p-2.5 rounded-lg border border-gray-200 bg-white flex items-center justify-between gap-3 text-xs"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-gray-900 truncate">
+                        {line.name}
+                      </p>
+                      <p className="text-[11px] text-gray-500">
+                        Up to {line.returnable} {line.unit} · {money.format(line.refundPerUnit)} each
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <input
+                        type="number"
+                        min="0"
+                        max={line.returnable}
+                        inputMode="decimal"
+                        placeholder="0"
+                        value={returnQuantities[line.productId] ?? ""}
+                        onChange={(e) =>
+                          setReturnQuantities({
+                            ...returnQuantities,
+                            [line.productId]: e.target.value,
+                          })
+                        }
+                        className="input input-bordered input-xs w-20 text-center font-bold"
+                      />
+                      <span className="text-[11px] text-gray-500">
+                        / {line.returnable}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Total Refund Summary */}
+              <div className="p-3 bg-rose-50 rounded-lg border border-rose-200 flex justify-between items-center text-xs">
+                <span className="font-semibold text-rose-900">
+                  Total Refund Amount:
+                </span>
+                <span className="text-base font-black text-rose-700">
+                  {money.format(calculatedRefundTotal)}
+                </span>
+              </div>
+
+              {/* Refund Method */}
+              <div className="form-control">
+                <label className="label py-1">
+                  <span className="label-text text-xs font-semibold">
+                    Refund Payment Method
+                  </span>
+                </label>
+                <select
+                  value={refundMethod}
+                  onChange={(e) => setRefundMethod(e.target.value)}
+                  className="select select-bordered select-sm w-full"
+                >
+                  {methods.data
+                    ?.filter((m) => m.isActive && m.code !== "debt")
+                    .map((m) => (
+                      <option key={m.id} value={m.code}>
+                        {m.name}
+                      </option>
+                    ))}
+                  {capabilities.debt && receipt.data?.customerId && (
+                    <option value="debt">Customer Credit Account</option>
+                  )}
+                </select>
+              </div>
+
+              {/* Return Reason Note */}
+              <div className="form-control">
+                <label className="label py-1">
+                  <span className="label-text text-xs font-semibold">
+                    Reason / Note (optional)
+                  </span>
+                </label>
+                <input
+                  value={returnNote}
+                  onChange={(e) => setReturnNote(e.target.value)}
+                  placeholder="e.g. Expired, damaged packaging, wrong size"
+                  className="input input-bordered input-sm w-full"
+                />
+              </div>
+
+              <div className="modal-action pt-2 flex justify-between">
+                <button
+                  type="button"
+                  className="btn btn-sm btn-ghost"
+                  onClick={() => setShowReturnModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-error text-white font-bold"
+                  disabled={
+                    returnSale.isPending || calculatedRefundTotal <= 0
+                  }
+                  onClick={() => returnSale.mutate()}
+                >
+                  {returnSale.isPending
+                    ? "Processing..."
+                    : `Confirm Return · ${money.format(calculatedRefundTotal)}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
