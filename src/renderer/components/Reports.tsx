@@ -122,7 +122,7 @@ function ReportsTab() {
   });
   const data = report.data;
   return (
-    <section>
+    <section className="h-full flex flex-col gap-4">
       {/* Header */}
       <header className="mb-6 flex justify-between items-start">
         <div>

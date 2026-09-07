@@ -211,9 +211,9 @@ export function App() {
   ];
 
   return (
-    <div className="flex min-h-screen bg-stone-50 font-sans antialiased text-gray-800">
+    <div className="flex h-screen w-screen overflow-hidden bg-stone-50 font-sans antialiased text-gray-800">
       {/* Sidebar */}
-      <aside className="w-64 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 text-slate-100 p-5 flex flex-col gap-2 shadow-2xl border-r border-slate-800 select-none">
+      <aside className="w-64 h-full shrink-0 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 text-slate-100 p-5 flex flex-col gap-2 shadow-2xl border-r border-slate-800 select-none overflow-y-auto">
         {/* Brand & Shop Profile Header */}
         <div className="px-2 pb-5 border-b border-slate-800/80">
           <div className="flex items-center gap-2.5">
@@ -353,7 +353,7 @@ export function App() {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 p-8 max-w-screen-2xl mx-auto overflow-y-auto min-h-screen">
+      <main className="flex-1 h-full overflow-y-auto p-6 min-w-0 flex flex-col">
         {/* Floating Toast Notification Stack */}
         <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none">
           {toasts.map((toast) => (
