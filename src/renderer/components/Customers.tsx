@@ -39,6 +39,16 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
     }
   }, [methods.data, collectMethod]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && modal) {
+        setModal(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [modal]);
+
   const client = useQueryClient();
 
   const customers = useQuery({

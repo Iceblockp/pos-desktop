@@ -1,12 +1,8 @@
-import { useCapabilities } from '../useCapabilities';
-import { PeriodFilter, usePeriod } from "./PeriodFilter";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type {
-  CashSessionSummary,
-  ReportSummary,
-  StockMovement,
-} from "../../shared/models";
+import { useCapabilities } from "../useCapabilities";
+import { PeriodFilter, usePeriod } from "./PeriodFilter";
+import type { CashSessionSummary } from "../../shared/models";
 
 const money = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
 
@@ -24,22 +20,22 @@ function ReportRow({
   plain?: boolean;
 }) {
   return (
-    <div className="flex justify-between items-center py-1">
-      <span className={`text-xs ${bold ? "font-bold" : "font-medium"}`}>
+    <div className="flex justify-between items-center py-1.5 text-xs">
+      <span className={bold ? "font-bold text-slate-800" : "font-medium text-slate-600"}>
         {label}
       </span>
       <span
-        className={`text-xs ${bold ? "font-bold" : ""} ${negative ? "text-red-600" : ""}`}
+        className={`font-mono ${bold ? "font-bold text-slate-900" : ""} ${
+          negative ? "text-rose-600 font-semibold" : "text-slate-700"
+        }`}
       >
-        {plain ? value : money.format(value)}
+        {plain ? value : `${money.format(value)} MMK`}
       </span>
     </div>
   );
 }
 
-
 export function Reports({
-  dashboard,
   notify,
 }: {
   dashboard?: {
@@ -56,11 +52,11 @@ export function Reports({
   if (!capabilities.owner) {
     return (
       <section className="h-full flex flex-col items-center justify-center text-center p-8">
-        <div className="card bg-white shadow-xl max-w-md p-8 border border-gray-100">
+        <div className="bg-white rounded-2xl shadow-xl max-w-md p-8 border border-slate-200">
           <div className="text-4xl mb-3">🔒</div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Owner Access Required</h2>
-          <p className="text-sm text-gray-500 mb-4">
-            Sales analytics and profit reports are restricted to the store owner account.
+          <h2 className="text-xl font-bold text-slate-800 mb-2">Owner Access Required</h2>
+          <p className="text-xs text-slate-500 mb-4">
+            Sales analytics, profit margins, and audit activity logs are restricted to the store owner.
           </p>
         </div>
       </section>
@@ -68,273 +64,368 @@ export function Reports({
   }
 
   return (
-    <section className="h-full flex flex-col">
+    <section className="h-full flex flex-col gap-3 overflow-hidden">
       {/* Header */}
-      <header className="mb-3">
-        <h1 className="text-2xl font-bold text-gray-900">
-          📈 Reports & Analytics
-        </h1>
-        <p className="text-xs text-gray-500">
-          Track sales performance, profit margins, and audit activity
-        </p>
+      <header className="flex flex-wrap items-center justify-between gap-3 bg-white px-5 py-3 rounded-xl border border-gray-200/80 shadow-sm shrink-0">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900 leading-tight">
+            📈 Reports & Financial Analytics
+          </h1>
+          <p className="text-xs text-gray-500">
+            Review sales volume, gross profitability, payment tender intake, and audit logs
+          </p>
+        </div>
+
+        {/* Tab Switcher */}
+        <div className="flex rounded-lg bg-gray-100 p-1">
+          <button
+            onClick={() => setTab("reports")}
+            className={`px-3.5 py-1 text-xs font-semibold rounded-md transition ${
+              tab === "reports"
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-500 hover:text-gray-900"
+            }`}
+          >
+            📊 Sales Analytics
+          </button>
+          <button
+            onClick={() => setTab("activity")}
+            className={`px-3.5 py-1 text-xs font-semibold rounded-md transition ${
+              tab === "activity"
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-500 hover:text-gray-900"
+            }`}
+          >
+            📋 Audit Activity Log
+          </button>
+        </div>
       </header>
 
-      {/* Tabs */}
-      <div role="tablist" className="tabs tabs-boxed mb-3 bg-white shadow-sm border border-gray-100 w-fit">
-        <button
-          role="tab"
-          className={`tab tab-sm ${tab === "reports" ? "tab-active font-semibold" : ""}`}
-          onClick={() => setTab("reports")}
-        >
-          Sales Analytics
-        </button>
-        <button
-          role="tab"
-          className={`tab tab-sm ${tab === "activity" ? "tab-active font-semibold" : ""}`}
-          onClick={() => setTab("activity")}
-        >
-          Activity Log
-        </button>
-      </div>
-
       {/* Tab Content */}
-      {tab === "reports" && <ReportsTab />}
-      {tab === "activity" && <ActivityTab />}
+      <div className="flex-1 overflow-hidden flex flex-col">
+        {tab === "reports" && <ReportsTab />}
+        {tab === "activity" && <ActivityTab />}
+      </div>
     </section>
   );
 }
 
 function ReportsTab() {
-  const {range: selectedRange,label: periodLabel}=usePeriod();
-  const range=selectedRange!;
+  const { range: selectedRange, label: periodLabel } = usePeriod();
+  const range = selectedRange!;
 
   const report = useQuery({
     queryKey: ["report", range.from, range.to],
     queryFn: () => window.storePos.pos.report(range.from, range.to),
   });
+
   const analytics = useQuery({
     queryKey: ["report-analytics", range.from, range.to],
     queryFn: () => window.storePos.pos.reportAnalytics(range.from, range.to),
   });
+
   const sessions = useQuery({
     queryKey: ["cash-sessions"],
     queryFn: () => window.storePos.pos.cashSessions(),
   });
-  const data = report.data;
-  return (
-    <section className="h-full flex flex-col gap-4">
-      {/* Header */}
-      <header className="mb-6 flex justify-between items-start">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            Reports & day end
-          </h2>
-          <p className="text-gray-600">
-            Review net sales, profitability, payment intake, and what is
-            actually moving.
-          </p>
-        </div>
-        <PeriodFilter/>
-      </header>
 
-      {/* Metrics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {[
-          ["Net sales", money.format(data?.netSales ?? 0), "text-blue-600"],
-          [
-            "Gross profit",
-            money.format(data?.grossProfit ?? 0),
-            "text-green-600",
-          ],
-          ["Expenses", money.format(data?.expenses ?? 0), "text-orange-600"],
-          ["Net profit", money.format(data?.netProfit ?? 0), "text-purple-600"],
-        ].map(([label, value, color]) => (
-          <div
-            className="stat bg-white shadow-lg rounded-lg"
-            key={String(label)}
-          >
-            <div className="stat-title">{label}</div>
-            <div className={`stat-value text-2xl ${color}`}>{value}</div>
-          </div>
-        ))}
+  const data = report.data;
+
+  const grossMargin =
+    data?.netSales && data.netSales > 0
+      ? Math.round(((data.grossProfit ?? 0) / data.netSales) * 100)
+      : 0;
+
+  return (
+    <div className="flex-1 flex flex-col gap-3 overflow-hidden">
+      {/* Top Filter Bar */}
+      <div className="flex justify-between items-center bg-white px-5 py-2.5 rounded-xl border border-gray-200/80 shadow-sm shrink-0">
+        <div className="text-xs text-slate-500">
+          Analytics period: <strong className="text-slate-800">{periodLabel}</strong>
+        </div>
+        <PeriodFilter />
       </div>
 
-      {/* Reports Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 flex-1 overflow-y-auto">
-        {/* Sales Summary */}
-        <div className="card bg-white shadow-lg">
-          <div className="card-body p-3">
-            <h3 className="text-sm font-semibold mb-2 text-gray-700">
-              Sales summary
-            </h3>
-            <div className="space-y-1">
-              <ReportRow label="Sales" value={data?.grossSales ?? 0} />
-              <ReportRow
-                label="Returns"
-                value={-(data?.refunds ?? 0)}
-                negative
-              />
-              <ReportRow
-                label="Discounts"
-                value={-(data?.discounts ?? 0)}
-                negative
-              />
-              <div className="divider my-2"></div>
-              <ReportRow label="Net sales" value={data?.netSales ?? 0} bold />
-              <ReportRow
-                label="Cost of goods"
-                value={-(data?.cost ?? 0)}
-                negative
-              />
-              <div className="divider my-2"></div>
-              <ReportRow
-                label="Gross profit"
-                value={data?.grossProfit ?? 0}
-                bold
-              />
+      {/* Executive Metric Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 shrink-0">
+        <div className="bg-white p-3.5 rounded-xl border border-gray-200/80 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+              Net Sales Volume
+            </p>
+            <p className="text-xl font-black text-blue-700 mt-0.5">
+              {money.format(data?.netSales ?? 0)} MMK
+            </p>
+          </div>
+          <span className="text-2xl">💰</span>
+        </div>
+
+        <div className="bg-white p-3.5 rounded-xl border border-gray-200/80 shadow-sm flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-1.5">
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+                Gross Profit
+              </p>
+              {grossMargin > 0 && (
+                <span className="badge badge-xs badge-success text-white font-mono font-bold">
+                  {grossMargin}%
+                </span>
+              )}
             </div>
+            <p className="text-xl font-black text-emerald-700 mt-0.5">
+              {money.format(data?.grossProfit ?? 0)} MMK
+            </p>
+          </div>
+          <span className="text-2xl">📈</span>
+        </div>
+
+        <div className="bg-white p-3.5 rounded-xl border border-gray-200/80 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+              Petty Expenses
+            </p>
+            <p className="text-xl font-black text-amber-600 mt-0.5">
+              {money.format(data?.expenses ?? 0)} MMK
+            </p>
+          </div>
+          <span className="text-2xl">💸</span>
+        </div>
+
+        <div className="bg-white p-3.5 rounded-xl border border-gray-200/80 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+              Net Profit
+            </p>
+            <p
+              className={`text-xl font-black mt-0.5 ${
+                (data?.netProfit ?? 0) >= 0 ? "text-purple-700" : "text-rose-600"
+              }`}
+            >
+              {money.format(data?.netProfit ?? 0)} MMK
+            </p>
+          </div>
+          <span className="text-2xl">💎</span>
+        </div>
+      </div>
+
+      {/* Reports Breakdown Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 flex-1 overflow-y-auto pr-1">
+        {/* Sales & Margin Summary */}
+        <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm p-4 flex flex-col justify-between">
+          <div>
+            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider pb-2 border-b border-slate-100 flex items-center gap-1.5">
+              <span>🧾</span> Financial Sales Breakdown
+            </h3>
+            <div className="divide-y divide-slate-50 mt-1">
+              <ReportRow label="Gross Sales" value={data?.grossSales ?? 0} />
+              <ReportRow label="Returns & Refunds" value={-(data?.refunds ?? 0)} negative />
+              <ReportRow label="Promotional Discounts" value={-(data?.discounts ?? 0)} negative />
+              <div className="pt-1">
+                <ReportRow label="Net Sales Volume" value={data?.netSales ?? 0} bold />
+              </div>
+              <ReportRow label="Cost of Goods Sold (COGS)" value={-(data?.cost ?? 0)} negative />
+              <div className="pt-1">
+                <ReportRow label="Gross Profit" value={data?.grossProfit ?? 0} bold />
+              </div>
+            </div>
+          </div>
+          <div className="mt-3 pt-3 border-t border-slate-100 flex justify-between items-center text-xs">
+            <span className="text-slate-500">Gross Margin:</span>
+            <span className="font-bold text-emerald-700 font-mono">{grossMargin}%</span>
           </div>
         </div>
 
         {/* Top Products */}
-        <div className="card bg-white shadow-lg">
-          <div className="card-body p-3">
-            <h3 className="text-sm font-semibold mb-2 text-gray-700">
-              Top products
-            </h3>
-            <div className="space-y-2">
-              {analytics.data?.topProducts.length ? (
-                analytics.data.topProducts.map((item) => (
-                  <div
-                    key={item.productName}
-                    className="flex justify-between items-start p-2 bg-gray-50 rounded"
-                  >
-                    <div>
-                      <p className="font-medium">{item.productName}</p>
-                      <p className="text-sm text-gray-500">
-                        {item.quantity} sold
-                      </p>
-                    </div>
-                    <p className="font-bold">{money.format(item.revenue)}</p>
-                  </div>
-                ))
-              ) : (
-                <p className="text-center py-6 text-gray-400">
-                  No product sales in this period.
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Slow-moving Products */}
-        <div className="card bg-white shadow-lg">
-          <div className="card-body p-3">
-            <h3 className="text-sm font-semibold mb-2 text-gray-700">
-              Slow-moving products
-            </h3>
-            <div className="space-y-2">
-              {analytics.data?.slowMoving.map((item) => (
+        <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm p-4 flex flex-col">
+          <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider pb-2 border-b border-slate-100 flex items-center gap-1.5">
+            <span>🏆</span> Top Selling Products
+          </h3>
+          <div className="flex-1 overflow-y-auto space-y-2 mt-2 max-h-64">
+            {analytics.data?.topProducts.length ? (
+              analytics.data.topProducts.map((item, index) => (
                 <div
                   key={item.productName}
-                  className="flex justify-between items-center p-2 bg-gray-50 rounded"
+                  className="flex justify-between items-center p-2.5 bg-slate-50 rounded-lg hover:bg-slate-100/80 transition"
                 >
-                  <p className="font-medium">{item.productName}</p>
-                  <p className="text-sm text-gray-500">{item.quantity} sold</p>
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <span
+                      className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                        index === 0
+                          ? "bg-amber-400 text-amber-950 font-black"
+                          : index === 1
+                            ? "bg-slate-300 text-slate-800"
+                            : index === 2
+                              ? "bg-amber-200 text-amber-900"
+                              : "bg-slate-200 text-slate-600"
+                      }`}
+                    >
+                      {index + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-xs text-slate-800 truncate">
+                        {item.productName}
+                      </p>
+                      <p className="text-[11px] text-slate-400">
+                        {item.quantity} units sold
+                      </p>
+                    </div>
+                  </div>
+                  <span className="font-mono font-bold text-xs text-slate-900 shrink-0 ml-2">
+                    {money.format(item.revenue)} MMK
+                  </span>
                 </div>
-              ))}
-            </div>
+              ))
+            ) : (
+              <p className="text-center py-10 text-slate-400 text-xs">
+                No product sales recorded in this period.
+              </p>
+            )}
           </div>
         </div>
 
         {/* Sales by Category */}
-        <div className="card bg-white shadow-lg">
-          <div className="card-body p-3">
-            <h3 className="text-sm font-semibold mb-2 text-gray-700">
-              Sales by category
-            </h3>
-            <div className="space-y-1">
-              {analytics.data?.categories.map((item) => (
+        <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm p-4 flex flex-col">
+          <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider pb-2 border-b border-slate-100 flex items-center gap-1.5">
+            <span>🏷️</span> Sales by Category
+          </h3>
+          <div className="flex-1 overflow-y-auto space-y-1.5 mt-2 max-h-64">
+            {analytics.data?.categories.length ? (
+              analytics.data.categories.map((item) => (
                 <ReportRow
                   key={item.categoryName}
                   label={item.categoryName}
                   value={item.revenue}
                 />
-              ))}
-            </div>
+              ))
+            ) : (
+              <p className="text-center py-10 text-slate-400 text-xs">
+                No category sales recorded in this period.
+              </p>
+            )}
           </div>
         </div>
 
-        {/* Payments & Debt */}
-        <div className="card bg-white shadow-lg">
-          <div className="card-body p-3">
-            <h3 className="text-sm font-semibold mb-2 text-gray-700">
-              Payments & debt
+        {/* Payment Channels & Debt Intake */}
+        <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm p-4 flex flex-col justify-between">
+          <div>
+            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider pb-2 border-b border-slate-100 flex items-center gap-1.5">
+              <span>💳</span> Payment Tender Intake
             </h3>
-            <div className="space-y-1">
+            <div className="divide-y divide-slate-50 mt-1">
               {data?.payments.length ? (
                 data.payments.map((payment) => (
                   <ReportRow
                     key={payment.methodCode}
-                    label={payment.methodCode}
+                    label={payment.methodCode.toUpperCase()}
                     value={payment.total}
                   />
                 ))
               ) : (
-                <p className="text-center py-4 text-gray-400">
-                  No payments in this period.
+                <p className="text-center py-6 text-slate-400 text-xs">
+                  No payment records in this period.
                 </p>
               )}
-              <div className="divider my-2"></div>
-              <ReportRow
-                label="Outstanding debt"
-                value={data?.outstandingDebt ?? 0}
-                bold
-              />
             </div>
+          </div>
+          <div className="pt-3 border-t border-slate-100 mt-2">
+            <ReportRow
+              label="Outstanding Customer Debt"
+              value={data?.outstandingDebt ?? 0}
+              negative={Boolean((data?.outstandingDebt ?? 0) > 0)}
+              bold
+            />
           </div>
         </div>
 
-        {/* Cash-session History */}
-        <div className="card bg-white shadow-lg">
-          <div className="card-body p-3">
-            <h3 className="text-sm font-semibold mb-2 text-gray-700">
-              Cash-session history
-            </h3>
-            <div className="space-y-2">
-              {sessions.data?.length ? (
-                sessions.data.map((session: CashSessionSummary) => (
+        {/* Slow-moving Products */}
+        <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm p-4 flex flex-col">
+          <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider pb-2 border-b border-slate-100 flex items-center gap-1.5">
+            <span>🐢</span> Slow-Moving Products
+          </h3>
+          <div className="flex-1 overflow-y-auto space-y-1.5 mt-2 max-h-64">
+            {analytics.data?.slowMoving.length ? (
+              analytics.data.slowMoving.map((item) => (
+                <div
+                  key={item.productName}
+                  className="flex justify-between items-center p-2 bg-slate-50 rounded-lg text-xs"
+                >
+                  <span className="font-medium text-slate-700 truncate max-w-[180px]">
+                    {item.productName}
+                  </span>
+                  <span className="text-slate-400 text-[11px]">
+                    {item.quantity} units sold
+                  </span>
+                </div>
+              ))
+            ) : (
+              <p className="text-center py-10 text-slate-400 text-xs">
+                No slow-moving inventory detected.
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Cash Register Shifts Audit */}
+        <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm p-4 flex flex-col">
+          <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider pb-2 border-b border-slate-100 flex items-center gap-1.5">
+            <span>🔒</span> Shift Reconciliations
+          </h3>
+          <div className="flex-1 overflow-y-auto space-y-2 mt-2 max-h-64">
+            {sessions.data?.length ? (
+              sessions.data.map((session: CashSessionSummary) => {
+                const diff = session.difference ?? 0;
+                return (
                   <div
                     key={session.id}
-                    className="flex justify-between items-start p-2 bg-gray-50 rounded"
+                    className="flex justify-between items-center p-2.5 bg-slate-50 rounded-lg hover:bg-slate-100/70 transition text-xs"
                   >
                     <div>
-                      <p className="font-medium">
-                        {session.status === "open"
-                          ? "Open till"
-                          : "Closed till"}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        {new Date(session.openedAt).toLocaleString()}
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={`w-2 h-2 rounded-full ${
+                            session.status === "open" ? "bg-emerald-500 animate-pulse" : "bg-slate-400"
+                          }`}
+                        />
+                        <p className="font-semibold text-slate-800">
+                          {session.status === "open" ? "Active Shift" : "Closed Shift"}
+                        </p>
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        {new Date(session.openedAt).toLocaleDateString()}
                       </p>
                     </div>
-                    <p className="font-bold">
-                      {session.difference == null
-                        ? money.format(session.openingFloat)
-                        : money.format(session.difference)}
-                    </p>
+
+                    <div className="text-right">
+                      {session.difference == null ? (
+                        <span className="font-mono text-slate-600">
+                          Float: {money.format(session.openingFloat)}
+                        </span>
+                      ) : (
+                        <span
+                          className={`badge badge-xs font-mono font-bold ${
+                            diff === 0
+                              ? "badge-success text-white"
+                              : diff > 0
+                                ? "badge-info text-white"
+                                : "badge-error text-white"
+                          }`}
+                        >
+                          {diff === 0 ? "Balanced" : diff > 0 ? `+${money.format(diff)}` : money.format(diff)}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                ))
-              ) : (
-                <p className="text-center py-6 text-gray-400">
-                  No cash sessions yet.
-                </p>
-              )}
-            </div>
+                );
+              })
+            ) : (
+              <p className="text-center py-10 text-slate-400 text-xs">
+                No past cash sessions recorded.
+              </p>
+            )}
           </div>
         </div>
       </div>
-    </section>
+    </div>
   );
 }
 
@@ -342,6 +433,7 @@ function ActivityTab() {
   const [filter, setFilter] = useState<
     "all" | "discount" | "return" | "adjustment" | "waste"
   >("all");
+
   const activity = useQuery({
     queryKey: ["activity"],
     queryFn: () => window.storePos.pos.activity(),
@@ -350,15 +442,8 @@ function ActivityTab() {
   const labels = {
     discount: "Discount",
     return: "Return",
-    adjustment: "Stock adjustment",
-    waste: "Waste / damaged",
-  };
-
-  const badges = {
-    discount: "badge-warning",
-    return: "badge-info",
-    adjustment: "badge-primary",
-    waste: "badge-danger",
+    adjustment: "Stock Adjustment",
+    waste: "Damaged / Waste",
   };
 
   const filtered =
@@ -367,108 +452,107 @@ function ActivityTab() {
     ) ?? [];
 
   return (
-    <section>
-      {/* Header */}
-      <header className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Activity Log</h2>
-        <p className="text-gray-600">
-          Track all notable actions: discounts, returns, stock adjustments, and
-          waste across all devices.
-        </p>
-      </header>
+    <div className="flex-1 flex flex-col gap-3 overflow-hidden">
+      {/* Filter Chips Bar */}
+      <div className="bg-white p-3.5 rounded-xl border border-gray-200/80 shadow-sm flex flex-wrap items-center justify-between gap-3 shrink-0">
+        <div className="flex flex-wrap gap-1.5">
+          {(
+            [
+              { key: "all", label: "All Audit Actions" },
+              { key: "discount", label: "Discounts" },
+              { key: "return", label: "Returns" },
+              { key: "adjustment", label: "Adjustments" },
+              { key: "waste", label: "Waste / Loss" },
+            ] as const
+          ).map((item) => (
+            <button
+              key={item.key}
+              onClick={() => setFilter(item.key)}
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition ${
+                filter === item.key
+                  ? "bg-slate-900 text-white shadow-sm"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
 
-      {/* Filter Chips */}
-      <div className="flex flex-wrap gap-2 mb-6">
-        <button
-          className={`btn btn-sm ${filter === "all" ? "btn-primary" : "btn-ghost"}`}
-          onClick={() => setFilter("all")}
-        >
-          All Actions
-        </button>
-        <button
-          className={`btn btn-sm ${filter === "discount" ? "btn-warning" : "btn-ghost"}`}
-          onClick={() => setFilter("discount")}
-        >
-          Discounts
-        </button>
-        <button
-          className={`btn btn-sm ${filter === "return" ? "btn-info" : "btn-ghost"}`}
-          onClick={() => setFilter("return")}
-        >
-          Returns
-        </button>
-        <button
-          className={`btn btn-sm ${filter === "adjustment" ? "btn-primary" : "btn-ghost"}`}
-          onClick={() => setFilter("adjustment")}
-        >
-          Adjustments
-        </button>
-        <button
-          className={`btn btn-sm ${filter === "waste" ? "btn-error" : "btn-ghost"}`}
-          onClick={() => setFilter("waste")}
-        >
-          Waste
-        </button>
+        <span className="text-xs text-slate-400">
+          Showing {filtered.length} log entries
+        </span>
       </div>
 
-      {/* Activity List */}
-      <div className="card bg-white shadow-lg flex-1 overflow-hidden">
-        <div className="card-body p-3 flex flex-col overflow-hidden">
-          <h3 className="text-sm font-semibold mb-2 text-gray-700">
-            Recent Activity ({filtered.length})
-          </h3>
-          <div className="space-y-2">
-            {filtered.length > 0 ? (
-              filtered.map((entry) => (
+      {/* Activity Log List */}
+      <div className="card bg-white shadow-sm border border-gray-200/80 flex-1 overflow-hidden">
+        <div className="card-body p-0 flex flex-col overflow-hidden">
+          {filtered.length > 0 ? (
+            <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
+              {filtered.map((entry) => (
                 <div
                   key={entry.id}
-                  className="flex justify-between items-start p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
+                  className="p-3.5 flex items-center justify-between hover:bg-slate-50/80 transition text-xs"
                 >
-                  <div className="flex-1">
-                    <span
-                      className={`badge ${badges[entry.action]} badge-sm mb-2`}
-                    >
-                      {labels[entry.action]}
-                    </span>
-                    <p className="font-medium">
-                      {entry.detail || "No details"}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      {new Date(entry.occurredAt).toLocaleString()}
-                      {entry.actor ? ` · ${entry.actor}` : " · System"}
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-sm shrink-0">
+                      {entry.action === "discount"
+                        ? "🏷️"
+                        : entry.action === "return"
+                          ? "↩️"
+                          : entry.action === "adjustment"
+                            ? "📦"
+                            : "🗑️"}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-slate-800">
+                          {labels[entry.action]}
+                        </span>
+                        <span className="text-[11px] text-slate-400">
+                          {new Date(entry.occurredAt).toLocaleString()}
+                        </span>
+                      </div>
+                      <p className="text-slate-600 mt-0.5">
+                        {entry.detail || "No details provided"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    {entry.amount != null && (
+                      <span
+                        className={`font-mono font-bold ${
+                          entry.action === "discount" || entry.action === "return"
+                            ? "text-rose-600"
+                            : entry.amount < 0
+                              ? "text-rose-600"
+                              : "text-emerald-600"
+                        }`}
+                      >
+                        {entry.action === "discount" || entry.action === "return"
+                          ? `−${money.format(Math.abs(entry.amount))} MMK`
+                          : `${entry.amount > 0 ? "+" : ""}${entry.amount}`}
+                      </span>
+                    )}
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      Actor: {entry.actor || "System"}
                     </p>
                   </div>
-                  {entry.amount != null && (
-                    <div className="ml-4">
-                      {entry.action === "discount" ||
-                      entry.action === "return" ? (
-                        <span className="font-bold text-red-600">
-                          −{money.format(Math.abs(entry.amount))}
-                        </span>
-                      ) : (
-                        <span
-                          className={`font-bold ${entry.amount < 0 ? "text-red-600" : "text-green-600"}`}
-                        >
-                          {entry.amount > 0 ? "+" : ""}
-                          {entry.amount}
-                        </span>
-                      )}
-                    </div>
-                  )}
                 </div>
-              ))
-            ) : (
-              <div className="text-center py-12">
-                <p className="text-gray-400">
-                  {filter === "all"
-                    ? "No activity recorded yet."
-                    : `No ${labels[filter].toLowerCase()} activities found.`}
-                </p>
-              </div>
-            )}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center py-16 text-center text-slate-400">
+              <span className="text-4xl mb-2">📋</span>
+              <p className="text-sm font-semibold text-slate-700">No activity logged</p>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Audit logs for discounts, refunds, and stock alterations will appear here.
+              </p>
+            </div>
+          )}
         </div>
       </div>
-    </section>
+    </div>
   );
 }

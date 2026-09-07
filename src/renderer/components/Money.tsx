@@ -1,6 +1,6 @@
 import { useCapabilities } from '../useCapabilities';
 import { PeriodFilter, usePeriod } from "./PeriodFilter";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CashSessionSummary } from "../../shared/models";
 
@@ -46,6 +46,16 @@ export function Money({
     spentAt: "",
   };
   const [expense, setExpense] = useState(emptyExpense);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && modal) {
+        setModal(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [modal]);
 
   const client = useQueryClient();
 

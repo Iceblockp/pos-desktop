@@ -363,6 +363,22 @@ export function Counter({
     return () => window.removeEventListener("keydown", scan);
   }, [cart, products.data, priceLevelId]);
 
+  useEffect(() => {
+    const handleEscape = (e: globalThis.KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (receipt) setReceipt(null);
+        else if (customerModal) {
+          setCustomerModal(false);
+          setShowAddCustomer(false);
+        } else if (discountModal) {
+          setDiscountModal(null);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [receipt, customerModal, discountModal]);
+
   const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter") {
       event.preventDefault();

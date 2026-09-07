@@ -102,7 +102,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
       .catch((e) => notify(e.message, "error"));
   };
 
-  // Keyboard shortcut Ctrl+P / Cmd+P to print selected receipt
+  // Keyboard shortcuts: Ctrl+P / Cmd+P to print, Escape to close return modal
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "p") {
@@ -110,11 +110,15 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
           e.preventDefault();
           handlePrint(receipt.data);
         }
+      } else if (e.key === "Escape") {
+        if (showReturnModal) {
+          setShowReturnModal(false);
+        }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [receipt.data]);
+  }, [receipt.data, showReturnModal]);
 
   // Summary Metrics
   const rawList = sales.data ?? [];
