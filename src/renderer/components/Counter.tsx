@@ -324,22 +324,46 @@ export function Counter({
     setDiscountModal(null);
   };
 
-  // Barcode wedge scanner
+  // Barcode wedge scanner (USB, 2.4G & Bluetooth keyboard emulation)
   const buffer = useRef("");
   const firstAt = useRef(0);
   const timer = useRef<number>(0);
 
   useEffect(() => {
     const scan = async (event: globalThis.KeyboardEvent) => {
+      // Don't intercept if user is typing in form inputs
       if (
-        event.key.length === 1 &&
-        !event.ctrlKey &&
-        !event.metaKey &&
-        !["INPUT", "TEXTAREA", "SELECT"].includes(
+        ["INPUT", "TEXTAREA", "SELECT"].includes(
           document.activeElement?.tagName ?? "",
-        ) &&
-        !(document.activeElement as HTMLElement)?.isContentEditable
+        ) ||
+        (document.activeElement as HTMLElement)?.isContentEditable
       ) {
+        return;
+      }
+
+      // Enter key emitted by barcode scanner at end of scanned code
+      if (event.key === "Enter" && buffer.current.length >= 3) {
+        event.preventDefault();
+        clearTimeout(timer.current);
+        const code = buffer.current;
+        buffer.current = "";
+        firstAt.current = 0;
+        try {
+          const product = await window.storePos.pos.findByBarcode(code);
+          if (product) {
+            addProduct(product);
+            notify(`✓ Scanned: ${product.name}`, "success");
+          } else {
+            notify(`Barcode "${code}" not found`, "error");
+          }
+        } catch (e) {
+          notify((e as Error).message, "error");
+        }
+        return;
+      }
+
+      // Buffer characters
+      if (event.key.length === 1 && !event.ctrlKey && !event.metaKey) {
         if (!firstAt.current) firstAt.current = Date.now();
         buffer.current += event.key;
         clearTimeout(timer.current);
@@ -347,11 +371,15 @@ export function Counter({
           const code = buffer.current;
           buffer.current = "";
           firstAt.current = 0;
-          if (code.length >= 4) {
+          if (code.length >= 3) {
             try {
               const product = await window.storePos.pos.findByBarcode(code);
-              if (product) addProduct(product);
-              else notify("Barcode not found", "error");
+              if (product) {
+                addProduct(product);
+                notify(`✓ Scanned: ${product.name}`, "success");
+              } else {
+                notify(`Barcode "${code}" not found`, "error");
+              }
             } catch (e) {
               notify((e as Error).message, "error");
             }
@@ -379,11 +407,31 @@ export function Counter({
     return () => window.removeEventListener("keydown", handleEscape);
   }, [receipt, customerModal, discountModal]);
 
-  const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+  const handleSearchKeyDown = async (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter") {
       event.preventDefault();
+      const term = search.trim();
+      if (!term) return;
+
+      // Check exact barcode first
+      try {
+        const exact = await window.storePos.pos.findByBarcode(term);
+        if (exact) {
+          addProduct(exact);
+          setSearch("");
+          notify(`✓ Scanned: ${exact.name}`, "success");
+          return;
+        }
+      } catch {}
+
       const firstProduct = filteredProducts[0];
-      if (firstProduct) addProduct(firstProduct);
+      if (firstProduct) {
+        addProduct(firstProduct);
+        setSearch("");
+        notify(`Added: ${firstProduct.name}`, "success");
+      } else {
+        notify(`No product matching "${term}"`, "error");
+      }
     }
   };
 
@@ -426,6 +474,21 @@ export function Counter({
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Barcode Scanner Active Indicator */}
+          <div
+            className="flex items-center gap-2 px-2.5 py-1.5 bg-emerald-50 border border-emerald-200/80 rounded-lg text-xs text-emerald-800 shadow-2xs select-none"
+            title="USB, Wireless & Bluetooth barcode scanners work automatically. Point your scanner and scan barcodes anytime!"
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span className="font-semibold flex items-center gap-1">
+              <span>📷</span>
+              <span>Scanner Ready</span>
+            </span>
+            <span className="text-emerald-600/80 text-[11px] hidden xl:inline font-mono">
+              (Point & Scan)
+            </span>
+          </div>
+
           {capabilities.effectivePlan !== "free" ? (
             <label className="flex items-center gap-2 text-xs font-medium text-gray-600 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
               <span>Price level:</span>
@@ -482,13 +545,15 @@ export function Counter({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={handleSearchKeyDown}
-              placeholder="Search product name or barcode (F2)..."
-              className="input input-bordered input-sm w-full pl-9 pr-14 text-sm bg-gray-50 focus:bg-white"
+              placeholder="Search product or scan barcode (F2)..."
+              className="input input-bordered input-sm w-full pl-9 pr-24 text-sm bg-gray-50 focus:bg-white"
               autoFocus
             />
-            <span className="absolute inset-y-0 right-3 flex items-center text-[11px] font-mono text-gray-400 pointer-events-none">
-              ↵ Enter
-            </span>
+            <div className="absolute inset-y-0 right-2.5 flex items-center gap-1 pointer-events-none">
+              <span className="badge badge-xs bg-slate-100 border-slate-200 text-[10px] text-slate-500 font-mono">
+                📷 Barcode OK
+              </span>
+            </div>
           </div>
 
           {/* Category Filter Chips */}
