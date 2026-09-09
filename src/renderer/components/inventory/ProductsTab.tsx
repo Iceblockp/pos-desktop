@@ -32,6 +32,7 @@ export function ProductsTab({
   const [form, setForm] = useState(emptyForm);
   const [modal, setModal] = useState<"product" | "stock" | "history" | null>(null);
   const [productModalTab, setProductModalTab] = useState<"general" | "pricing" | "stock">("general");
+  const [hasPastMovements, setHasPastMovements] = useState(false);
 
   const [viewMode, setViewMode] = useState<"table" | "cards">("table");
   const [selectedProductId, setSelectedProductId] = useState("");
@@ -261,6 +262,21 @@ export function ProductsTab({
           }
         : emptyForm,
     );
+    if (product?.id) {
+      window.storePos.pos
+        .stockHistory(product.id)
+        .then((history) => {
+          const hasPast = history.some(
+            (m) =>
+              m.reason !== "Initial stock" &&
+              m.reason !== "Initial desktop inventory",
+          );
+          setHasPastMovements(hasPast);
+        })
+        .catch(() => setHasPastMovements(false));
+    } else {
+      setHasPastMovements(false);
+    }
     setProductModalTab("general");
     setModal("product");
   };
@@ -961,12 +977,18 @@ export function ProductsTab({
                         <input
                           inputMode="decimal"
                           value={form.cost}
+                          disabled={Boolean(form.id && hasPastMovements)}
                           onChange={(e) =>
                             setForm({ ...form, cost: e.target.value })
                           }
                           placeholder="0.00"
-                          className="input input-bordered input-sm text-sm font-mono"
+                          className="input input-bordered input-sm text-sm font-mono disabled:bg-gray-100 disabled:text-gray-500"
                         />
+                        {form.id && hasPastMovements ? (
+                          <span className="text-[11px] text-gray-500 mt-1">
+                            အရောင်း/ကုန်ဝင် မှတ်တမ်းများ ရှိနေသဖြင့် ပျမ်းမျှဝယ်ဈေးကို အလိုအလျောက် တွက်ချက်သည်
+                          </span>
+                        ) : null}
                       </div>
                     )}
                   </div>

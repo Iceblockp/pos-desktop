@@ -337,6 +337,37 @@ export class PosDatabase {
         occurredAt: this.nextMovementAt(),
       });
       this.recomputeStock(id);
+    } else if (old && Number(old.cost) !== row.cost) {
+      const nonInitial = this.sqlite
+        .prepare(
+          "SELECT COUNT(*) as count FROM stock_movements WHERE productId = ? AND deletedAt IS NULL AND reason NOT IN ('Initial stock', 'Initial desktop inventory')",
+        )
+        .get(id) as { count: number };
+      if (nonInitial.count === 0) {
+        const initialMovement = this.sqlite
+          .prepare(
+            "SELECT * FROM stock_movements WHERE productId = ? AND (reason = 'Initial stock' OR reason = 'Initial desktop inventory') AND deletedAt IS NULL ORDER BY occurredAt ASC LIMIT 1",
+          )
+          .get(id) as Record<string, unknown> | undefined;
+        if (initialMovement) {
+          this.writeLocal("stock_movements", {
+            ...initialMovement,
+            unitCost: row.cost > 0 ? row.cost : null,
+          });
+        }
+        this.recomputeStock(id);
+        this.writeLocal("activity_log", {
+          id: randomUUID(),
+          actor: "Desktop",
+          action: "adjustment",
+          detail: `${row.name}: ဝယ်ဈေး ${Number(old.cost)} ကျပ် မှ ${row.cost} ကျပ် သို့ ပြင်ဆင်ခြင်း`,
+          amount: row.cost,
+          referenceId: id,
+          occurredAt: new Date().toISOString(),
+        });
+      } else {
+        this.recomputeStock(id);
+      }
     }
     return this.findProduct(id)!;
     });

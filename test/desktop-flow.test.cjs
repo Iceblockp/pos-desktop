@@ -21,3 +21,38 @@ test('preload and main IPC carry dates, drafts, split payments, returns and repa
  const report=await api.pos.report('2000-01-01','2099-12-31');assert.equal(report.netSales,85);assert.equal(report.grossProfit,45);
  await api.printer.printReceipt(returned);assert.equal(printed[0].voucherId,returned.voucherId);
 });
+
+test('editing product cost updates initial stock movement and recomputes average cost consistently', async t => {
+  const db = new PosDatabase(':memory:'); t.after(() => db.sqlite.close());
+  const { api } = desktopHarness(root, db);
+  // Create product with initial inventory at cost 500
+  const created = await api.pos.saveProduct({ name: 'Coffee Bean', price: 1000, cost: 500, quantity: 10 });
+  assert.equal(created.cost, 500);
+
+  const initialMovement = db.sqlite.prepare(
+    "SELECT unitCost FROM stock_movements WHERE productId = ? AND reason = 'Initial desktop inventory'"
+  ).get(created.id);
+  assert.equal(initialMovement.unitCost, 500);
+
+  // Edit cost to 650
+  const updated = await api.pos.saveProduct({ ...created, cost: 650 });
+  assert.equal(updated.cost, 650);
+
+  // Verify stock movement unitCost updated
+  const updatedMovement = db.sqlite.prepare(
+    "SELECT unitCost FROM stock_movements WHERE productId = ? AND reason = 'Initial desktop inventory'"
+  ).get(created.id);
+  assert.equal(updatedMovement.unitCost, 650);
+
+  // Trigger another stock recomputation via stock count or delivery to prove cost doesn't revert
+  await api.pos.setStockTo(created.id, 10, 'Count check');
+  const afterCount = (await api.pos.products()).find(p => p.id === created.id);
+  assert.equal(afterCount.cost, 650);
+
+  // Verify activity log recorded
+  const log = db.sqlite.prepare(
+    "SELECT action, amount FROM activity_log WHERE referenceId = ? AND action = 'adjustment'"
+  ).get(created.id);
+  assert.ok(log);
+  assert.equal(log.amount, 650);
+});
