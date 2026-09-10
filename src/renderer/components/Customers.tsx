@@ -2,8 +2,9 @@ import { useCapabilities } from '../useCapabilities';
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Customer, Receipt } from "../../shared/models";
+import { formatCurrency } from '../../shared/currency';
 
-const money = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
+const money = { format: formatCurrency };
 
 export function Customers({ notify }: { notify: (s: string, type?: "success" | "error" | "info") => void }) {
   const capabilities = useCapabilities();

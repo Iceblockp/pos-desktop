@@ -5,6 +5,7 @@ import { FeatureSettings } from "./FeatureSettings";
 import { PaymentSlips } from "./PaymentSlips";
 import { NotificationSettings } from "./NotificationSettings";
 import { useCapabilities } from "../useCapabilities";
+import { CURRENCY_PRESETS, DEFAULT_CURRENCY, cacheCurrency, formatCurrency, parseCurrency, type CurrencyConfig } from '../../shared/currency';
 
 export function Settings({ notify }: { notify: (s: string) => void }) {
   const capabilities = useCapabilities();
@@ -99,6 +100,7 @@ export function Settings({ notify }: { notify: (s: string) => void }) {
    1. STORE & RECEIPT BRANDING TAB
    ========================================================================== */
 function StoreProfileTab({ notify }: { notify: (message: string) => void }) {
+  const capabilities = useCapabilities();
   const client = useQueryClient();
   const profile = useQuery({
     queryKey: ["shop-profile"],
@@ -109,14 +111,20 @@ function StoreProfileTab({ notify }: { notify: (message: string) => void }) {
     address: "",
     phone: "",
     receiptFooter: "",
+    currency: JSON.stringify(DEFAULT_CURRENCY),
   });
 
   useEffect(() => {
-    if (profile.data) setValue(profile.data);
+    if (profile.data) setValue({ ...profile.data, currency: profile.data.currency ?? JSON.stringify(DEFAULT_CURRENCY) });
   }, [profile.data]);
 
   const save = useMutation({
-    mutationFn: () => window.storePos.pos.saveShopProfile(value),
+    mutationFn: () => {
+      const next = parseCurrency(value.currency);
+      if (profile.data?.currency && profile.data.currency !== value.currency && !window.confirm('This does not convert prices or historical amounts. Existing prices, sales, debts, expenses, and reports keep the same numeric values and will display in the new currency.')) throw new Error('Currency change cancelled');
+      cacheCurrency(next);
+      return window.storePos.pos.saveShopProfile(value);
+    },
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["shop-profile"] });
       notify("Shop profile and receipt settings saved");
@@ -166,6 +174,8 @@ function StoreProfileTab({ notify }: { notify: (message: string) => void }) {
                 onChange={(e) => setValue({ ...value, name: e.target.value })}
               />
             </div>
+
+            <CurrencyFields value={parseCurrency(value.currency)} disabled={!capabilities.owner} onChange={(currency) => setValue({ ...value, currency: JSON.stringify(currency) })} />
 
             <div className="form-control">
               <label className="label py-1">
@@ -273,7 +283,7 @@ function StoreProfileTab({ notify }: { notify: (message: string) => void }) {
             <div className="pt-2 border-t border-dashed border-slate-300 space-y-1 text-right">
               <div className="flex justify-between font-bold text-sm text-slate-900">
                 <span>TOTAL</span>
-                <span>5,900 MMK</span>
+                <span>{formatCurrency(5900, parseCurrency(value.currency))}</span>
               </div>
               <div className="flex justify-between text-[11px] text-slate-600">
                 <span>Cash Tendered</span>
@@ -294,6 +304,24 @@ function StoreProfileTab({ notify }: { notify: (message: string) => void }) {
       </div>
     </div>
   );
+}
+
+function CurrencyFields({ value, disabled, onChange }: { value: CurrencyConfig; disabled: boolean; onChange: (currency: CurrencyConfig) => void }) {
+  const preset = CURRENCY_PRESETS.some((entry) => entry.code === value.code) ? value.code : 'CUSTOM';
+  return <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3">
+    <div><p className="text-sm font-bold text-slate-800">Currency</p><p className="text-xs text-slate-500">Owner only. The selection syncs to every shop device.</p></div>
+    <select className="select select-bordered select-sm w-full" disabled={disabled} value={preset} onChange={(e) => onChange(e.target.value === 'CUSTOM' ? { ...value, name: value.name || 'Custom currency' } : CURRENCY_PRESETS.find((entry) => entry.code === e.target.value)!)}>
+      {CURRENCY_PRESETS.map((entry) => <option key={entry.code} value={entry.code}>{entry.code} — {entry.name}</option>)}<option value="CUSTOM">Custom currency</option>
+    </select>
+    <div className="grid grid-cols-2 gap-2">
+      <input className="input input-bordered input-sm" disabled={disabled} value={value.code} maxLength={8} aria-label="Currency code" onChange={(e) => onChange({ ...value, code: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') })} />
+      <input className="input input-bordered input-sm" disabled={disabled} value={value.symbol} maxLength={8} aria-label="Currency symbol" onChange={(e) => onChange({ ...value, symbol: e.target.value })} />
+      <input className="input input-bordered input-sm" disabled={disabled} value={value.name} maxLength={64} aria-label="Currency name" onChange={(e) => onChange({ ...value, name: e.target.value })} />
+      <select className="select select-bordered select-sm" disabled={disabled} value={value.decimalPlaces} onChange={(e) => onChange({ ...value, decimalPlaces: Number(e.target.value) as CurrencyConfig['decimalPlaces'] })}><option value={0}>0 decimals</option><option value={1}>1 decimal</option><option value={2}>2 decimals</option><option value={3}>3 decimals</option></select>
+    </div>
+    <p className="text-sm font-semibold text-slate-700">Preview: {formatCurrency(12500.5, value)}</p>
+    {disabled ? <p className="text-xs text-amber-700">Only an owner can change currency.</p> : null}
+  </div>;
 }
 
 /* ==========================================================================

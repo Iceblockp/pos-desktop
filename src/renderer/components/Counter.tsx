@@ -1,6 +1,7 @@
 import { useCapabilities } from '../useCapabilities';
 import { stepFor } from '../../shared/units';
 import { resolveUnitPrice } from "../../shared/pricing";
+import { formatCurrency } from '../../shared/currency';
 import {
   FormEvent,
   KeyboardEvent,
@@ -12,7 +13,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CartDraft, CartLine, Product, Receipt, Customer } from "../../shared/models";
 
-const money = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
+const money = { format: formatCurrency };
 
 function getSuggestedCash(total: number): number[] {
   if (total <= 0) return [];

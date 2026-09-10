@@ -16,6 +16,7 @@ import { Inventory } from "./components/Inventory";
 import { Customers } from "./components/Customers";
 import { Reports } from "./components/Reports";
 import { Settings } from "./components/Settings";
+import { cacheCurrency, formatCurrency, parseCurrency } from '../shared/currency';
 
 type Page =
   | "counter"
@@ -32,9 +33,21 @@ interface Toast {
   type: "success" | "error" | "info";
 }
 
-const money = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
+const money = { format: formatCurrency };
 
 export function App() {
+  // Formatting helpers read this cached value. Refresh it from SQLite so a
+  // currency change pulled from another device repaints the whole shell too.
+  const [, setCurrencyRevision] = useState(0);
+  const currencyProfile = useQuery({
+    queryKey: ['currency-profile'],
+    queryFn: () => window.storePos.pos.shopProfile(),
+    refetchInterval: 5000,
+  });
+  useEffect(() => {
+    cacheCurrency(parseCurrency(currencyProfile.data?.currency));
+    setCurrencyRevision((revision) => revision + 1);
+  }, [currencyProfile.data?.currency]);
   const [page, setPage] = useState<Page>("counter");
   const capabilities = useCapabilities();
   const [draft, setDraft] = useState<CartDraft | null>(null);

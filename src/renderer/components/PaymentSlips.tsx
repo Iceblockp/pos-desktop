@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { currentCurrency, formatCurrency } from '../../shared/currency';
 
 export function PaymentSlips({ notify }: { notify: (message: string) => void }) {
   const client = useQueryClient();
@@ -106,7 +107,7 @@ export function PaymentSlips({ notify }: { notify: (message: string) => void }) 
 
               <div className="form-control">
                 <label className="label py-1">
-                  <span className="label-text text-xs font-bold text-slate-600">Amount Paid (MMK)</span>
+                  <span className="label-text text-xs font-bold text-slate-600">Amount Paid ({currentCurrency().code})</span>
                 </label>
                 <input
                   className="input input-bordered input-sm"
@@ -193,7 +194,7 @@ export function PaymentSlips({ notify }: { notify: (message: string) => void }) 
                     </div>
                     <p className="text-slate-500">
                       Tier: <strong className="capitalize">{slip.tier.replace("_", " ")}</strong> · Amount:{" "}
-                      <strong>{Number(slip.amount).toLocaleString()} MMK</strong>
+                      <strong>{formatCurrency(Number(slip.amount))}</strong>
                     </p>
                     {slip.reviewNote && (
                       <p className="text-indigo-600 italic">Reviewer note: {slip.reviewNote}</p>

@@ -4,8 +4,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Product, StockMovement, Supplier } from "../../../shared/models";
 import { StockModal } from "./StockModal";
 import type { TierDraft } from "./types";
+import { formatCurrency } from '../../../shared/currency';
 
-const money = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
+const money = { format: formatCurrency };
 
 const POPULAR_UNITS = ["pcs", "pack", "box", "bottle", "can", "kg", "liter", "set"];
 

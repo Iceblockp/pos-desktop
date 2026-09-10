@@ -1841,20 +1841,23 @@ export class PosDatabase {
     address: string;
     phone: string;
     receiptFooter: string;
+    currency: string | null;
   } {
     return {
       name: this.getShopSetting("shop.name") ?? "",
       address: this.getShopSetting("shop.address") ?? "",
       phone: this.getShopSetting("shop.phone") ?? "",
       receiptFooter: this.getShopSetting("shop.receiptFooter") ?? "",
+      currency: this.getShopSetting("shop.currency") ?? null,
     };
   }
   saveShopProfile(profile: {
     name: string;
     address: string;
     phone: string;
-    receiptFooter: string;
-  }): { name: string; address: string; phone: string; receiptFooter: string } {
+      receiptFooter: string;
+      currency?: string;
+  }): { name: string; address: string; phone: string; receiptFooter: string; currency: string | null } {
     const next = {
       name: profile.name.trim(),
       address: profile.address.trim(),
@@ -1867,10 +1870,11 @@ export class PosDatabase {
         "shop.address": next.address,
         "shop.phone": next.phone,
         "shop.receiptFooter": next.receiptFooter,
+        "shop.currency": profile.currency?.trim() || null,
       }))
         this.writeLocal("shop_settings", { id: key, key, value });
     });
-    return next;
+    return { ...next, currency: profile.currency?.trim() || null };
   }
 
   nextVoucher(): string {

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Supplier } from "../../../shared/models";
+import { formatCurrency } from '../../../shared/currency';
 
-const money = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
+const money = { format: formatCurrency };
 
 export function SuppliersTab({ notify }: { notify: (s: string) => void }) {
   const empty = { id: "", name: "", contactName: "", phone: "", address: "" };
@@ -135,7 +136,7 @@ export function SuppliersTab({ notify }: { notify: (s: string) => void }) {
               Procurement Spend ({period === "month" ? "This Month" : "All Time"})
             </p>
             <p className="text-xl font-black text-emerald-700 mt-0.5">
-              {money.format(totalSpend)} MMK
+              {money.format(totalSpend)}
             </p>
           </div>
           <span className="text-2xl">💰</span>
@@ -234,7 +235,7 @@ export function SuppliersTab({ notify }: { notify: (s: string) => void }) {
                       </td>
                       <td className="py-3 px-4 text-right">
                         <span className="font-mono font-bold text-slate-800">
-                          {money.format(spend)} MMK
+                          {money.format(spend)}
                         </span>
                       </td>
                       <td className="py-3 px-4 text-right">
@@ -471,7 +472,7 @@ export function SuppliersTab({ notify }: { notify: (s: string) => void }) {
                             <p className="text-[11px] text-slate-500 font-mono mt-0.5">
                               {purchase.unitCost == null
                                 ? "Cost not recorded"
-                                : `${money.format(purchase.unitCost)} MMK/unit`}
+                                : `${money.format(purchase.unitCost)}/unit`}
                             </p>
                           </div>
                         </div>

@@ -3,8 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useCapabilities } from "../useCapabilities";
 import { PeriodFilter, usePeriod } from "./PeriodFilter";
 import type { CashSessionSummary } from "../../shared/models";
+import { formatCurrency } from '../../shared/currency';
 
-const money = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
+const money = { format: formatCurrency };
 
 function ReportRow({
   label,
@@ -29,7 +30,7 @@ function ReportRow({
           negative ? "text-rose-600 font-semibold" : "text-slate-700"
         }`}
       >
-        {plain ? value : `${money.format(value)} MMK`}
+        {plain ? value : money.format(value)}
       </span>
     </div>
   );
@@ -154,7 +155,7 @@ function ReportsTab() {
               Net Sales Volume
             </p>
             <p className="text-xl font-black text-blue-700 mt-0.5">
-              {money.format(data?.netSales ?? 0)} MMK
+              {money.format(data?.netSales ?? 0)}
             </p>
           </div>
           <span className="text-2xl">💰</span>
@@ -173,7 +174,7 @@ function ReportsTab() {
               )}
             </div>
             <p className="text-xl font-black text-emerald-700 mt-0.5">
-              {money.format(data?.grossProfit ?? 0)} MMK
+              {money.format(data?.grossProfit ?? 0)}
             </p>
           </div>
           <span className="text-2xl">📈</span>
@@ -185,7 +186,7 @@ function ReportsTab() {
               Petty Expenses
             </p>
             <p className="text-xl font-black text-amber-600 mt-0.5">
-              {money.format(data?.expenses ?? 0)} MMK
+              {money.format(data?.expenses ?? 0)}
             </p>
           </div>
           <span className="text-2xl">💸</span>
@@ -201,7 +202,7 @@ function ReportsTab() {
                 (data?.netProfit ?? 0) >= 0 ? "text-purple-700" : "text-rose-600"
               }`}
             >
-              {money.format(data?.netProfit ?? 0)} MMK
+              {money.format(data?.netProfit ?? 0)}
             </p>
           </div>
           <span className="text-2xl">💎</span>
@@ -271,7 +272,7 @@ function ReportsTab() {
                     </div>
                   </div>
                   <span className="font-mono font-bold text-xs text-slate-900 shrink-0 ml-2">
-                    {money.format(item.revenue)} MMK
+                    {money.format(item.revenue)}
                   </span>
                 </div>
               ))
@@ -531,7 +532,7 @@ function ActivityTab() {
                         }`}
                       >
                         {entry.action === "discount" || entry.action === "return"
-                          ? `−${money.format(Math.abs(entry.amount))} MMK`
+                          ? `−${money.format(Math.abs(entry.amount))}`
                           : `${entry.amount > 0 ? "+" : ""}${entry.amount}`}
                       </span>
                     )}

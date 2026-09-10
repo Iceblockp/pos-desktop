@@ -3,8 +3,9 @@ import { PeriodFilter, usePeriod } from "./PeriodFilter";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CashSessionSummary } from "../../shared/models";
+import { formatCurrency } from '../../shared/currency';
 
-const money = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
+const money = { format: formatCurrency };
 
 function localDateTime(value: string): string {
   const date = new Date(value);

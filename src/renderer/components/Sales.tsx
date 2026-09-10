@@ -3,8 +3,9 @@ import { PeriodFilter, usePeriod } from "./PeriodFilter";
 import { useMemo, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Receipt, SaleSummary } from "../../shared/models";
+import { formatCurrency } from '../../shared/currency';
 
-const money = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
+const money = { format: formatCurrency };
 
 export function Sales({ notify }: { notify: (s: string, type?: "success" | "error" | "info") => void }) {
   const capabilities = useCapabilities();

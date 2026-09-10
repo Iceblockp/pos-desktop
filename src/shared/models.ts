@@ -212,7 +212,7 @@ export interface CloudState {
   deviceCode?: string | null;
   role?: string | null;
 }
-export interface ShopProfile { name: string; address: string; phone: string; receiptFooter: string; }
+export interface ShopProfile { name: string; address: string; phone: string; receiptFooter: string; currency?: string; }
 export interface PairedDevice { id: string; name: string; deviceCode: string; role: string; lastSyncedAt: string | null; isCurrent: boolean; }
 export interface BillingStatus { tier: string; premiumUntil: string | null; entitlement?: string; daysAdded?: number; }
 
