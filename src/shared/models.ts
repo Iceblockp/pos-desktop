@@ -322,6 +322,9 @@ export interface DesktopApi {
     login: (input: LoginInput) => Promise<ConnectResult>;
     syncNow: () => Promise<CloudState>;
     signOut: () => Promise<CloudState>;
+    rebuildLocalData: () => Promise<CloudState>;
+    removeLocalData: () => Promise<CloudState>;
+    deleteCloudAccount: (input: { password: string; shopName: string }) => Promise<CloudState>;
     devices: () => Promise<PairedDevice[]>;
     revokeDevice: (id: string) => Promise<void>;
     billingStatus: () => Promise<BillingStatus>;

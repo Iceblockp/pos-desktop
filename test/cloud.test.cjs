@@ -41,13 +41,14 @@ test('device limit exposes a replacement ticket without uploading local data',as
  const limit={status:'device_limit',limit:1,devices:[{id:'old',name:'Old'}],loginTicket:'ticket'};
  const {cloud,calls}=setup(t,{connected:false,fetcher:async()=>limit});assert.deepEqual(await cloud.login({phone:'09',password:'test',deviceName:'Desktop'}),limit);assert.equal(cloud.state().deviceId,null);assert.equal(calls.length,1);
 });
-test('shop switch waits for confirmation and creates a recoverable backup',async t=>{
+test('shop switch waits for a fully synced previous shop before replacing local data',async t=>{
  const next=session({shop:{id:'shop-b',name:'B',tier:'cloud_pro',premiumUntil:'2099-01-01'}});
  const {cloud,db,dir,calls}=setup(t,{connected:false,fetcher:async e=>['/auth/login','/auth/refresh'].includes(e)?next:undefined});
  db.setState('data.shopId','shop-a');db.saveCustomer({name:'Unsynced A'});
  const result=await cloud.login({phone:'09',password:'test',deviceName:'Desktop'});assert.equal(result.status,'shop_switch');assert.equal(calls.length,1);assert.equal(db.listCustomers().length,1);
+ await assert.rejects(cloud.confirmSwitch(),/Sync the previous shop/);assert.equal(db.listCustomers().length,1);
+ db.sqlite.exec('UPDATE customers SET dirty=0');
  await cloud.confirmSwitch();assert.equal(db.listCustomers().length,0);assert.equal(db.getState('data.shopId'),'shop-b');
- const file=fs.readdirSync(dir).find(p=>p.startsWith('shop-backup'));const {DatabaseSync}=require('node:sqlite'),backup=new DatabaseSync(path.join(dir,file));assert.equal(backup.prepare('SELECT name FROM customers').get().name,'Unsynced A');backup.close();
 });
 test('offline disconnect clears credentials but preserves the shop and previous device identity',async t=>{
  const {cloud,db,dir}=setup(t,{fetcher:async()=>{throw new TypeError('offline');}});db.saveCustomer({name:'Kept'});await cloud.signOut();assert.equal(cloud.state().status,'signed_out');assert.equal(db.listCustomers().length,1);assert.equal(db.getState('device.previousId'),'device-a');assert.equal(db.getState('data.shopId'),'shop-a');assert.equal(fs.existsSync(path.join(dir,'cloud-session.bin')),false);

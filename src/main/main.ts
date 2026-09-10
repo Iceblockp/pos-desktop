@@ -64,6 +64,9 @@ function registerIpc(): void {
   handle('pos:capabilities',() => database.capabilities());
   handle('pos:set-feature',(name,enabled) => { database.setFeature(name,enabled); void cloud.syncNow(); });
   handle('cloud:complete-login',input => cloud.completeLogin(input));
+  handle('cloud:rebuild-local-data',() => cloud.rebuildLocalData());
+  handle('cloud:remove-local-data',() => cloud.removeLocalData());
+  handle('cloud:delete-account',input => cloud.deleteCloudAccount(input as { password: string; shopName: string }));
   handle('cloud:join',input => cloud.join(input));
   handle('cloud:pairing-code',() => cloud.createPairingCode());
   handle('cloud:confirm-switch',() => cloud.confirmSwitch());

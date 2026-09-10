@@ -292,6 +292,13 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
             </div>
 
             {/* Disconnect Danger Zone */}
+            <div className="pt-4 border-t border-slate-200 flex flex-wrap justify-between items-center gap-3">
+              <div><p className="text-xs font-semibold text-slate-700">Device storage</p><p className="text-[11px] text-slate-500">Only available after all pending changes are synced.</p></div>
+              <div className="flex gap-2">
+                <button className="btn btn-sm btn-outline" disabled={action.isPending} onClick={() => { if (window.confirm('Clear this desktop copy and download the current shop again?')) action.mutate(() => window.storePos.cloud.rebuildLocalData()); }}>Rebuild local copy</button>
+                <button className="btn btn-sm btn-outline btn-error" disabled={action.isPending} onClick={() => { if (window.confirm('Remove this shop data and cloud login from this desktop? Cloud data remains safe.')) action.mutate(() => window.storePos.cloud.removeLocalData()); }}>Remove local data</button>
+              </div>
+            </div>
             <div className="pt-4 border-t border-slate-200 flex justify-between items-center">
               <div>
                 <p className="text-xs font-semibold text-slate-700">Sign Out of Cloud Account</p>
@@ -315,6 +322,7 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
                 Disconnect Cloud
               </button>
             </div>
+            {cloud.data?.role === 'owner' ? <div className="pt-4 border-t border-red-200 flex justify-between items-center gap-3"><div><p className="text-xs font-semibold text-red-700">Delete cloud account</p><p className="text-[11px] text-red-600">Permanently removes all synced shop data and devices.</p></div><button className="btn btn-sm btn-error" disabled={action.isPending} onClick={() => { const shopName = window.prompt('Type the exact shop name to delete the cloud account:'); if (!shopName) return; const password = window.prompt('Enter the owner password:'); if (!password) return; if (window.confirm('This cannot be undone. Delete the cloud account now?')) action.mutate(() => window.storePos.cloud.deleteCloudAccount({ shopName, password })); }}>Delete account</button></div> : null}
           </>
         ) : (
           /* Sign In / Register / Join Form */
@@ -542,12 +550,14 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
                   Switch Shop Data to {switching.shopName}?
                 </h4>
                 <p className="text-xs text-amber-800">
-                  This terminal has {switching.unsyncedCount} unsynced local changes. An automatic database backup will be created before switching shops.
+                  {switching.unsyncedCount > 0
+                    ? `This terminal has ${switching.unsyncedCount} unsynced Shop A changes. Sync Shop A before switching.`
+                    : 'Shop A is fully synced. Its local copy will be cleared before Shop B is downloaded.'}
                 </p>
                 <div className="flex gap-2">
                   <button
                     className="btn btn-sm btn-warning flex-1"
-                    disabled={action.isPending}
+                    disabled={action.isPending || switching.unsyncedCount > 0}
                     onClick={() =>
                       action.mutate(async () => {
                         await window.storePos.cloud.confirmSwitch();
@@ -555,7 +565,7 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
                       })
                     }
                   >
-                    Backup & Switch
+                    Switch to this shop
                   </button>
                   <button
                     className="btn btn-sm btn-ghost"

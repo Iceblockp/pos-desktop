@@ -75,10 +75,11 @@ export class CloudService {
   createPairingCode(): Promise<{ code: string; expiresAt: string }> { return this.request('POST', '/auth/pairing-codes', {}, true); }
   async confirmSwitch(): Promise<CloudState> {
     if (!this.pendingSession) throw new Error('No shop switch is pending');
+    if (this.db.countDirty() > 0) {
+      throw new Error('Sync the previous shop before switching');
+    }
     if (!safeStorage.isEncryptionAvailable()) throw new Error('Secure OS storage is unavailable');
     const session = this.pendingSession;
-    // Preserve unsynced records before replacing the local shop.
-    this.db.sqlite.prepare('VACUUM INTO ?').run(join(app.getPath('userData'), `shop-backup-${Date.now()}.sqlite3`));
     this.db.wipeShopData();
     this.adopt(session); this.pendingSession = null; this.revision++;
     return this.syncNow();
@@ -175,6 +176,28 @@ export class CloudService {
       this.revision++;
       return this.state();
     } finally { this.disconnecting = false; }
+  }
+  async rebuildLocalData(): Promise<CloudState> {
+    if (!this.session) throw new Error('Connect this desktop first');
+    if (this.db.countDirty()) throw new Error('Sync all pending changes before rebuilding local data');
+    const shopId = this.session.shop.id;
+    this.db.wipeShopData();
+    this.db.setState('data.shopId', shopId);
+    return this.syncNow();
+  }
+  async removeLocalData(): Promise<CloudState> {
+    if (this.db.countDirty()) throw new Error('Sync all pending changes before removing local data');
+    await this.signOut();
+    this.db.wipeShopData();
+    return this.state();
+  }
+  async deleteCloudAccount(input: { password: string; shopName: string }): Promise<CloudState> {
+    if (this.db.countDirty()) throw new Error('Sync all pending changes before deleting the cloud account');
+    await this.request('POST', '/auth/account/delete', input, true);
+    this.session = null; this.status = 'signed_out'; this.error = null;
+    if (existsSync(this.sessionPath)) unlinkSync(this.sessionPath);
+    this.db.wipeShopData(); this.revision++;
+    return this.state();
   }
   async devices(): Promise<PairedDevice[]> { return (await this.request<{ devices: PairedDevice[] }>('GET', '/auth/devices', undefined, true)).devices; }
   async revokeDevice(id: string): Promise<void> {
