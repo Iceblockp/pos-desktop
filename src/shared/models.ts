@@ -218,6 +218,7 @@ export interface CloudState {
   deviceId?: string | null;
   deviceCode?: string | null;
   role?: string | null;
+  pullProgress?: { completed: number; total: number } | null;
 }
 export interface ShopProfile { name: string; address: string; phone: string; receiptFooter: string; currency?: string; }
 export interface PairedDevice { id: string; name: string; deviceCode: string; role: string; lastSyncedAt: string | null; isCurrent: boolean; }

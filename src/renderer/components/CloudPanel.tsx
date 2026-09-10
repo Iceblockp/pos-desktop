@@ -143,7 +143,9 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
                 <p className="text-xs text-slate-500 mt-2">
                   Pending Sync:{" "}
                   <strong className={cloud.data?.pending ? "text-amber-600 font-bold" : "text-slate-700"}>
-                    {cloud.data?.pending ?? 0} changes
+                    {cloud.data?.pullProgress
+                      ? `${cloud.data.pullProgress.completed} / ${cloud.data.pullProgress.total} processed`
+                      : `${cloud.data?.pending ?? 0} changes`}
                   </strong>
                 </p>
               </div>

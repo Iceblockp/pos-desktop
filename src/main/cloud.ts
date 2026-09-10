@@ -26,6 +26,7 @@ export class CloudService {
   private connecting = false;
   private disconnecting = false;
   private bundlePushAvailable = true;
+  private pullProgress: { completed: number; total: number } | null = null;
   private revision = 0;
   private readonly sessionPath = join(app.getPath('userData'), 'cloud-session.bin');
 
@@ -38,7 +39,7 @@ export class CloudService {
       status: this.status, pending: this.db.countDirty(), lastSyncedAt: this.db.getState('cloud.lastSyncedAt'), error: this.error,
       shopName: this.session?.shop.name ?? null, deviceName: this.session?.device.name ?? null,
       deviceId: this.session?.device.id ?? null, deviceCode: this.session?.device.deviceCode ?? null,
-      role: this.session?.device.role ?? null, apiUrl: this.apiUrl(), dataRevision: this.revision,
+      role: this.session?.device.role ?? null, apiUrl: this.apiUrl(), dataRevision: this.revision, pullProgress: this.pullProgress,
     };
   }
   setApiUrl(input: string): void {
@@ -97,7 +98,7 @@ export class CloudService {
   private async runSync(): Promise<CloudState> {
     if (!this.session) return this.state();
     if (!this.db.capabilities().cloud) { this.status = 'paused'; this.error = null; return this.state(); }
-    this.status = 'syncing'; this.error = null;
+    this.status = 'syncing'; this.error = null; this.pullProgress = null;
     try {
       await this.refresh();
       if (!this.db.capabilities().cloud) { this.status = 'paused'; return this.state(); }
@@ -128,11 +129,17 @@ export class CloudService {
       }
       };
       await pushPending();
+      const pullStartCursor = Number(this.db.getState('cloud.cursor') ?? 0);
       for (let round = 0; round < 1_000; round++) {
         const since = Number(this.db.getState('cloud.cursor') ?? 0);
         const page = await this.request<any>('GET', `/sync/pull?since=${since}&limit=500`, undefined, true);
         if (!Number.isSafeInteger(page.nextSince) || page.nextSince < since) throw new Error('Invalid sync cursor');
         this.db.applyPulled(page.changes ?? [], page.nextSince);
+        const total = Math.max(0, Number(page.shopSeq ?? since) - pullStartCursor);
+        this.pullProgress = {
+          completed: Math.min(total, Math.max(0, Number(page.nextSince ?? since) - pullStartCursor)),
+          total,
+        };
         if (page.changes?.length) this.revision++;
         if (!page.hasMore || !page.changes?.length) break;
       }
@@ -147,6 +154,7 @@ export class CloudService {
       this.error = message;
       this.status = message.includes('SHOP_SUSPENDED') ? 'suspended' : message.includes('SUBSCRIPTION_EXPIRED') ? 'expired' : error instanceof TypeError || (error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name)) ? 'offline' : 'error';
     }
+    this.pullProgress = null;
     return this.state();
   }
   async signOut(): Promise<CloudState> {
