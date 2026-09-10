@@ -4,6 +4,7 @@ import { CloudPanel } from "./CloudPanel";
 import { FeatureSettings } from "./FeatureSettings";
 import { PaymentSlips } from "./PaymentSlips";
 import { NotificationSettings } from "./NotificationSettings";
+import { PlanBadge } from "./PlanBadge";
 import { useCapabilities } from "../useCapabilities";
 import { CURRENCY_PRESETS, DEFAULT_CURRENCY, cacheCurrency, formatCurrency, parseCurrency, type CurrencyConfig } from '../../shared/currency';
 
@@ -24,12 +25,35 @@ export function Settings({ notify }: { notify: (s: string) => void }) {
     key: typeof tab;
     label: string;
     icon: string;
+    badge?: React.ReactNode;
   }[] = [
     { key: "store", label: "Store & Receipt", icon: "🏪" },
     { key: "printer", label: "Printer & Hardware", icon: "🖨️" },
-    { key: "cloud", label: "Cloud & Sync", icon: "☁️" },
+    {
+      key: "cloud",
+      label: "Cloud & Sync",
+      icon: "☁️",
+      badge: (
+        <PlanBadge
+          plan="cloud_pro"
+          variant="micro"
+          locked={capabilities.effectivePlan !== "cloud_pro"}
+        />
+      ),
+    },
     { key: "payments", label: "Payment Methods", icon: "💳" },
-    { key: "pricing", label: "Price Levels & Features", icon: "🏷️" },
+    {
+      key: "pricing",
+      label: "Price Levels & Features",
+      icon: "🏷️",
+      badge: (
+        <PlanBadge
+          plan="offline_plus"
+          variant="micro"
+          locked={capabilities.effectivePlan === "free"}
+        />
+      ),
+    },
     { key: "subscription", label: "Plan & Billing", icon: "💎" },
     { key: "diagnostics", label: "Diagnostics", icon: "🩺" },
     { key: "data", label: "Data & Account", icon: "⚠️" },
@@ -38,29 +62,29 @@ export function Settings({ notify }: { notify: (s: string) => void }) {
   if (!capabilities.owner) {
     return (
       <section className="h-full space-y-6">
-        <header className="mb-4">
-          <h1 className="text-2xl font-bold text-slate-800">⚙️ POS Station Settings</h1>
+        <header className="border-b border-slate-200 pb-4">
+          <h2 className="text-xl font-black text-slate-800 tracking-tight">
+            Settings
+          </h2>
           <p className="text-xs text-slate-500 mt-1">
-            Cashier station hardware, receipt printer setup, and cloud connection status
+            Cashier view — contact the shop owner to modify tax, printers, or pricing.
           </p>
         </header>
-        <div className="space-y-6">
-          <CloudPanel notify={notify} />
-          <PrinterTab notify={notify} />
-          <DiagnosticsTab notify={notify} />
-        </div>
+        <PrinterTab notify={notify} />
       </section>
     );
   }
 
   return (
-    <section className="h-full space-y-5 pb-12">
-      {/* Top Header */}
-      <header className="flex flex-wrap justify-between items-center gap-3">
+    <section className="h-full space-y-5 overflow-y-auto pr-1 pb-10">
+      {/* Header */}
+      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">⚙️ Settings & Hardware</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Configure store branding, receipt printers, cloud synchronization, payment channels, and diagnostic health
+          <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+            Settings & System
+          </h2>
+          <p className="text-xs text-slate-500 mt-1">
+            Configure store details, receipts, printers, pricing levels, and cloud sync
           </p>
         </div>
       </header>
@@ -80,6 +104,7 @@ export function Settings({ notify }: { notify: (s: string) => void }) {
           >
             <span>{t.icon}</span>
             <span>{t.label}</span>
+            {t.badge}
           </button>
         ))}
       </div>
@@ -1266,26 +1291,26 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
       <div
         className={`rounded-2xl border p-6 shadow-sm ${
           isPremium
-            ? "bg-gradient-to-br from-emerald-50 to-teal-50/40 border-emerald-300"
+            ? status.data?.tier === "cloud_pro"
+              ? "bg-gradient-to-br from-sky-50/70 to-blue-50/40 border-sky-300"
+              : "bg-gradient-to-br from-amber-50/70 to-orange-50/40 border-amber-300"
             : "bg-white border-slate-200"
         }`}
       >
         <div className="flex flex-wrap justify-between items-start gap-4 mb-4">
           <div>
-            <span
-              className={`badge font-semibold mb-2 ${
-                isPremium ? "badge-success text-white" : "badge-neutral"
-              }`}
-            >
-              {tierName}
-            </span>
+            <div className="mb-2">
+              <PlanBadge plan={isPremium ? status.data?.tier : "free"} variant="pill" />
+            </div>
             <h3 className="text-2xl font-black text-slate-800">
               {isPremium ? "Active Subscription" : "Free Offline Edition"}
             </h3>
             <p className="text-xs text-slate-500 mt-1">
               {isPremium
-                ? "Full access to offline multi-register features and cloud syncing capabilities"
-                : "Basic offline checkout and receipt printing enabled. Upgrade to unlock customer debt, expenses, and cloud sync."}
+                ? status.data?.tier === "cloud_pro"
+                  ? "Full access to offline multi-register features and multi-device cloud sync (up to 5 devices)"
+                  : "Full access to customer debt ledger, day-end shifts, and custom price levels on this device"
+                : "Basic offline checkout, receipt printing, and shop expenses enabled. Upgrade to unlock customer debt, day-end shifts, and cloud sync."}
             </p>
           </div>
 
@@ -1300,8 +1325,8 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
         </div>
 
         {isPremium && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-4 border-t border-emerald-200/60">
-            <div className="p-3 bg-white/80 rounded-xl border border-emerald-100">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-4 border-t border-slate-200/80">
+            <div className="p-3 bg-white/80 rounded-xl border border-slate-200 shadow-2xs">
               <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                 Days Remaining
               </span>
@@ -1313,7 +1338,7 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
                 {days} days
               </p>
             </div>
-            <div className="p-3 bg-white/80 rounded-xl border border-emerald-100">
+            <div className="p-3 bg-white/80 rounded-xl border border-slate-200 shadow-2xs">
               <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                 Valid Until
               </span>
@@ -1325,6 +1350,77 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
         )}
       </div>
 
+      {/* Signature Tier Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Offline Plus Card */}
+        <div className="rounded-2xl border-2 border-amber-300 bg-gradient-to-br from-amber-50/50 to-orange-50/20 p-5 space-y-4 shadow-xs">
+          <div className="flex items-center justify-between">
+            <PlanBadge plan="offline_plus" variant="pill" />
+            <span className="badge badge-sm bg-amber-100 text-amber-800 border-amber-300 font-bold">
+              1 Device
+            </span>
+          </div>
+          <div>
+            <h4 className="font-bold text-slate-800 text-base">Offline Plus</h4>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Powerhouse local features for standalone shops — no internet needed
+            </p>
+          </div>
+          <ul className="space-y-2 text-xs text-slate-700">
+            <li className="flex items-center gap-2">
+              <span className="text-amber-600 font-bold">✓</span>
+              <span>Customer Debt & Store Credit Ledger</span>
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-amber-600 font-bold">✓</span>
+              <span>Day-End Cash Shifts & Drawer Reconciliation</span>
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-amber-600 font-bold">✓</span>
+              <span>Custom Price Levels (Retail, Wholesale, VIP)</span>
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-amber-600 font-bold">✓</span>
+              <span>100% Offline Resilience (Zero downtime)</span>
+            </li>
+          </ul>
+        </div>
+
+        {/* Cloud Pro Card */}
+        <div className="rounded-2xl border-2 border-sky-300 bg-gradient-to-br from-sky-50/50 to-blue-50/20 p-5 space-y-4 shadow-xs">
+          <div className="flex items-center justify-between">
+            <PlanBadge plan="cloud_pro" variant="pill" />
+            <span className="badge badge-sm bg-sky-100 text-sky-800 border-sky-300 font-bold">
+              Up to 5 Devices
+            </span>
+          </div>
+          <div>
+            <h4 className="font-bold text-slate-800 text-base">Cloud Pro</h4>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Multi-device real-time sync with automatic secure cloud backup
+            </p>
+          </div>
+          <ul className="space-y-2 text-xs text-slate-700">
+            <li className="flex items-center gap-2">
+              <span className="text-sky-600 font-bold">✓</span>
+              <span>All Offline Plus features included</span>
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-sky-600 font-bold">✓</span>
+              <span>Multi-Device Real-Time Synchronization</span>
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-sky-600 font-bold">✓</span>
+              <span>Automatic Background Cloud Backup</span>
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-sky-600 font-bold">✓</span>
+              <span>Cross-Device Live Inventory & Sales Access</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+
       {/* Feature Matrix Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-4 border-b border-slate-100 bg-slate-50/50">
@@ -1332,23 +1428,51 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
         </div>
         <div className="divide-y divide-slate-100 text-xs">
           {[
-            ["Offline POS & Thermal Printing", "All Plans", true],
-            ["Customer Debt & Store Credit Ledger", "Offline Plus / Cloud Pro", isPremium],
-            ["Petty Cash Payouts & Day-End Shifts", "Offline Plus / Cloud Pro", isPremium],
-            ["Multi-Tier Pricing (Wholesale / VIP)", "Offline Plus / Cloud Pro", isPremium],
-            ["Automatic Cloud Backup & Multi-Device Sync", "Cloud Pro", status.data?.tier === "cloud_pro"],
-          ].map(([feature, tierReq, available]) => (
-            <div key={String(feature)} className="p-3.5 flex items-center justify-between">
+            {
+              feature: "Offline POS & Thermal Receipt Printing",
+              planReq: "free",
+              available: true,
+            },
+            {
+              feature: "Petty Cash & Shop Expenses",
+              planReq: "free",
+              available: true,
+            },
+            {
+              feature: "Customer Debt & Store Credit Ledger",
+              planReq: "offline_plus",
+              available: isPremium,
+            },
+            {
+              feature: "Day-End Cash Shifts & Drawer Close",
+              planReq: "offline_plus",
+              available: isPremium,
+            },
+            {
+              feature: "Multi-Tier Pricing (Wholesale / VIP)",
+              planReq: "offline_plus",
+              available: isPremium,
+            },
+            {
+              feature: "Automatic Cloud Backup & Multi-Device Sync",
+              planReq: "cloud_pro",
+              available: status.data?.tier === "cloud_pro",
+            },
+          ].map((item) => (
+            <div key={item.feature} className="p-3.5 flex items-center justify-between">
               <div>
-                <p className="font-medium text-slate-800">{feature}</p>
-                <p className="text-[11px] text-slate-400">Requires: {tierReq}</p>
+                <p className="font-medium text-slate-800">{item.feature}</p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="text-[11px] text-slate-400">Requires:</span>
+                  <PlanBadge plan={item.planReq} variant="micro" />
+                </div>
               </div>
               <span
                 className={`badge badge-sm font-semibold ${
-                  available ? "badge-success text-white" : "badge-neutral"
+                  item.available ? "badge-success text-white" : "badge-neutral"
                 }`}
               >
-                {available ? "Active" : "Locked"}
+                {item.available ? "Active" : "Locked"}
               </span>
             </div>
           ))}

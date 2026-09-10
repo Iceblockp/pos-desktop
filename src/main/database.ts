@@ -1986,7 +1986,7 @@ export class PosDatabase {
     const effectivePlan = premiumUntil && Date.parse(premiumUntil) > Date.now() ? tier : 'free';
     const advanced = ['offline_plus', 'cloud_pro'].includes(effectivePlan);
     const flags = {debt: this.getShopSetting('feature.debt') !== '0', expenses: this.getShopSetting('feature.expenses') !== '0', dayEnd: this.getShopSetting('feature.dayEnd') !== '0'};
-    return {owner: this.getState('device.role') !== 'cashier', tier, premiumUntil, effectivePlan, cloud: effectivePlan === 'cloud_pro', debt: advanced && flags.debt, expenses: advanced && flags.expenses, dayEnd: advanced && flags.dayEnd, flags};
+    return {owner: this.getState('device.role') !== 'cashier', tier, premiumUntil, effectivePlan, cloud: effectivePlan === 'cloud_pro', debt: advanced && flags.debt, expenses: flags.expenses, dayEnd: advanced && flags.dayEnd, flags};
   }
 
   setFeature(name: 'debt' | 'expenses' | 'dayEnd', enabled: boolean): void {

@@ -16,6 +16,7 @@ import { Inventory } from "./components/Inventory";
 import { Customers } from "./components/Customers";
 import { Reports } from "./components/Reports";
 import { Settings } from "./components/Settings";
+import { PlanBadge } from "./components/PlanBadge";
 import { cacheCurrency, formatCurrency, parseCurrency } from '../shared/currency';
 
 type Page =
@@ -242,12 +243,15 @@ export function App() {
               </p>
             </div>
           </div>
-          <div className="mt-2.5 flex items-center gap-1.5 text-[11px] text-slate-400 bg-slate-800/50 px-2.5 py-1 rounded-md border border-slate-700/50">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-            <span className="truncate flex-1">
-              {cloud.data?.deviceName || "Desktop"}
-              {cloud.data?.role ? ` (${cloud.data.role})` : ""}
-            </span>
+          <div className="mt-2.5 flex items-center justify-between gap-1.5 text-[11px] text-slate-400 bg-slate-800/50 px-2.5 py-1 rounded-md border border-slate-700/50">
+            <div className="flex items-center gap-1.5 truncate flex-1 min-w-0">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></span>
+              <span className="truncate">
+                {cloud.data?.deviceName || "Desktop"}
+                {cloud.data?.role ? ` (${cloud.data.role})` : ""}
+              </span>
+            </div>
+            <PlanBadge plan={capabilities.effectivePlan} variant="micro" />
           </div>
         </div>
 
