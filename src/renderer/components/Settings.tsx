@@ -17,6 +17,7 @@ export function Settings({ notify }: { notify: (s: string) => void }) {
     | "pricing"
     | "subscription"
     | "diagnostics"
+    | "data"
   >("store");
 
   const tabs: {
@@ -31,6 +32,7 @@ export function Settings({ notify }: { notify: (s: string) => void }) {
     { key: "pricing", label: "Price Levels & Features", icon: "🏷️" },
     { key: "subscription", label: "Plan & Billing", icon: "💎" },
     { key: "diagnostics", label: "Diagnostics", icon: "🩺" },
+    { key: "data", label: "Data & Account", icon: "⚠️" },
   ];
 
   if (!capabilities.owner) {
@@ -91,6 +93,7 @@ export function Settings({ notify }: { notify: (s: string) => void }) {
         {tab === "pricing" && <PricingAndFeaturesTab notify={notify} />}
         {tab === "subscription" && <SubscriptionTab notify={notify} />}
         {tab === "diagnostics" && <DiagnosticsTab notify={notify} />}
+        {tab === "data" && <DataAndAccountTab notify={notify} />}
       </div>
     </section>
   );
@@ -121,7 +124,14 @@ function StoreProfileTab({ notify }: { notify: (message: string) => void }) {
   const save = useMutation({
     mutationFn: () => {
       const next = parseCurrency(value.currency);
-      if (profile.data?.currency && profile.data.currency !== value.currency && !window.confirm('This does not convert prices or historical amounts. Existing prices, sales, debts, expenses, and reports keep the same numeric values and will display in the new currency.')) throw new Error('Currency change cancelled');
+      if (
+        profile.data?.currency &&
+        profile.data.currency !== value.currency &&
+        !window.confirm(
+          `Change shop currency to ${next.code}?\n\nThis will NOT convert existing product prices, sales histories, or customer debt balances. All numeric values will remain the same and only display in the new currency formatting.`,
+        )
+      )
+        throw new Error('Currency change cancelled');
       cacheCurrency(next);
       return window.storePos.pos.saveShopProfile(value);
     },
@@ -175,8 +185,6 @@ function StoreProfileTab({ notify }: { notify: (message: string) => void }) {
               />
             </div>
 
-            <CurrencyFields value={parseCurrency(value.currency)} disabled={!capabilities.owner} onChange={(currency) => setValue({ ...value, currency: JSON.stringify(currency) })} />
-
             <div className="form-control">
               <label className="label py-1">
                 <span className="label-text text-xs font-bold text-slate-700">
@@ -225,6 +233,23 @@ function StoreProfileTab({ notify }: { notify: (message: string) => void }) {
                 </span>
               </label>
             </div>
+
+            <CurrencyFields
+              value={parseCurrency(value.currency)}
+              disabled={!capabilities.owner}
+              onChange={(currency) =>
+                setValue({ ...value, currency: JSON.stringify(currency) })
+              }
+            />
+          </div>
+          <div className="p-4 bg-slate-50/70 border-t border-slate-200 flex justify-end items-center">
+            <button
+              type="submit"
+              className="btn btn-sm btn-primary"
+              disabled={save.isPending}
+            >
+              {save.isPending ? "Saving…" : "Save Changes"}
+            </button>
           </div>
         </form>
 
@@ -306,22 +331,163 @@ function StoreProfileTab({ notify }: { notify: (message: string) => void }) {
   );
 }
 
-function CurrencyFields({ value, disabled, onChange }: { value: CurrencyConfig; disabled: boolean; onChange: (currency: CurrencyConfig) => void }) {
-  const preset = CURRENCY_PRESETS.some((entry) => entry.code === value.code) ? value.code : 'CUSTOM';
-  return <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3">
-    <div><p className="text-sm font-bold text-slate-800">Currency</p><p className="text-xs text-slate-500">Owner only. The selection syncs to every shop device.</p></div>
-    <select className="select select-bordered select-sm w-full" disabled={disabled} value={preset} onChange={(e) => onChange(e.target.value === 'CUSTOM' ? { ...value, name: value.name || 'Custom currency' } : CURRENCY_PRESETS.find((entry) => entry.code === e.target.value)!)}>
-      {CURRENCY_PRESETS.map((entry) => <option key={entry.code} value={entry.code}>{entry.code} — {entry.name}</option>)}<option value="CUSTOM">Custom currency</option>
-    </select>
-    <div className="grid grid-cols-2 gap-2">
-      <input className="input input-bordered input-sm" disabled={disabled} value={value.code} maxLength={8} aria-label="Currency code" onChange={(e) => onChange({ ...value, code: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') })} />
-      <input className="input input-bordered input-sm" disabled={disabled} value={value.symbol} maxLength={8} aria-label="Currency symbol" onChange={(e) => onChange({ ...value, symbol: e.target.value })} />
-      <input className="input input-bordered input-sm" disabled={disabled} value={value.name} maxLength={64} aria-label="Currency name" onChange={(e) => onChange({ ...value, name: e.target.value })} />
-      <select className="select select-bordered select-sm" disabled={disabled} value={value.decimalPlaces} onChange={(e) => onChange({ ...value, decimalPlaces: Number(e.target.value) as CurrencyConfig['decimalPlaces'] })}><option value={0}>0 decimals</option><option value={1}>1 decimal</option><option value={2}>2 decimals</option><option value={3}>3 decimals</option></select>
+function CurrencyFields({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: CurrencyConfig;
+  disabled: boolean;
+  onChange: (currency: CurrencyConfig) => void;
+}) {
+  const isPreset = CURRENCY_PRESETS.some(
+    (entry) =>
+      entry.code === value.code &&
+      entry.symbol === value.symbol &&
+      entry.decimalPlaces === value.decimalPlaces &&
+      entry.symbolPosition === value.symbolPosition,
+  );
+  const presetKey = isPreset ? value.code : 'CUSTOM';
+
+  return (
+    <div className="pt-3 border-t border-slate-100 space-y-3">
+      <div className="form-control">
+        <label className="label py-1">
+          <span className="label-text text-xs font-bold text-slate-700">
+            Store Currency (အသုံးပြုမည့် ငွေကြေး)
+          </span>
+          <span className="label-text-alt font-mono font-bold text-xs text-primary">
+            Preview: {formatCurrency(12500, value)}
+          </span>
+        </label>
+        <select
+          className="select select-bordered select-sm w-full"
+          disabled={disabled}
+          value={presetKey}
+          onChange={(e) => {
+            const key = e.target.value;
+            if (key === 'CUSTOM') {
+              onChange({
+                ...value,
+                name: value.name || 'Custom currency',
+              });
+            } else {
+              const selected = CURRENCY_PRESETS.find((entry) => entry.code === key);
+              if (selected) onChange(selected);
+            }
+          }}
+        >
+          {CURRENCY_PRESETS.map((entry) => (
+            <option key={entry.code} value={entry.code}>
+              {entry.code} — {entry.name} ({entry.symbol})
+            </option>
+          ))}
+          <option value="CUSTOM">⚙️ Custom Currency (စိတ်ကြိုက် သတ်မှတ်မည်)…</option>
+        </select>
+        <label className="label py-0.5">
+          <span className="label-text-alt text-slate-400">
+            {disabled
+              ? 'Only the shop owner can change store currency.'
+              : 'Syncs across all counter stations and printed receipts.'}
+          </span>
+        </label>
+      </div>
+
+      {presetKey === 'CUSTOM' && (
+        <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-2 text-xs">
+          <p className="font-bold text-slate-700">Custom Currency Settings</p>
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <label className="label py-0.5">
+                <span className="label-text text-[10px] text-slate-500 font-semibold">Code</span>
+              </label>
+              <input
+                className="input input-bordered input-xs w-full font-mono"
+                disabled={disabled}
+                value={value.code}
+                maxLength={8}
+                placeholder="EUR"
+                onChange={(e) =>
+                  onChange({
+                    ...value,
+                    code: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''),
+                  })
+                }
+              />
+            </div>
+            <div>
+              <label className="label py-0.5">
+                <span className="label-text text-[10px] text-slate-500 font-semibold">Name</span>
+              </label>
+              <input
+                className="input input-bordered input-xs w-full"
+                disabled={disabled}
+                value={value.name}
+                maxLength={64}
+                placeholder="Euro"
+                onChange={(e) => onChange({ ...value, name: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="label py-0.5">
+                <span className="label-text text-[10px] text-slate-500 font-semibold">Symbol</span>
+              </label>
+              <input
+                className="input input-bordered input-xs w-full"
+                disabled={disabled}
+                value={value.symbol}
+                maxLength={8}
+                placeholder="€"
+                onChange={(e) => onChange({ ...value, symbol: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="label py-0.5">
+                <span className="label-text text-[10px] text-slate-500 font-semibold">Symbol Position</span>
+              </label>
+              <select
+                className="select select-bordered select-xs w-full"
+                disabled={disabled}
+                value={value.symbolPosition}
+                onChange={(e) =>
+                  onChange({
+                    ...value,
+                    symbolPosition: e.target.value as 'before' | 'after',
+                  })
+                }
+              >
+                <option value="before">Before ($100)</option>
+                <option value="after">After (100 MMK)</option>
+              </select>
+            </div>
+            <div>
+              <label className="label py-0.5">
+                <span className="label-text text-[10px] text-slate-500 font-semibold">Decimals</span>
+              </label>
+              <select
+                className="select select-bordered select-xs w-full"
+                disabled={disabled}
+                value={value.decimalPlaces}
+                onChange={(e) =>
+                  onChange({
+                    ...value,
+                    decimalPlaces: Number(e.target.value) as CurrencyConfig['decimalPlaces'],
+                  })
+                }
+              >
+                <option value={0}>0 decimals</option>
+                <option value={1}>1 decimal</option>
+                <option value={2}>2 decimals</option>
+                <option value={3}>3 decimals</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
-    <p className="text-sm font-semibold text-slate-700">Preview: {formatCurrency(12500.5, value)}</p>
-    {disabled ? <p className="text-xs text-amber-700">Only an owner can change currency.</p> : null}
-  </div>;
+  );
 }
 
 /* ==========================================================================
@@ -1399,6 +1565,265 @@ function DiagnosticsTab({ notify }: { notify: (message: string) => void }) {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ==========================================================================
+   8. DATA & ACCOUNT MANAGEMENT TAB (DANGER ZONE)
+   ========================================================================== */
+function DataAndAccountTab({ notify }: { notify: (message: string) => void }) {
+  const client = useQueryClient();
+  const capabilities = useCapabilities();
+
+  const cloudState = useQuery({
+    queryKey: ["cloud-state"],
+    queryFn: () => window.storePos.cloud.state(),
+  });
+
+  const shopProfile = useQuery({
+    queryKey: ["shop-profile"],
+    queryFn: () => window.storePos.pos.shopProfile(),
+  });
+
+  const storageAction = useMutation({
+    mutationFn: (fn: () => Promise<unknown>) => fn(),
+    onSuccess: () => {
+      void client.invalidateQueries();
+      notify("Storage operation completed successfully");
+    },
+    onError: (e: Error) => notify(e.message),
+  });
+
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteShopName, setDeleteShopName] = useState("");
+
+  const deleteAccount = useMutation({
+    mutationFn: () =>
+      window.storePos.cloud.deleteCloudAccount({
+        shopName: deleteShopName.trim(),
+        password: deletePassword,
+      }),
+    onSuccess: () => {
+      setShowDeleteModal(false);
+      setDeletePassword("");
+      setDeleteShopName("");
+      void client.invalidateQueries();
+      notify("Cloud account permanently deleted and local station reset");
+    },
+    onError: (e: Error) => notify(e.message),
+  });
+
+  const shopDisplayName = cloudState.data?.shopName || shopProfile.data?.name || "YOUR SHOP";
+  const pendingCount = cloudState.data?.pending ?? 0;
+
+  return (
+    <div className="max-w-4xl space-y-6">
+      <header className="mb-2">
+        <h3 className="text-lg font-bold text-slate-800">
+          ⚠️ Data & Account Management (ဒေတာနှင့် အကောင့် စီမံမှု)
+        </h3>
+        <p className="text-xs text-slate-500 mt-0.5">
+          Local device data maintenance, emergency offline cache reset, and cloud account deletion.
+        </p>
+      </header>
+
+      {/* 1. Local Station Maintenance */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="p-4 border-b border-slate-100 bg-slate-50/50">
+          <h4 className="font-semibold text-slate-800 text-sm">
+            Station Local Storage & Maintenance (စက်တွင်း ဒေတာ ထိန်းသိမ်းမှု)
+          </h4>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Reset or rebuild offline SQLite database for this desktop machine. Cloud data remains safe.
+          </p>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {pendingCount > 0 && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-center gap-2">
+              <span className="text-base">⚠️</span>
+              <span>
+                Note: Local data maintenance requires 0 pending offline sync items (currently {pendingCount} pending offline records).
+              </span>
+            </div>
+          )}
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-slate-50 rounded-lg border border-slate-200">
+            <div>
+              <p className="text-xs font-semibold text-slate-800">
+                Rebuild Local Copy (Cloud မှ ဒေတာ ပြန်လည်ရယူမည်)
+              </p>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Clears this machine's local cache and re-downloads fresh data from the cloud server.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="btn btn-sm btn-outline"
+              disabled={storageAction.isPending || pendingCount > 0 || cloudState.data?.status === "signed_out"}
+              onClick={() => {
+                if (window.confirm("Clear this desktop copy and download the current shop data again from Cloud?")) {
+                  storageAction.mutate(() => window.storePos.cloud.rebuildLocalData());
+                }
+              }}
+            >
+              {storageAction.isPending ? "Rebuilding…" : "Rebuild Local Copy"}
+            </button>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-rose-50/50 rounded-lg border border-rose-100">
+            <div>
+              <p className="text-xs font-semibold text-rose-800">
+                Wipe Station Data & Reset (ဤစက်မှ ဆိုင်ဒေတာ အားလုံး ရှင်းလင်းမည်)
+              </p>
+              <p className="text-[11px] text-rose-600 mt-0.5">
+                Decommissions this desktop station. Disconnects cloud account and completely clears local database.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="btn btn-sm btn-outline btn-error"
+              disabled={storageAction.isPending || pendingCount > 0}
+              onClick={() => {
+                if (pendingCount > 0) {
+                  alert("Please sync all pending changes before wiping local data.");
+                  return;
+                }
+                if (
+                  window.confirm(
+                    "WARNING: This will wipe all local shop data and disconnect this desktop computer. Your cloud data remains safe.\n\nAre you sure you want to proceed?"
+                  )
+                ) {
+                  storageAction.mutate(() => window.storePos.cloud.removeLocalData());
+                }
+              }}
+            >
+              {storageAction.isPending ? "Wiping…" : "Wipe Station Data"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 2. Danger Zone: Cloud Account Deletion */}
+      {capabilities.owner && cloudState.data?.status !== "signed_out" && (
+        <div className="bg-white rounded-xl border border-rose-200 shadow-sm p-5 space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="badge badge-error badge-sm text-white font-bold">DANGER ZONE</span>
+            <h4 className="font-bold text-rose-900 text-sm">
+              Delete Cloud Account (အကောင့်အပြီးဖျက်ရန်)
+            </h4>
+          </div>
+          <p className="text-xs text-rose-700 leading-relaxed">
+            Permanently delete this shop's cloud database, sync records, user credentials, and disconnect all connected phones and terminals. This action cannot be undone.
+          </p>
+          <button
+            type="button"
+            className="btn btn-sm btn-outline btn-error"
+            onClick={() => {
+              setDeletePassword("");
+              setDeleteShopName("");
+              setShowDeleteModal(true);
+            }}
+          >
+            Delete Cloud Account…
+          </button>
+        </div>
+      )}
+
+      {showDeleteModal && (
+        <div className="modal modal-open">
+          <div className="modal-box max-w-md p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-rose-100">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">⚠️</span>
+                <h3 className="font-bold text-base text-rose-700">
+                  Permanently Delete Cloud Account
+                </h3>
+              </div>
+              <button
+                type="button"
+                className="btn btn-sm btn-circle btn-ghost"
+                disabled={deleteAccount.isPending}
+                onClick={() => setShowDeleteModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 space-y-1">
+              <p className="font-bold">This action is irreversible!</p>
+              <p>
+                All products, sales transactions, customer debt ledgers, and paired terminals will be wiped from cloud servers.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <div className="form-control">
+                <label className="label py-1">
+                  <span className="label-text text-xs font-bold text-slate-700">
+                    Owner Password
+                  </span>
+                </label>
+                <input
+                  type="password"
+                  className="input input-bordered input-sm"
+                  placeholder="Enter your owner password"
+                  value={deletePassword}
+                  onChange={(e) => setDeletePassword(e.target.value)}
+                  disabled={deleteAccount.isPending}
+                />
+              </div>
+
+              <div className="form-control">
+                <label className="label py-1">
+                  <span className="label-text text-xs font-bold text-slate-700">
+                    Confirm Shop Name: <span className="font-mono text-rose-700 font-semibold">{shopDisplayName}</span>
+                  </span>
+                </label>
+                <input
+                  type="text"
+                  className="input input-bordered input-sm"
+                  placeholder={`Type "${shopDisplayName}"`}
+                  value={deleteShopName}
+                  onChange={(e) => setDeleteShopName(e.target.value)}
+                  disabled={deleteAccount.isPending}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                className="btn btn-sm btn-ghost"
+                disabled={deleteAccount.isPending}
+                onClick={() => setShowDeleteModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm btn-error"
+                disabled={
+                  deleteAccount.isPending ||
+                  !deletePassword ||
+                  deleteShopName.trim() !== shopDisplayName.trim()
+                }
+                onClick={() => deleteAccount.mutate()}
+              >
+                {deleteAccount.isPending ? "Deleting…" : "Permanently Delete Account"}
+              </button>
+            </div>
+          </div>
+          <div
+            className="modal-backdrop bg-black/40"
+            onClick={() => {
+              if (!deleteAccount.isPending) setShowDeleteModal(false);
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }
