@@ -17,6 +17,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
   });
 
   const [typeFilter, setTypeFilter] = useState<"all" | "sales" | "debt" | "returns">("all");
+  const [offset, setOffset] = useState(0);
   const [voucherId, setVoucherId] = useState<string | null>(null);
 
   // Return state
@@ -29,9 +30,10 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
   const client = useQueryClient();
 
   const sales = useQuery({
-    queryKey: ["sales", search, range?.from, range?.to],
-    queryFn: () => window.storePos.pos.sales(search, range?.from, range?.to),
+    queryKey: ["sales-page", search, range?.from, range?.to, typeFilter, offset],
+    queryFn: () => window.storePos.pos.salesPage({ search, from: range?.from, to: range?.to, filter: typeFilter, offset, limit: 50 }),
   });
+  const salesSummary = useQuery({ queryKey: ['sales-summary', search, range?.from, range?.to], queryFn: () => window.storePos.pos.salesSummary({ search, from: range?.from, to: range?.to }) });
 
   const receipt = useQuery({
     queryKey: ["receipt", voucherId],
@@ -47,10 +49,10 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
 
   // Auto-select latest transaction when sales list updates
   useEffect(() => {
-    if (!voucherId && sales.data?.length) {
-      setVoucherId(sales.data[0].voucherId);
-    } else if (voucherId && sales.data?.length && !sales.data.some((s) => s.voucherId === voucherId)) {
-      setVoucherId(sales.data[0].voucherId);
+    if (!voucherId && sales.data?.items.length) {
+      setVoucherId(sales.data.items[0].voucherId);
+    } else if (voucherId && sales.data?.items.length && !sales.data.items.some((s) => s.voucherId === voucherId)) {
+      setVoucherId(sales.data.items[0].voucherId);
     }
   }, [sales.data, voucherId]);
 
@@ -122,28 +124,11 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
   }, [receipt.data, showReturnModal]);
 
   // Summary Metrics
-  const rawList = sales.data ?? [];
-  const totalVolume = rawList.reduce(
-    (sum, s) => sum + (s.type === "return" ? -s.total : s.total),
-    0,
-  );
-  const returnCount = rawList.filter((s) => s.type === "return").length;
-  const debtCount = rawList.filter(
-    (s) => s.paymentMethod === "debt" || s.paymentMethod === "On Account",
-  ).length;
-
-  // Filtered List
-  const filteredSales = useMemo(() => {
-    return rawList.filter((sale) => {
-      if (typeFilter === "returns") return sale.type === "return";
-      if (typeFilter === "debt")
-        return (
-          sale.paymentMethod === "debt" || sale.paymentMethod === "On Account"
-        );
-      if (typeFilter === "sales") return sale.type !== "return";
-      return true;
-    });
-  }, [rawList, typeFilter]);
+  const rawList = sales.data?.items ?? [];
+  const totalVolume = salesSummary.data?.netVolume ?? 0;
+  const returnCount = salesSummary.data?.returns ?? 0;
+  const debtCount = salesSummary.data?.debt ?? 0;
+  const filteredSales = rawList;
 
   const handleReturnAll = () => {
     if (!returnable.data) return;
@@ -172,7 +157,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
             📊 Sales History & Receipts
           </h1>
           <p className="text-xs text-gray-500">
-            {periodLabel} · Showing {filteredSales.length} of {rawList.length} transactions
+            {periodLabel} · Showing {offset + 1}-{offset + filteredSales.length} of {sales.data?.total ?? 0} transactions
           </p>
         </div>
 
@@ -184,7 +169,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
       {/* Metric Cards Bar */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div
-          onClick={() => setTypeFilter("all")}
+          onClick={() => { setTypeFilter("all"); setOffset(0); }}
           className={`p-3 rounded-xl border shadow-sm flex items-center justify-between cursor-pointer transition ${
             typeFilter === "all"
               ? "bg-slate-900 text-white border-slate-900 shadow-md"
@@ -195,13 +180,13 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
             <p className={`text-[11px] font-semibold uppercase tracking-wider ${typeFilter === "all" ? "text-slate-300" : "text-gray-400"}`}>
               Transactions
             </p>
-            <p className="text-xl font-black mt-0.5">{rawList.length}</p>
+            <p className="text-xl font-black mt-0.5">{salesSummary.data?.total ?? 0}</p>
           </div>
           <span className="text-2xl">🧾</span>
         </div>
 
         <div
-          onClick={() => setTypeFilter("sales")}
+          onClick={() => { setTypeFilter("sales"); setOffset(0); }}
           className={`p-3 rounded-xl border shadow-sm flex items-center justify-between cursor-pointer transition ${
             typeFilter === "sales"
               ? "bg-emerald-700 text-white border-emerald-700 shadow-md"
@@ -218,7 +203,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
         </div>
 
         <div
-          onClick={() => setTypeFilter("debt")}
+          onClick={() => { setTypeFilter("debt"); setOffset(0); }}
           className={`p-3 rounded-xl border shadow-sm flex items-center justify-between cursor-pointer transition ${
             typeFilter === "debt"
               ? "bg-amber-600 text-white border-amber-600 shadow-md"
@@ -235,7 +220,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
         </div>
 
         <div
-          onClick={() => setTypeFilter("returns")}
+          onClick={() => { setTypeFilter("returns"); setOffset(0); }}
           className={`p-3 rounded-xl border shadow-sm flex items-center justify-between cursor-pointer transition ${
             typeFilter === "returns"
               ? "bg-rose-600 text-white border-rose-600 shadow-md"
@@ -265,7 +250,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
               type="text"
               placeholder="Search voucher # or customer name..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setOffset(0); }}
               className="input input-bordered input-sm w-full pl-9 text-xs bg-gray-50 focus:bg-white"
               autoFocus
             />
@@ -274,7 +259,8 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
           {/* Transactions List */}
           <div className="flex-1 overflow-y-auto space-y-1.5 pr-1">
             {filteredSales.length > 0 ? (
-              filteredSales.map((sale: SaleSummary) => {
+              <>
+              {filteredSales.map((sale: SaleSummary) => {
                 const isSelected = sale.voucherId === voucherId;
                 const isReturn = sale.type === "return";
                 const isDebt =
@@ -339,7 +325,9 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
                     </div>
                   </button>
                 );
-              })
+              })}
+              <div className="flex items-center justify-between py-3 text-xs text-gray-500"><span>Current page: {filteredSales.length} rows</span><div className="flex gap-2"><button className="btn btn-xs" disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous</button><button className="btn btn-xs" disabled={offset + filteredSales.length >= (sales.data?.total ?? 0)} onClick={() => setOffset(offset + 50)}>Next 50</button></div></div>
+              </>
             ) : (
               <div className="flex flex-col items-center justify-center h-48 text-gray-400">
                 <span className="text-3xl mb-1">🧾</span>
@@ -400,7 +388,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
                   <p className="text-xs text-gray-500">
                     Customer:{" "}
                     <strong>
-                      {sales.data?.find((s) => s.voucherId === receipt.data?.voucherId)?.customerName || "Walk-in Customer"}
+                      {sales.data?.items.find((s) => s.voucherId === receipt.data?.voucherId)?.customerName || "Walk-in Customer"}
                     </strong>
                   </p>
                   <p className="text-[11px] text-gray-400">

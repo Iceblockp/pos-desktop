@@ -1,7 +1,7 @@
 import { app, safeStorage } from 'electron';
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { BillingStatus, CloudState, ConnectResult, DeviceLimit, LoginInput, PairedDevice, PaymentSlip, RegisterInput, SyncStatus } from '../shared/models';
+import type { BillingStatus, CloudState, ConnectResult, DeviceLimit, InactiveDevices, LoginInput, PairedDevice, PaymentSlip, RegisterInput, SyncStatus } from '../shared/models';
 import { PosDatabase } from './database';
 
 type Session = {
@@ -25,6 +25,7 @@ export class CloudService {
   private refreshing: Promise<void> | null = null;
   private connecting = false;
   private disconnecting = false;
+  private bundlePushAvailable = true;
   private revision = 0;
   private readonly sessionPath = join(app.getPath('userData'), 'cloud-session.bin');
 
@@ -51,8 +52,8 @@ export class CloudService {
     if (this.session || this.pendingSession || this.connecting || this.disconnecting) throw new Error('Finish the current connection first');
     this.connecting = true;
     try {
-      const result = await this.request<Session | DeviceLimit>('POST', path, { ...input, platform: 'desktop', appVersion: app.getVersion() });
-      if ('status' in result && result.status === 'device_limit') return result;
+      const result = await this.request<Session | DeviceLimit | InactiveDevices>('POST', path, { ...input, platform: 'desktop', appVersion: app.getVersion() });
+      if ('status' in result && (result.status === 'device_limit' || result.status === 'inactive_devices')) return result;
       const session = result as Session;
       if (!session.shop?.id || !session.device?.id) throw new Error('Invalid sign-in response');
       const previous = this.db.getState('data.shopId');
@@ -66,7 +67,7 @@ export class CloudService {
   }
   register(input: RegisterInput): Promise<ConnectResult> { return this.enroll('/auth/shops', input); }
   login(input: LoginInput): Promise<ConnectResult> { return this.enroll('/auth/login', input); }
-  completeLogin(input: { loginTicket: string; revokeDeviceId: string; deviceName: string }): Promise<ConnectResult> { return this.enroll('/auth/login/complete', input); }
+  completeLogin(input: { loginTicket: string; revokeDeviceId?: string; reclaimDeviceId?: string; createNew?: boolean; deviceName: string }): Promise<ConnectResult> { return this.enroll('/auth/login/complete', input); }
   join(input: { pairingCode: string; deviceName: string }): Promise<ConnectResult> {
     return this.enroll('/auth/devices/join', { ...input, previousDeviceId: this.db.getState('device.previousId') ?? undefined });
   }
@@ -102,7 +103,20 @@ export class CloudService {
       if (!this.db.capabilities().cloud) { this.status = 'paused'; return this.state(); }
       const attempted = new Set<string>();
       const pushPending = async () => {
-      for (let round = 0; round < 50; round++) {
+      for (let round = 0; round < 1_000; round++) {
+        if (this.bundlePushAvailable && !this.db.hasDirtyPrerequisitesForSales()) {
+          const bundles = this.db.completeSaleBundles();
+          if (bundles.length) {
+            try {
+              const result = await this.request<any>('POST', '/sync/push-v2', { bundles }, true);
+              this.db.reconcilePush(bundles.flatMap(bundle => bundle.changes), result);
+              continue;
+            } catch (error) {
+              if (error instanceof ApiError && error.status === 404) this.bundlePushAvailable = false;
+              else throw error;
+            }
+          }
+        }
         const changes = this.db.dirtyChanges();
         if (!changes.length) break;
         const before = JSON.stringify(changes);
@@ -114,7 +128,7 @@ export class CloudService {
       }
       };
       await pushPending();
-      for (let round = 0; round < 50; round++) {
+      for (let round = 0; round < 1_000; round++) {
         const since = Number(this.db.getState('cloud.cursor') ?? 0);
         const page = await this.request<any>('GET', `/sync/pull?since=${since}&limit=500`, undefined, true);
         if (!Number.isSafeInteger(page.nextSince) || page.nextSince < since) throw new Error('Invalid sync cursor');

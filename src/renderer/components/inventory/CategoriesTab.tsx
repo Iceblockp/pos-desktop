@@ -14,10 +14,7 @@ export function CategoriesTab({ notify }: { notify: (s: string) => void }) {
     queryFn: () => window.storePos.pos.categories(),
   });
 
-  const products = useQuery({
-    queryKey: ["products", "all"],
-    queryFn: () => window.storePos.pos.products(),
-  });
+  const productCounts = useQuery({ queryKey: ['category-product-counts'], queryFn: () => window.storePos.pos.categoryProductCounts() });
 
   const saveCategory = useMutation({
     mutationFn: () =>
@@ -58,19 +55,8 @@ export function CategoriesTab({ notify }: { notify: (s: string) => void }) {
     setModal("edit");
   };
 
-  const productCounts = (categories.data ?? []).reduce<Record<string, number>>(
-    (acc, cat) => {
-      acc[cat.id] = (products.data ?? []).filter(
-        (p) => p.categoryId === cat.id,
-      ).length;
-      return acc;
-    },
-    {},
-  );
-
-  const uncategorizedCount = (products.data ?? []).filter(
-    (p) => !p.categoryId,
-  ).length;
+  const categoryCounts = productCounts.data?.byCategory ?? {};
+  const uncategorizedCount = productCounts.data?.uncategorized ?? 0;
 
   return (
     <section className="flex-1 overflow-hidden flex flex-col gap-3">
@@ -122,7 +108,7 @@ export function CategoriesTab({ notify }: { notify: (s: string) => void }) {
                     </td>
                     <td className="py-3 px-4 text-center">
                       <span className="badge badge-ghost badge-sm font-mono">
-                        {productCounts[cat.id] ?? 0} items
+                        {categoryCounts[cat.id] ?? 0} items
                       </span>
                     </td>
                     {owner && (

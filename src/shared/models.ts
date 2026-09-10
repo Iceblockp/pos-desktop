@@ -1,8 +1,10 @@
 export interface CartDraft { lines: CartLine[]; orderDiscount: number; customerId: string; note: string; soldAt: string; priceLevelId: string; }
 export interface Capabilities { owner: boolean; tier: string; effectivePlan: string; premiumUntil: string | null; cloud: boolean; debt: boolean; expenses: boolean; dayEnd: boolean; flags: { debt: boolean; expenses: boolean; dayEnd: boolean }; }
-export interface DeviceLimit { status: 'device_limit'; limit: number; devices: PairedDevice[]; loginTicket: string; }
+export interface LoginDevice { id: string; name: string; deviceCode: string; lastSyncedAt: string | null; }
+export interface DeviceLimit { status: 'device_limit'; limit: number; devices: LoginDevice[]; loginTicket: string; }
+export interface InactiveDevices { status: 'inactive_devices'; devices: LoginDevice[]; canCreateNew: boolean; loginTicket: string; }
 export interface ShopSwitch { status: 'shop_switch'; shopName: string; unsyncedCount: number; }
-export type ConnectResult = CloudState | DeviceLimit | ShopSwitch;
+export type ConnectResult = CloudState | DeviceLimit | InactiveDevices | ShopSwitch;
 export interface PaymentSlip { id: string; tier: string; method: string; amount: number; reference: string; status: string; reviewNote: string | null; createdAt: string; }
 export interface NotificationPreferences { lowStock: boolean; dailyEnabled: boolean; hour: number; minute: number; supported: boolean; }
 export type SyncStatus =
@@ -112,6 +114,11 @@ export interface SaleSummary {
   customerName: string | null;
   paymentMethod: string;
 }
+export interface PageResult<T> { items: T[]; total: number; }
+export interface ProductSummary { total: number; lowStock: number; outOfStock: number; inventoryValue: number; }
+export interface CustomerWithDebt extends Customer { debt: number; }
+export interface CustomerSummary { total: number; debtors: number; receivables: number; }
+export interface SalesSummaryMetrics { total: number; sales: number; debt: number; returns: number; netVolume: number; }
 
 export interface ReturnableLine {
   productId: string;
@@ -240,6 +247,9 @@ export interface DesktopApi {
     dashboard: () => Promise<Dashboard>;
     cartProducts: (ids: string[]) => Promise<Product[]>;
     products: (search?: string) => Promise<Product[]>;
+    productPage: (input?: { search?: string; categoryId?: string; stockFilter?: 'all' | 'low' | 'out'; sortBy?: 'name-asc' | 'stock-asc' | 'price-desc' | 'price-asc'; offset?: number; limit?: number }) => Promise<PageResult<Product>>;
+    productSummary: () => Promise<ProductSummary>;
+    categoryProductCounts: () => Promise<{ byCategory: Record<string, number>; uncategorized: number }>;
     findByBarcode: (code: string) => Promise<Product | null>;
     saveProduct: (input: Partial<Product> & Pick<Product, 'name' | 'price'>) => Promise<Product>;
     removeProduct: (id: string) => Promise<void>;
@@ -252,11 +262,15 @@ export interface DesktopApi {
     supplierPurchases: (supplierId: string, from?: string, to?: string) => Promise<SupplierPurchase[]>;
     supplierSpend: (supplierId: string, from?: string, to?: string) => Promise<number>;
     customers: () => Promise<Customer[]>;
+    customerPage: (input?: { search?: string; filter?: 'all' | 'debt' | 'clear'; offset?: number; limit?: number }) => Promise<PageResult<CustomerWithDebt>>;
+    customerSummary: () => Promise<CustomerSummary>;
     saveCustomer: (input: Partial<Customer> & Pick<Customer, 'name'>) => Promise<Customer>;
     removeCustomer: (id: string) => Promise<void>;
     customerLedger: (id: string) => Promise<CustomerLedger>;
     checkout: (draft: SaleDraft) => Promise<Receipt>;
     sales: (search?: string, from?: string, to?: string) => Promise<SaleSummary[]>;
+    salesPage: (input?: { search?: string; from?: string; to?: string; filter?: 'all' | 'sales' | 'debt' | 'returns'; offset?: number; limit?: number }) => Promise<PageResult<SaleSummary>>;
+    salesSummary: (input?: { search?: string; from?: string; to?: string }) => Promise<SalesSummaryMetrics>;
     receipt: (voucherId: string) => Promise<Receipt | null>;
     returnableSale: (voucherId: string) => Promise<ReturnableLine[] | null>;
     returnSale: (voucherId: string, lines: Array<{ productId: string; quantity: number }>, refundMethod: string, note?: string, refundAmount?: number) => Promise<Receipt>;
@@ -294,7 +308,7 @@ export interface DesktopApi {
     saveShopProfile: (profile: ShopProfile) => Promise<ShopProfile>;
   };
   cloud: {
-    completeLogin: (input: {loginTicket: string; revokeDeviceId: string; deviceName: string}) => Promise<ConnectResult>;
+    completeLogin: (input: {loginTicket: string; revokeDeviceId?: string; reclaimDeviceId?: string; createNew?: boolean; deviceName: string}) => Promise<ConnectResult>;
     join: (input: {pairingCode: string; deviceName: string}) => Promise<ConnectResult>;
     createPairingCode: () => Promise<{code: string; expiresAt: string}>;
     confirmSwitch: () => Promise<CloudState>;

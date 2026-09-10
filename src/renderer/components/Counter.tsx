@@ -59,6 +59,7 @@ export function Counter({
   const setSoldAt = (value: string) => updateDraft({ soldAt: value });
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [productOffset, setProductOffset] = useState(0);
   const [method, setMethod] = useState("cash");
   const customerId = draft.customerId;
   const setCustomerId = (value: string) => updateDraft({ customerId: value });
@@ -83,8 +84,8 @@ export function Counter({
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const products = useQuery({
-    queryKey: ["products", search],
-    queryFn: () => window.storePos.pos.products(search),
+    queryKey: ["product-page", search, selectedCategory, productOffset],
+    queryFn: () => window.storePos.pos.productPage({ search, categoryId: selectedCategory || undefined, offset: productOffset, limit: 100 }),
   });
   const categories = useQuery({
     queryKey: ["categories"],
@@ -97,8 +98,8 @@ export function Counter({
     enabled: cart.length > 0,
   });
   const customers = useQuery({
-    queryKey: ["customers"],
-    queryFn: () => window.storePos.pos.customers(),
+    queryKey: ["counter-customer-page", customerSearch],
+    queryFn: () => window.storePos.pos.customerPage({ search: customerSearch, limit: 100 }),
   });
   const methods = useQuery({
     queryKey: ["payment-methods"],
@@ -116,7 +117,7 @@ export function Counter({
     levels.data?.find((level) => level.id === priceLevelId)?.name ?? "Retail";
 
   const selectedCustomer = useMemo(
-    () => customers.data?.find((c) => c.id === customerId) ?? null,
+    () => customers.data?.items.find((c) => c.id === customerId) ?? null,
     [customers.data, customerId],
   );
 
@@ -218,7 +219,7 @@ export function Counter({
 
   const catalog = useRef(new Map<string, Product>());
   for (const product of [
-    ...(products.data ?? []),
+    ...(products.data?.items ?? []),
     ...(cartProducts.data ?? []),
   ])
     catalog.current.set(product.id, product);
@@ -436,12 +437,7 @@ export function Counter({
     }
   };
 
-  // Filter products by search and category
-  const filteredProducts = useMemo(() => {
-    if (!products.data) return [];
-    if (!selectedCategory) return products.data;
-    return products.data.filter((p) => p.categoryId === selectedCategory);
-  }, [products.data, selectedCategory]);
+  const filteredProducts = products.data?.items ?? [];
 
   // Cash change calculation
   const effectiveCashAmount = split ? Number(parts.cash || 0) : total;
@@ -544,7 +540,7 @@ export function Counter({
             <input
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setProductOffset(0); }}
               onKeyDown={handleSearchKeyDown}
               placeholder="Search product or scan barcode (F2)..."
               className="input input-bordered input-sm w-full pl-9 pr-24 text-sm bg-gray-50 focus:bg-white"
@@ -560,7 +556,7 @@ export function Counter({
           {/* Category Filter Chips */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-2 mb-3 scrollbar-none">
             <button
-              onClick={() => setSelectedCategory("")}
+              onClick={() => { setSelectedCategory(""); setProductOffset(0); }}
               className={`btn btn-xs px-3 rounded-full font-medium transition ${
                 !selectedCategory
                   ? "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700"
@@ -572,7 +568,7 @@ export function Counter({
             {categories.data?.map((cat) => (
               <button
                 key={cat.id}
-                onClick={() => setSelectedCategory(cat.id)}
+                onClick={() => { setSelectedCategory(cat.id); setProductOffset(0); }}
                 className={`btn btn-xs px-3 rounded-full font-medium whitespace-nowrap transition ${
                   selectedCategory === cat.id
                     ? "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700"
@@ -587,6 +583,7 @@ export function Counter({
           {/* Product Cards Grid */}
           <div className="flex-1 overflow-y-auto pr-1">
             {filteredProducts.length > 0 ? (
+              <>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2.5">
                 {filteredProducts.map((product) => {
                   const isOutOfStock =
@@ -640,6 +637,14 @@ export function Counter({
                   );
                 })}
               </div>
+              <div className="flex items-center justify-between gap-2 py-3 text-xs text-gray-500">
+                <span>Showing {productOffset + 1}-{productOffset + filteredProducts.length} of {products.data?.total ?? 0}</span>
+                <div className="flex gap-2">
+                  <button className="btn btn-xs" disabled={productOffset === 0} onClick={() => setProductOffset(Math.max(0, productOffset - 100))}>Previous</button>
+                  <button className="btn btn-xs" disabled={productOffset + filteredProducts.length >= (products.data?.total ?? 0)} onClick={() => setProductOffset(productOffset + 100)}>Next 100</button>
+                </div>
+              </div>
+              </>
             ) : (
               <div className="flex flex-col items-center justify-center h-48 text-gray-400">
                 <span className="text-3xl mb-2">🔍</span>
@@ -1093,16 +1098,7 @@ export function Counter({
 
                 {/* Customer List */}
                 <div className="max-h-60 overflow-y-auto space-y-1 pr-1">
-                  {customers.data
-                    ?.filter(
-                      (c) =>
-                        !customerSearch ||
-                        c.name
-                          .toLowerCase()
-                          .includes(customerSearch.toLowerCase()) ||
-                        c.phone?.includes(customerSearch),
-                    )
-                    .map((c) => (
+                  {customers.data?.items.map((c) => (
                       <button
                         key={c.id}
                         onClick={() => {

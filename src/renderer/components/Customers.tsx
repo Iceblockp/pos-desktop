@@ -15,6 +15,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
 
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "debt" | "clear">("all");
+  const [offset, setOffset] = useState(0);
 
   const emptyCustomer = { id: "", name: "", phone: "", note: "" };
   const [modal, setModal] = useState<"customer" | "ledger" | "collect" | null>(null);
@@ -53,17 +54,20 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
   const client = useQueryClient();
 
   const customers = useQuery({
-    queryKey: ["customers"],
-    queryFn: () => window.storePos.pos.customers(),
+    queryKey: ["customer-page", search, filter, offset],
+    queryFn: () => window.storePos.pos.customerPage({ search, filter, offset, limit: 100 }),
   });
+
+  const customerSummary = useQuery({ queryKey: ['customer-summary'], queryFn: () => window.storePos.pos.customerSummary() });
 
   const debtors = useQuery({
     queryKey: ["debtors"],
     queryFn: () => window.storePos.pos.debtors(),
+    enabled: modal === "collect",
   });
 
   const activeCustomer = useMemo(
-    () => customers.data?.find((c) => c.id === selectedCustomerId) ?? null,
+    () => customers.data?.items.find((c) => c.id === selectedCustomerId) ?? null,
     [customers.data, selectedCustomerId],
   );
 
@@ -170,28 +174,10 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
   };
 
   // Metrics
-  const rawCustomers = customers.data ?? [];
-  const totalCustomerCount = rawCustomers.length;
-  const debtorCount = debtors.data?.length ?? 0;
-  const totalReceivables = debtors.data?.reduce((sum, d) => sum + d.debt, 0) ?? 0;
-
-  // Filtered List
-  const filteredCustomers = useMemo(() => {
-    return rawCustomers.filter((c) => {
-      const debt = debtMap.get(c.id) ?? 0;
-      if (filter === "debt" && debt <= 0) return false;
-      if (filter === "clear" && debt > 0) return false;
-
-      if (search) {
-        const term = search.toLowerCase();
-        const matchesName = c.name.toLowerCase().includes(term);
-        const matchesPhone = c.phone?.toLowerCase().includes(term);
-        const matchesNote = c.note?.toLowerCase().includes(term);
-        if (!matchesName && !matchesPhone && !matchesNote) return false;
-      }
-      return true;
-    });
-  }, [rawCustomers, debtMap, filter, search]);
+  const totalCustomerCount = customerSummary.data?.total ?? 0;
+  const debtorCount = customerSummary.data?.debtors ?? 0;
+  const totalReceivables = customerSummary.data?.receivables ?? 0;
+  const filteredCustomers = customers.data?.items ?? [];
 
   return (
     <section className="h-full flex flex-col gap-3">
@@ -288,7 +274,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
               type="text"
               placeholder="Search customer by name, phone, or note..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setOffset(0); }}
               className="input input-bordered input-sm w-full pl-9 text-xs bg-gray-50 focus:bg-white"
               autoFocus
             />
@@ -297,7 +283,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
           {/* Filter Chips */}
           <div className="flex items-center gap-1.5 overflow-x-auto">
             <button
-              onClick={() => setFilter("all")}
+              onClick={() => { setFilter("all"); setOffset(0); }}
               className={`btn btn-xs px-3 rounded-full font-medium transition ${
                 filter === "all"
                   ? "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700"
@@ -307,7 +293,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
               All ({totalCustomerCount})
             </button>
             <button
-              onClick={() => setFilter("debt")}
+              onClick={() => { setFilter("debt"); setOffset(0); }}
               className={`btn btn-xs px-3 rounded-full font-medium transition ${
                 filter === "debt"
                   ? "bg-amber-600 text-white border-amber-600 hover:bg-amber-700"
@@ -317,7 +303,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
               With Debt ({debtorCount})
             </button>
             <button
-              onClick={() => setFilter("clear")}
+              onClick={() => { setFilter("clear"); setOffset(0); }}
               className={`btn btn-xs px-3 rounded-full font-medium transition ${
                 filter === "clear"
                   ? "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700"
@@ -347,7 +333,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
                 </thead>
                 <tbody className="divide-y divide-gray-100 text-xs">
                   {filteredCustomers.map((c) => {
-                    const debt = debtMap.get(c.id) ?? 0;
+                    const debt = c.debt;
                     const hasDebt = debt > 0;
 
                     return (
@@ -422,6 +408,10 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
                   })}
                 </tbody>
               </table>
+              <div className="flex items-center justify-between px-4 py-3 text-xs text-gray-500 border-t border-gray-100">
+                <span>Showing {offset + 1}-{offset + filteredCustomers.length} of {customers.data?.total ?? 0}</span>
+                <div className="flex gap-2"><button className="btn btn-xs" disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 100))}>Previous</button><button className="btn btn-xs" disabled={offset + filteredCustomers.length >= (customers.data?.total ?? 0)} onClick={() => setOffset(offset + 100)}>Next 100</button></div>
+              </div>
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center flex-1 py-16 text-gray-400">

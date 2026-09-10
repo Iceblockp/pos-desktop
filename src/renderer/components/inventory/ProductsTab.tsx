@@ -41,6 +41,7 @@ export function ProductsTab({
   const [categoryId, setCategoryId] = useState("");
   const [stockFilter, setStockFilter] = useState<"all" | "low" | "out">("all");
   const [sortBy, setSortBy] = useState<"name-asc" | "stock-asc" | "price-desc" | "price-asc">("name-asc");
+  const [offset, setOffset] = useState(0);
 
   const [stock, setStock] = useState({
     action: "stock_in" as "stock_in" | "waste" | "adjustment",
@@ -55,9 +56,10 @@ export function ProductsTab({
   const client = useQueryClient();
 
   const products = useQuery({
-    queryKey: ["products", "all"],
-    queryFn: () => window.storePos.pos.products(),
+    queryKey: ["product-page", search, categoryId, stockFilter, sortBy, offset],
+    queryFn: () => window.storePos.pos.productPage({ search, categoryId: categoryId || undefined, stockFilter, sortBy, offset, limit: 100 }),
   });
+  const productSummary = useQuery({ queryKey: ['product-summary'], queryFn: () => window.storePos.pos.productSummary() });
 
   const categories = useQuery({
     queryKey: ["categories"],
@@ -86,7 +88,7 @@ export function ProductsTab({
     enabled: Boolean(selectedProductId) && modal === "history",
   });
 
-  const selectedProduct = products.data?.find(
+  const selectedProduct = products.data?.items.find(
     (product) => product.id === selectedProductId,
   );
 
@@ -210,42 +212,11 @@ export function ProductsTab({
   });
 
   // Summary Metrics
-  const allProducts = products.data ?? [];
-  const totalProducts = allProducts.length;
-  const lowStockCount = allProducts.filter(
-    (p) => p.minStock > 0 && p.quantity <= p.minStock && p.quantity > 0,
-  ).length;
-  const outOfStockCount = allProducts.filter((p) => p.quantity <= 0).length;
-  const totalInventoryValue = allProducts.reduce(
-    (sum, p) => sum + Math.max(0, p.quantity) * p.price,
-    0,
-  );
-
-  // Filtering & Sorting
-  const shown = useMemo(() => {
-    let list = allProducts.filter((product) => {
-      if (categoryId && product.categoryId !== categoryId) return false;
-      if (stockFilter === "low" && !(product.minStock > 0 && product.quantity <= product.minStock && product.quantity > 0)) return false;
-      if (stockFilter === "out" && product.quantity > 0) return false;
-      if (
-        search &&
-        !product.name.toLowerCase().includes(search.toLowerCase()) &&
-        !product.barcode?.includes(search)
-      )
-        return false;
-      return true;
-    });
-
-    list.sort((a, b) => {
-      if (sortBy === "name-asc") return a.name.localeCompare(b.name);
-      if (sortBy === "stock-asc") return a.quantity - b.quantity;
-      if (sortBy === "price-desc") return b.price - a.price;
-      if (sortBy === "price-asc") return a.price - b.price;
-      return 0;
-    });
-
-    return list;
-  }, [allProducts, categoryId, stockFilter, search, sortBy]);
+  const totalProducts = productSummary.data?.total ?? 0;
+  const lowStockCount = productSummary.data?.lowStock ?? 0;
+  const outOfStockCount = productSummary.data?.outOfStock ?? 0;
+  const totalInventoryValue = productSummary.data?.inventoryValue ?? 0;
+  const shown = products.data?.items ?? [];
 
   const openProduct = (product?: Product) => {
     setForm(
@@ -349,7 +320,7 @@ export function ProductsTab({
         </div>
 
         <div
-          onClick={() => setStockFilter(stockFilter === "low" ? "all" : "low")}
+          onClick={() => { setStockFilter(stockFilter === "low" ? "all" : "low"); setOffset(0); }}
           className={`p-3.5 rounded-xl border shadow-sm flex items-center justify-between cursor-pointer transition ${
             stockFilter === "low"
               ? "bg-amber-50 border-amber-300 ring-2 ring-amber-400/30"
@@ -368,7 +339,7 @@ export function ProductsTab({
         </div>
 
         <div
-          onClick={() => setStockFilter(stockFilter === "out" ? "all" : "out")}
+          onClick={() => { setStockFilter(stockFilter === "out" ? "all" : "out"); setOffset(0); }}
           className={`p-3.5 rounded-xl border shadow-sm flex items-center justify-between cursor-pointer transition ${
             stockFilter === "out"
               ? "bg-rose-50 border-rose-300 ring-2 ring-rose-400/30"
@@ -410,7 +381,7 @@ export function ProductsTab({
             <input
               placeholder="Search product name or barcode..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setOffset(0); }}
               className="input input-bordered input-sm w-full pl-9 text-xs"
             />
           </div>
@@ -419,7 +390,7 @@ export function ProductsTab({
             {/* Sort Dropdown */}
             <select
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
+              onChange={(e) => { setSortBy(e.target.value as any); setOffset(0); }}
               className="select select-bordered select-sm text-xs font-medium bg-gray-50"
             >
               <option value="name-asc">Name (A → Z)</option>
@@ -471,9 +442,10 @@ export function ProductsTab({
             onClick={() => {
               setCategoryId("");
               setStockFilter("all");
+              setOffset(0);
             }}
           >
-            All Products ({allProducts.length})
+            All Products ({totalProducts})
           </button>
 
           {categories.data?.map((cat) => (
@@ -487,6 +459,7 @@ export function ProductsTab({
               onClick={() => {
                 setCategoryId(cat.id);
                 setStockFilter("all");
+                setOffset(0);
               }}
             >
               {cat.name}
@@ -742,6 +715,12 @@ export function ProductsTab({
               <p className="text-xs text-gray-500 mt-1">
                 Try searching a different keyword or resetting your filters.
               </p>
+            </div>
+          )}
+          {shown.length > 0 && (
+            <div className="flex items-center justify-between px-4 py-3 text-xs text-gray-500 border-t border-gray-100">
+              <span>Showing {offset + 1}-{offset + shown.length} of {products.data?.total ?? 0}</span>
+              <div className="flex gap-2"><button className="btn btn-xs" disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 100))}>Previous</button><button className="btn btn-xs" disabled={offset + shown.length >= (products.data?.total ?? 0)} onClick={() => setOffset(offset + 100)}>Next 100</button></div>
             </div>
           )}
         </div>

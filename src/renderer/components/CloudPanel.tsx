@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ConnectResult, DeviceLimit, ShopSwitch } from "../../shared/models";
+import type { ConnectResult, DeviceLimit, InactiveDevices, ShopSwitch } from "../../shared/models";
 
 export function CloudPanel({ notify }: { notify: (message: string) => void }) {
   const client = useQueryClient();
@@ -27,6 +27,7 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
   const [deviceName, setDeviceName] = useState("Desktop counter");
   const [pairingCode, setPairingCode] = useState("");
   const [limit, setLimit] = useState<DeviceLimit | null>(null);
+  const [inactive, setInactive] = useState<InactiveDevices | null>(null);
   const [switching, setSwitching] = useState<ShopSwitch | null>(null);
   const [pair, setPair] = useState<{ code: string; expiresAt: string } | null>(null);
 
@@ -43,7 +44,12 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
         setLimit(result);
         return;
       }
+      if (result.status === "inactive_devices") {
+        setInactive(result);
+        return;
+      }
       setLimit(null);
+      setInactive(null);
       setPassword("");
       if (result.status === "shop_switch") {
         setSwitching(result);
@@ -491,6 +497,39 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
                 >
                   Cancel
                 </button>
+              </div>
+            )}
+
+            {/* A reset terminal can explicitly revive a signed-out identity. */}
+            {inactive && (
+              <div className="max-w-md mx-auto p-4 rounded-xl bg-blue-50 border border-blue-200 space-y-3">
+                <h4 className="font-bold text-blue-950 text-sm">Reuse a previous device</h4>
+                <p className="text-xs text-blue-900">
+                  These devices are already signed out. Reusing one keeps its receipt namespace; active devices are never shown here.
+                </p>
+                <div className="space-y-2">
+                  {inactive.devices.map((device) => (
+                    <button
+                      key={device.id}
+                      className="btn btn-sm btn-outline w-full justify-between"
+                      disabled={action.isPending}
+                      onClick={() => action.mutate(() => window.storePos.cloud.completeLogin({
+                        loginTicket: inactive.loginTicket, reclaimDeviceId: device.id, deviceName,
+                      }))}
+                    >
+                      <span>{device.name} · {device.deviceCode}</span>
+                      <span className="text-xs font-normal text-slate-500">Reuse</span>
+                    </button>
+                  ))}
+                </div>
+                {inactive.canCreateNew ? <button
+                  className="btn btn-xs btn-ghost w-full"
+                  disabled={action.isPending}
+                  onClick={() => action.mutate(() => window.storePos.cloud.completeLogin({
+                    loginTicket: inactive.loginTicket, createNew: true, deviceName,
+                  }))}
+                >Use as a new device</button> : null}
+                <button className="btn btn-xs btn-ghost w-full" disabled={action.isPending} onClick={() => setInactive(null)}>Cancel</button>
               </div>
             )}
 

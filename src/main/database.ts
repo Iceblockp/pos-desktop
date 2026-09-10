@@ -282,6 +282,43 @@ export class PosDatabase {
       .map((row) => ({ ...toProduct(row), tiers: this.pricingTiers(String(row.id)) }));
   }
 
+  productPage(input: { search?: string; categoryId?: string; stockFilter?: 'all' | 'low' | 'out'; sortBy?: 'name-asc' | 'stock-asc' | 'price-desc' | 'price-asc'; offset?: number; limit?: number } = {}) {
+    const search = input.search?.trim() ?? "";
+    const limit = Math.max(1, Math.min(100, Math.floor(input.limit ?? 100)));
+    const offset = Math.max(0, Math.floor(input.offset ?? 0));
+    const clauses = ["deletedAt IS NULL", "isActive = 1"];
+    const params: any[] = [];
+    if (search) { clauses.push("(name LIKE ? OR barcode LIKE ?)"); params.push(`%${search}%`, `%${search}%`); }
+    if (input.categoryId) { clauses.push("categoryId = ?"); params.push(input.categoryId); }
+    if (input.stockFilter === 'low') clauses.push('minStock > 0 AND quantity > 0 AND quantity <= minStock');
+    if (input.stockFilter === 'out') clauses.push('quantity <= 0');
+    const where = clauses.join(" AND ");
+    const order = input.sortBy === 'stock-asc' ? 'quantity ASC, name, id' : input.sortBy === 'price-desc' ? 'price DESC, name, id' : input.sortBy === 'price-asc' ? 'price ASC, name, id' : 'name, id';
+    const total = Number((this.sqlite.prepare(`SELECT COUNT(*) AS count FROM products WHERE ${where}`).get(...params) as any).count);
+    const rows = this.sqlite.prepare(`SELECT id, name, barcode, categoryId, supplierId, price, cost, quantity, minStock, unit, isActive FROM products WHERE ${where} ORDER BY ${order} LIMIT ? OFFSET ?`).all(...params, limit, offset) as any[];
+    const ids = rows.map(row => String(row.id));
+    const tiers = new Map<string, any[]>();
+    if (ids.length) {
+      const marks = ids.map(() => "?").join(",");
+      for (const tier of this.sqlite.prepare(`SELECT id, productId, priceLevelId, minQuantity, bulkPrice FROM product_tiers WHERE deletedAt IS NULL AND productId IN (${marks}) ORDER BY minQuantity`).all(...ids) as any[]) {
+        const productId = String(tier.productId); tiers.set(productId, [...(tiers.get(productId) ?? []), tier]);
+      }
+    }
+    return { total, items: rows.map(row => ({ ...toProduct(row), tiers: tiers.get(String(row.id)) ?? [] })) };
+  }
+
+  productSummary() {
+    const row = this.sqlite.prepare(`SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN quantity <= 0 THEN 1 ELSE 0 END), 0) AS outOfStock, COALESCE(SUM(CASE WHEN minStock > 0 AND quantity > 0 AND quantity <= minStock THEN 1 ELSE 0 END), 0) AS lowStock, COALESCE(SUM(MAX(0, quantity) * price), 0) AS inventoryValue FROM products WHERE deletedAt IS NULL AND isActive = 1`).get() as any;
+    return { total: Number(row.total), outOfStock: Number(row.outOfStock), lowStock: Number(row.lowStock), inventoryValue: Number(row.inventoryValue) };
+  }
+
+  categoryProductCounts() {
+    const byCategory: Record<string, number> = {};
+    for (const row of this.sqlite.prepare("SELECT categoryId, COUNT(*) AS count FROM products WHERE deletedAt IS NULL AND isActive = 1 AND categoryId IS NOT NULL GROUP BY categoryId").all() as any[]) byCategory[String(row.categoryId)] = Number(row.count);
+    const uncategorized = Number((this.sqlite.prepare("SELECT COUNT(*) AS count FROM products WHERE deletedAt IS NULL AND isActive = 1 AND categoryId IS NULL").get() as any).count);
+    return { byCategory, uncategorized };
+  }
+
   findBarcode(code: string): Product | null {
     const row = this.sqlite
       .prepare(
@@ -919,6 +956,28 @@ export class PosDatabase {
       }));
   }
 
+  customerPage(input: { search?: string; filter?: 'all' | 'debt' | 'clear'; offset?: number; limit?: number } = {}) {
+    const search = input.search?.trim() ?? "";
+    const limit = Math.max(1, Math.min(100, Math.floor(input.limit ?? 100)));
+    const offset = Math.max(0, Math.floor(input.offset ?? 0));
+    const clauses = ["c.deletedAt IS NULL"];
+    const params: any[] = [];
+    if (search) { clauses.push("(c.name LIKE ? OR COALESCE(c.phone, '') LIKE ? OR COALESCE(c.note, '') LIKE ?)"); params.push(`%${search}%`, `%${search}%`, `%${search}%`); }
+    if (input.filter === 'debt') clauses.push('COALESCE(d.debt, 0) > 0');
+    if (input.filter === 'clear') clauses.push('COALESCE(d.debt, 0) <= 0');
+    const debtJoin = `LEFT JOIN (SELECT customerId, SUM(CASE WHEN kind = 'sale' THEN amount ELSE -amount END) AS debt FROM (SELECT customerId, total AS amount, 'sale' AS kind FROM sales WHERE deletedAt IS NULL AND customerId IS NOT NULL UNION ALL SELECT customerId, amount, 'payment' AS kind FROM payments WHERE deletedAt IS NULL AND customerId IS NOT NULL) GROUP BY customerId) d ON d.customerId = c.id`;
+    const where = clauses.join(' AND ');
+    const total = Number((this.sqlite.prepare(`SELECT COUNT(*) AS count FROM customers c ${debtJoin} WHERE ${where}`).get(...params) as any).count);
+    const rows = this.sqlite.prepare(`SELECT c.id, c.name, c.phone, c.note, COALESCE(d.debt, 0) AS debt FROM customers c ${debtJoin} WHERE ${where} ORDER BY c.name, c.id LIMIT ? OFFSET ?`).all(...params, limit, offset) as any[];
+    return { total, items: rows.map(row => ({ id: String(row.id), name: String(row.name), phone: row.phone ?? null, note: row.note ?? null, debt: Math.max(0, Number(row.debt)) })) };
+  }
+
+  customerSummary() {
+    const debtJoin = `LEFT JOIN (SELECT customerId, SUM(CASE WHEN kind = 'sale' THEN amount ELSE -amount END) AS debt FROM (SELECT customerId, total AS amount, 'sale' AS kind FROM sales WHERE deletedAt IS NULL AND customerId IS NOT NULL UNION ALL SELECT customerId, amount, 'payment' AS kind FROM payments WHERE deletedAt IS NULL AND customerId IS NOT NULL) GROUP BY customerId) d ON d.customerId = c.id`;
+    const row = this.sqlite.prepare(`SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN COALESCE(d.debt, 0) > 0 THEN 1 ELSE 0 END), 0) AS debtors, COALESCE(SUM(CASE WHEN COALESCE(d.debt, 0) > 0 THEN d.debt ELSE 0 END), 0) AS receivables FROM customers c ${debtJoin} WHERE c.deletedAt IS NULL`).get() as any;
+    return { total: Number(row.total), debtors: Number(row.debtors), receivables: Number(row.receivables) };
+  }
+
   saveCustomer(input: Partial<Customer> & Pick<Customer, "name">): Customer {
     const id = input.id || randomUUID();
     if (!input.name.trim()) throw new Error("Customer name is required");
@@ -1125,6 +1184,33 @@ export class PosDatabase {
       }));
 
     return results;
+  }
+
+  salesPage(input: { search?: string; from?: string; to?: string; filter?: 'all' | 'sales' | 'debt' | 'returns'; offset?: number; limit?: number } = {}) {
+    const search = input.search?.trim() ?? '';
+    const limit = Math.max(1, Math.min(100, Math.floor(input.limit ?? 50)));
+    const offset = Math.max(0, Math.floor(input.offset ?? 0));
+    const clauses = ['s.deletedAt IS NULL'];
+    const params: any[] = [];
+    if (search) { clauses.push("(s.voucherId LIKE ? OR COALESCE(c.name, '') LIKE ?)"); params.push(`%${search}%`, `%${search}%`); }
+    if (input.from && input.to) { clauses.push('s.soldAt >= ?', 's.soldAt <= ?'); params.push(input.from, input.to); }
+    if (input.filter === 'returns') clauses.push("s.type = 'return'");
+    if (input.filter === 'sales') clauses.push("s.type != 'return'");
+    if (input.filter === 'debt') clauses.push("s.type != 'return' AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.saleId = s.id AND p.deletedAt IS NULL)");
+    const where = clauses.join(' AND ');
+    const total = Number((this.sqlite.prepare(`SELECT COUNT(*) AS count FROM sales s LEFT JOIN customers c ON c.id = s.customerId WHERE ${where}`).get(...params) as any).count);
+    const rows = this.sqlite.prepare(`SELECT s.id, s.voucherId, s.type, s.total, s.soldAt, c.name AS customerName, COALESCE((SELECT GROUP_CONCAT(DISTINCT p.methodCode) FROM payments p WHERE p.saleId = s.id AND p.deletedAt IS NULL), 'debt') AS paymentMethod FROM sales s LEFT JOIN customers c ON c.id = s.customerId WHERE ${where} ORDER BY s.soldAt DESC, s.id DESC LIMIT ? OFFSET ?`).all(...params, limit, offset) as any[];
+    return { total, items: rows.map(row => ({ id: String(row.id), voucherId: String(row.voucherId), type: row.type === 'return' ? 'return' : 'sale', total: Number(row.total), soldAt: String(row.soldAt), customerName: row.customerName ?? null, paymentMethod: String(row.paymentMethod) })) };
+  }
+
+  salesSummary(input: { search?: string; from?: string; to?: string } = {}) {
+    const search = input.search?.trim() ?? '';
+    const clauses = ['s.deletedAt IS NULL'];
+    const params: any[] = [];
+    if (search) { clauses.push("(s.voucherId LIKE ? OR COALESCE(c.name, '') LIKE ?)"); params.push(`%${search}%`, `%${search}%`); }
+    if (input.from && input.to) { clauses.push('s.soldAt >= ?', 's.soldAt <= ?'); params.push(input.from, input.to); }
+    const row = this.sqlite.prepare(`SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN s.type != 'return' THEN 1 ELSE 0 END), 0) AS sales, COALESCE(SUM(CASE WHEN s.type = 'return' THEN 1 ELSE 0 END), 0) AS returns, COALESCE(SUM(CASE WHEN s.type != 'return' AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.saleId = s.id AND p.deletedAt IS NULL) THEN 1 ELSE 0 END), 0) AS debt, COALESCE(SUM(CASE WHEN s.type = 'return' THEN -s.total ELSE s.total END), 0) AS netVolume FROM sales s LEFT JOIN customers c ON c.id = s.customerId WHERE ${clauses.join(' AND ')}`).get(...params) as any;
+    return { total: Number(row.total), sales: Number(row.sales), debt: Number(row.debt), returns: Number(row.returns), netVolume: Number(row.netVolume) };
   }
 
   receiptForSale(voucherId: string): Receipt | null {
@@ -1967,7 +2053,7 @@ export class PosDatabase {
     );
   }
 
-  dirtyChanges(limit = 500): any[] {
+  dirtyChanges(limit = 100): any[] {
     const changes: any[] = [];
     for (const table of SYNC_TABLES) {
       for (const row of this.sqlite
@@ -1990,6 +2076,32 @@ export class PosDatabase {
       }
     }
     return changes;
+  }
+
+  completeSaleBundles(maxBundles = 25): Array<{ bundleId: string; changes: any[] }> {
+    const sales = this.sqlite.prepare('SELECT * FROM sales WHERE dirty = 1 ORDER BY id LIMIT ?').all(maxBundles) as any[];
+    const toChange = (table: string, row: any) => ({ table, id: row.id, updatedAt: row.updatedAt, deletedAt: row.deletedAt ?? null, data: Object.fromEntries((SYNC_BY_NAME.get(table)?.columns ?? []).filter(column => column in row).map(column => [column, row[column]])) });
+    const bundles: Array<{ bundleId: string; changes: any[] }> = [];
+    let usedChanges = 0;
+    for (const sale of sales) {
+      const saleId = String(sale.id);
+      const items = this.sqlite.prepare('SELECT * FROM sale_items WHERE saleId = ? ORDER BY id').all(saleId) as any[];
+      const payments = this.sqlite.prepare('SELECT * FROM payments WHERE saleId = ? ORDER BY id').all(saleId) as any[];
+      const movements = this.sqlite.prepare('SELECT * FROM stock_movements WHERE referenceId = ? ORDER BY id').all(saleId) as any[];
+      const rows = [{ table: 'sales', row: sale }, ...items.map(row => ({ table: 'sale_items', row })), ...payments.map(row => ({ table: 'payments', row })), ...movements.map(row => ({ table: 'stock_movements', row }))];
+      if (rows.length > 100 || usedChanges + rows.length > 100 || rows.some(({ row }) => Number(row.dirty) !== 1)) continue;
+      bundles.push({ bundleId: saleId, changes: rows.map(({ table, row }) => toChange(table, row)) });
+      usedChanges += rows.length;
+    }
+    return bundles;
+  }
+
+  hasDirtyPrerequisitesForSales(): boolean {
+    for (const table of SYNC_TABLES) {
+      if (table.name === 'sales') break;
+      if (this.sqlite.prepare(`SELECT id FROM ${table.name} WHERE dirty = 1 LIMIT 1`).get()) return true;
+    }
+    return false;
   }
 
   reconcilePush(

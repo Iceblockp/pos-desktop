@@ -176,6 +176,12 @@ function registerIpc(): void {
       typeof search === "string" ? search.slice(0, 120) : "",
     );
   });
+  ipcMain.handle('pos:product-page', (event, input?: any) => {
+    assertTrustedSender(event);
+    return database.productPage({ search: typeof input?.search === 'string' ? input.search.slice(0, 120) : '', categoryId: typeof input?.categoryId === 'string' ? input.categoryId : undefined, stockFilter: ['low', 'out'].includes(input?.stockFilter) ? input.stockFilter : 'all', sortBy: ['stock-asc', 'price-desc', 'price-asc'].includes(input?.sortBy) ? input.sortBy : 'name-asc', offset: Number(input?.offset) || 0, limit: Number(input?.limit) || 100 });
+  });
+  ipcMain.handle('pos:product-summary', event => { assertTrustedSender(event); return database.productSummary(); });
+  ipcMain.handle('pos:category-product-counts', event => { assertTrustedSender(event); return database.categoryProductCounts(); });
   ipcMain.handle("pos:find-barcode", (event, code: unknown) => {
     assertTrustedSender(event);
     return database.findBarcode(
@@ -276,6 +282,11 @@ function registerIpc(): void {
     assertTrustedSender(event);
     return database.listCustomers();
   });
+  ipcMain.handle('pos:customer-page', (event, input?: any) => {
+    assertTrustedSender(event);
+    return database.customerPage({ search: typeof input?.search === 'string' ? input.search.slice(0, 120) : '', filter: ['debt', 'clear'].includes(input?.filter) ? input.filter : 'all', offset: Number(input?.offset) || 0, limit: Number(input?.limit) || 100 });
+  });
+  ipcMain.handle('pos:customer-summary', event => { assertTrustedSender(event); return database.customerSummary(); });
   ipcMain.handle("pos:save-customer", (event, input: unknown) => {
     assertTrustedSender(event);
     const result = database.saveCustomer(input as any);
@@ -317,6 +328,14 @@ function registerIpc(): void {
       );
     },
   );
+  ipcMain.handle('pos:sales-page', (event, input?: any) => {
+    assertTrustedSender(event);
+    return database.salesPage({ search: typeof input?.search === 'string' ? input.search.slice(0, 120) : '', from: typeof input?.from === 'string' ? input.from : undefined, to: typeof input?.to === 'string' ? input.to : undefined, filter: ['sales', 'debt', 'returns'].includes(input?.filter) ? input.filter : 'all', offset: Number(input?.offset) || 0, limit: Number(input?.limit) || 50 });
+  });
+  ipcMain.handle('pos:sales-summary', (event, input?: any) => {
+    assertTrustedSender(event);
+    return database.salesSummary({ search: typeof input?.search === 'string' ? input.search.slice(0, 120) : '', from: typeof input?.from === 'string' ? input.from : undefined, to: typeof input?.to === 'string' ? input.to : undefined });
+  });
   ipcMain.handle("pos:receipt", (event, voucherId: unknown) => {
     assertTrustedSender(event);
     return database.receiptForSale(
