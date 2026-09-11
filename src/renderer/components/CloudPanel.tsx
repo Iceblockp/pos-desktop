@@ -67,7 +67,9 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
   });
 
   const connect = async () => {
-    await window.storePos.cloud.setApiUrl(url);
+    if (url && url !== cloud.data?.apiUrl) {
+      await window.storePos.cloud.setApiUrl(url);
+    }
     if (mode === "join") {
       return window.storePos.cloud.join({
         pairingCode: pairingCode.trim(),

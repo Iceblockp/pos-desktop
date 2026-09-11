@@ -33,6 +33,11 @@ export class CloudService {
   constructor(private readonly db: PosDatabase) {
     this.session = this.loadSession();
     if (this.session) { this.cacheIdentity(this.session); this.status = 'idle'; }
+    const configured = this.db.getState('cloud.apiUrl');
+    const fallback = this.defaultApiUrl();
+    if (configured === 'http://localhost:3000/api' && fallback !== 'http://localhost:3000/api') {
+      this.db.setState('cloud.apiUrl', fallback);
+    }
   }
   state(): CloudState {
     return {
@@ -217,7 +222,16 @@ export class CloudService {
     if (this.session) { this.session.shop.tier = value.tier; this.session.shop.premiumUntil = value.premiumUntil; this.saveSession(this.session); }
     this.revision++;
   }
-  private apiUrl(): string { return this.db.getState('cloud.apiUrl') ?? process.env.STORE_POS_API_URL ?? 'http://localhost:3000/api'; }
+  private defaultApiUrl(): string {
+    return process.env.STORE_POS_API_URL ?? process.env.VITE_API_URL ?? 'http://localhost:3000/api';
+  }
+  private apiUrl(): string {
+    const configured = this.db.getState('cloud.apiUrl');
+    const fallback = this.defaultApiUrl();
+    if (configured && configured !== 'http://localhost:3000/api') return configured;
+    if (configured === 'http://localhost:3000/api' && fallback === 'http://localhost:3000/api') return configured;
+    return fallback;
+  }
   private refresh(): Promise<void> {
     if (this.refreshing) return this.refreshing;
     this.refreshing = (async () => {

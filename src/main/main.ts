@@ -1,6 +1,7 @@
-import { NotificationService } from './notifications';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { app, BrowserWindow, ipcMain } from "electron";
-import { join } from "node:path";
+import { NotificationService } from './notifications';
 import { PosDatabase } from "./database";
 import { CloudService } from "./cloud";
 import {
@@ -10,6 +11,41 @@ import {
   printTestReceipt,
   savePrinterSettings,
 } from "./printer";
+
+function loadEnv(): void {
+  const candidates = [
+    join(process.cwd(), '.env'),
+    join(__dirname, '../../.env'),
+    join(__dirname, '../../../.env'),
+  ];
+  for (const p of candidates) {
+    if (existsSync(p)) {
+      try {
+        if (typeof (process as any).loadEnvFile === 'function') {
+          (process as any).loadEnvFile(p);
+          break;
+        }
+      } catch {}
+      try {
+        const content = readFileSync(p, 'utf-8');
+        for (const line of content.split('\n')) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith('#')) continue;
+          const eqIdx = trimmed.indexOf('=');
+          if (eqIdx > 0) {
+            const key = trimmed.slice(0, eqIdx).trim();
+            const val = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, '');
+            if (!process.env[key]) {
+              process.env[key] = val;
+            }
+          }
+        }
+        break;
+      } catch {}
+    }
+  }
+}
+loadEnv();
 
 let mainWindow: BrowserWindow | null = null;
 let database: PosDatabase;
