@@ -621,7 +621,7 @@ export function Counter({
                         </span>
                         {isOutOfStock ? (
                           <span className="badge badge-error badge-xs text-white px-1 text-[9px]">
-                            Out
+                            {product.quantity < 0 ? product.quantity : "Out"}
                           </span>
                         ) : isLowStock ? (
                           <span className="badge badge-warning badge-xs px-1 text-[9px]">

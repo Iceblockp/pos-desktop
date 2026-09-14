@@ -269,17 +269,50 @@ export class PosDatabase {
       .run(key, value);
   }
 
+  loadBulkTiers(productIds: string[]): Map<string, any[]> {
+    const tiers = new Map<string, any[]>();
+    if (!productIds.length) return tiers;
+    try {
+      const marks = productIds.map(() => "?").join(",");
+      const rows = this.sqlite
+        .prepare(
+          `SELECT id, productId, priceLevelId, minQuantity, bulkPrice FROM bulk_pricing WHERE deletedAt IS NULL AND productId IN (${marks}) ORDER BY minQuantity ASC`,
+        )
+        .all(...productIds) as any[];
+      for (const tier of rows) {
+        const productId = String(tier.productId);
+        const list = tiers.get(productId) ?? [];
+        list.push({
+          id: String(tier.id),
+          productId,
+          priceLevelId: tier.priceLevelId ? String(tier.priceLevelId) : null,
+          minQuantity: Number(tier.minQuantity || 0),
+          bulkPrice: Number(tier.bulkPrice || 0),
+        });
+        tiers.set(productId, list);
+      }
+    } catch {
+      // Gracefully fall back if bulk_pricing table is unavailable
+    }
+    return tiers;
+  }
+
   cartProducts(ids:string[]):Product[] {
     return [...new Set(ids)].map(id=>this.findProduct(id)).filter((p):p is Product=>!!p).map(p=>({...p,tiers:this.pricingTiers(p.id)}));
   }
   listProducts(search = ""): Product[] {
     const pattern = `%${search.trim()}%`;
-    return this.sqlite
+    const rows = this.sqlite
       .prepare(
-        `SELECT id, name, barcode, categoryId, supplierId, price, cost, quantity, minStock, unit, isActive FROM products WHERE deletedAt IS NULL AND isActive = 1 AND (name LIKE ? OR barcode LIKE ?) ORDER BY name`,
+        `SELECT id, name, barcode, categoryId, supplierId, price, cost, quantity, minStock, unit, isActive FROM products WHERE deletedAt IS NULL AND isActive = 1 AND (name LIKE ? OR barcode LIKE ?) ORDER BY name COLLATE NOCASE`,
       )
-      .all(pattern, pattern)
-      .map((row) => ({ ...toProduct(row), tiers: this.pricingTiers(String(row.id)) }));
+      .all(pattern, pattern) as any[];
+    const ids = rows.map((row) => String(row.id));
+    const tiers = this.loadBulkTiers(ids);
+    return rows.map((row) => ({
+      ...toProduct(row),
+      tiers: tiers.get(String(row.id)) ?? this.pricingTiers(String(row.id)),
+    }));
   }
 
   productPage(input: { search?: string; categoryId?: string; stockFilter?: 'all' | 'low' | 'out'; sortBy?: 'name-asc' | 'stock-asc' | 'price-desc' | 'price-asc'; offset?: number; limit?: number } = {}) {
@@ -288,28 +321,60 @@ export class PosDatabase {
     const offset = Math.max(0, Math.floor(input.offset ?? 0));
     const clauses = ["deletedAt IS NULL", "isActive = 1"];
     const params: any[] = [];
-    if (search) { clauses.push("(name LIKE ? OR barcode LIKE ?)"); params.push(`%${search}%`, `%${search}%`); }
-    if (input.categoryId) { clauses.push("categoryId = ?"); params.push(input.categoryId); }
-    if (input.stockFilter === 'low') clauses.push('minStock > 0 AND quantity > 0 AND quantity <= minStock');
-    if (input.stockFilter === 'out') clauses.push('quantity <= 0');
-    const where = clauses.join(" AND ");
-    const order = input.sortBy === 'stock-asc' ? 'quantity ASC, name, id' : input.sortBy === 'price-desc' ? 'price DESC, name, id' : input.sortBy === 'price-asc' ? 'price ASC, name, id' : 'name, id';
-    const total = Number((this.sqlite.prepare(`SELECT COUNT(*) AS count FROM products WHERE ${where}`).get(...params) as any).count);
-    const rows = this.sqlite.prepare(`SELECT id, name, barcode, categoryId, supplierId, price, cost, quantity, minStock, unit, isActive FROM products WHERE ${where} ORDER BY ${order} LIMIT ? OFFSET ?`).all(...params, limit, offset) as any[];
-    const ids = rows.map(row => String(row.id));
-    const tiers = new Map<string, any[]>();
-    if (ids.length) {
-      const marks = ids.map(() => "?").join(",");
-      for (const tier of this.sqlite.prepare(`SELECT id, productId, priceLevelId, minQuantity, bulkPrice FROM product_tiers WHERE deletedAt IS NULL AND productId IN (${marks}) ORDER BY minQuantity`).all(...ids) as any[]) {
-        const productId = String(tier.productId); tiers.set(productId, [...(tiers.get(productId) ?? []), tier]);
-      }
+    if (search) {
+      clauses.push("(name LIKE ? OR barcode LIKE ?)");
+      params.push(`%${search}%`, `%${search}%`);
     }
-    return { total, items: rows.map(row => ({ ...toProduct(row), tiers: tiers.get(String(row.id)) ?? [] })) };
+    if (input.categoryId) {
+      clauses.push("categoryId = ?");
+      params.push(input.categoryId);
+    }
+    if (input.stockFilter === 'out') {
+      clauses.push('quantity <= 0');
+    } else if (input.stockFilter === 'low') {
+      clauses.push('quantity > 0 AND quantity <= minStock');
+    }
+    const where = clauses.join(" AND ");
+    const order = input.sortBy === 'stock-asc'
+      ? 'quantity ASC, name COLLATE NOCASE, id'
+      : input.sortBy === 'price-desc'
+      ? 'price DESC, name COLLATE NOCASE, id'
+      : input.sortBy === 'price-asc'
+      ? 'price ASC, name COLLATE NOCASE, id'
+      : 'name COLLATE NOCASE, id';
+
+    const totalRow = this.sqlite.prepare(`SELECT COUNT(*) AS count FROM products WHERE ${where}`).get(...params) as { count?: number } | undefined;
+    const total = Number(totalRow?.count ?? 0);
+    const rows = this.sqlite.prepare(
+      `SELECT id, name, barcode, categoryId, supplierId, price, cost, quantity, minStock, unit, isActive FROM products WHERE ${where} ORDER BY ${order} LIMIT ? OFFSET ?`
+    ).all(...params, limit, offset) as any[];
+
+    const ids = rows.map((row) => String(row.id));
+    const tiers = this.loadBulkTiers(ids);
+
+    return {
+      total,
+      items: rows.map((row) => ({
+        ...toProduct(row),
+        tiers: tiers.get(String(row.id)) ?? [],
+      })),
+    };
   }
 
   productSummary() {
-    const row = this.sqlite.prepare(`SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN quantity <= 0 THEN 1 ELSE 0 END), 0) AS outOfStock, COALESCE(SUM(CASE WHEN minStock > 0 AND quantity > 0 AND quantity <= minStock THEN 1 ELSE 0 END), 0) AS lowStock, COALESCE(SUM(MAX(0, quantity) * price), 0) AS inventoryValue FROM products WHERE deletedAt IS NULL AND isActive = 1`).get() as any;
-    return { total: Number(row.total), outOfStock: Number(row.outOfStock), lowStock: Number(row.lowStock), inventoryValue: Number(row.inventoryValue) };
+    const row = (this.sqlite.prepare(`
+      SELECT COUNT(*) AS total,
+        COALESCE(SUM(CASE WHEN quantity <= 0 THEN 1 ELSE 0 END), 0) AS outOfStock,
+        COALESCE(SUM(CASE WHEN quantity > 0 AND quantity <= minStock THEN 1 ELSE 0 END), 0) AS lowStock,
+        COALESCE(SUM(CASE WHEN quantity > 0 THEN quantity * price ELSE 0 END), 0) AS inventoryValue
+      FROM products WHERE deletedAt IS NULL AND isActive = 1
+    `).get() as any) ?? { total: 0, outOfStock: 0, lowStock: 0, inventoryValue: 0 };
+    return {
+      total: Number(row.total || 0),
+      outOfStock: Number(row.outOfStock || 0),
+      lowStock: Number(row.lowStock || 0),
+      inventoryValue: Number(row.inventoryValue || 0),
+    };
   }
 
   categoryProductCounts() {
@@ -754,7 +819,15 @@ export class PosDatabase {
   }
 
   private pricingTiers(productId: string): any[] {
-    return this.sqlite.prepare("SELECT b.* FROM bulk_pricing b LEFT JOIN price_levels l ON l.id = COALESCE(b.priceLevelId, 'level-retail') WHERE b.productId = ? AND b.deletedAt IS NULL AND (l.deletedAt IS NULL) ORDER BY b.minQuantity").all(productId);
+    try {
+      return this.sqlite.prepare("SELECT b.* FROM bulk_pricing b LEFT JOIN price_levels l ON l.id = COALESCE(b.priceLevelId, 'level-retail') WHERE b.productId = ? AND b.deletedAt IS NULL AND (l.deletedAt IS NULL) ORDER BY b.minQuantity ASC").all(productId);
+    } catch {
+      try {
+        return this.sqlite.prepare("SELECT * FROM bulk_pricing WHERE productId = ? AND deletedAt IS NULL ORDER BY minQuantity ASC").all(productId);
+      } catch {
+        return [];
+      }
+    }
   }
 
   priceFor(productId: string, priceLevelId: string | null, quantity: number): number {
@@ -1242,6 +1315,7 @@ export class PosDatabase {
     const amountTendered =
       tendered.length ? round(tendered.reduce((sum,p) => sum + Number(p.tendered),0)) : null;
     return {
+      saleId: String(sale.id),
       voucherId: String(sale.voucherId),
       shopName: this.getShopSetting("shop.name") ?? "Store POS",
       shopPhone: this.getShopSetting("shop.phone"),
@@ -2303,14 +2377,16 @@ export class PosDatabase {
 
 function toProduct(row: any): Product {
   return {
-    ...row,
-    barcode: row.barcode ?? null,
-    categoryId: row.categoryId ?? null,
-    supplierId: row.supplierId ?? null,
-    price: Number(row.price),
-    cost: Number(row.cost),
-    quantity: Number(row.quantity),
-    minStock: Number(row.minStock),
+    id: String(row.id),
+    name: String(row.name ?? ""),
+    barcode: row.barcode ? String(row.barcode) : null,
+    categoryId: row.categoryId ? String(row.categoryId) : null,
+    supplierId: row.supplierId ? String(row.supplierId) : null,
+    price: Number(row.price || 0),
+    cost: Number(row.cost || 0),
+    quantity: Number(row.quantity || 0),
+    minStock: Number(row.minStock || 0),
+    unit: String(row.unit || "pcs"),
     isActive: Boolean(row.isActive),
   };
 }

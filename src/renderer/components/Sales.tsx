@@ -27,6 +27,14 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
   const [refundAmount, setRefundAmount] = useState("");
   const [returnNote, setReturnNote] = useState("");
 
+  // Debt collection state
+  const [showCollectModal, setShowCollectModal] = useState(false);
+  const [collectAmount, setCollectAmount] = useState("");
+  const [collectMethod, setCollectMethod] = useState("cash");
+  const [collectNote, setCollectNote] = useState("");
+  const [collectScope, setCollectScope] = useState<"voucher" | "customer">("voucher");
+  const [debtReceipt, setDebtReceipt] = useState<Receipt | null>(null);
+
   const client = useQueryClient();
 
   const sales = useQuery({
@@ -45,6 +53,13 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
     queryKey: ["returnable-sale", voucherId],
     queryFn: () => window.storePos.pos.returnableSale(voucherId!),
     enabled: Boolean(voucherId),
+  });
+
+  const customerId = receipt.data?.customerId;
+  const ledger = useQuery({
+    queryKey: ["customer-ledger", customerId],
+    queryFn: () => (customerId ? window.storePos.pos.customerLedger(customerId) : null),
+    enabled: Boolean(customerId && (showCollectModal || !!receipt.data?.outstanding)),
   });
 
   // Auto-select latest transaction when sales list updates
@@ -105,7 +120,61 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
       .catch((e) => notify(e.message, "error"));
   };
 
-  // Keyboard shortcuts: Ctrl+P / Cmd+P to print, Escape to close return modal
+  const openCollectDebt = () => {
+    if (!capabilities.debt) {
+      notify("Customer debt feature requires an active plan", "error");
+      return;
+    }
+    if (!receipt.data) return;
+    const remaining = receipt.data.outstanding ?? 0;
+    setCollectAmount(remaining > 0 ? String(remaining) : "");
+    setCollectScope("voucher");
+    setCollectNote("");
+    const active = methods.data?.filter((m) => m.isActive && m.code !== "debt");
+    if (active?.length) {
+      setCollectMethod(active[0].code);
+    }
+    setShowCollectModal(true);
+  };
+
+  const collectDebt = useMutation({
+    mutationFn: () => {
+      if (!customerId) throw new Error("No customer linked to this debt");
+      const amt = Number(collectAmount);
+      if (!amt || amt <= 0) throw new Error("Please enter a valid amount");
+
+      const targetSaleId =
+        collectScope === "voucher"
+          ? receipt.data?.saleId ||
+            sales.data?.items.find((s) => s.voucherId === voucherId)?.id ||
+            ledger.data?.sales.find((s) => s.voucherId === voucherId)?.id
+          : undefined;
+
+      return window.storePos.pos.collectDebt(
+        customerId,
+        amt,
+        collectMethod,
+        collectNote ? collectNote.trim() : undefined,
+        targetSaleId || undefined,
+      );
+    },
+    onSuccess: (resReceipt) => {
+      setDebtReceipt(resReceipt);
+      setShowCollectModal(false);
+      void client.invalidateQueries({ queryKey: ["receipt", voucherId] });
+      void client.invalidateQueries({ queryKey: ["customer-ledger", customerId] });
+      void client.invalidateQueries({ queryKey: ["sales-page"] });
+      void client.invalidateQueries({ queryKey: ["sales-summary"] });
+      void client.invalidateQueries({ queryKey: ["debtors"] });
+      void client.invalidateQueries({ queryKey: ["customers"] });
+      void client.invalidateQueries({ queryKey: ["dashboard"] });
+      notify("Debt payment collected successfully", "success");
+      handlePrint(resReceipt);
+    },
+    onError: (e: Error) => notify(e.message, "error"),
+  });
+
+  // Keyboard shortcuts: Ctrl+P / Cmd+P to print, Escape to close modals
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "p") {
@@ -116,12 +185,14 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
       } else if (e.key === "Escape") {
         if (showReturnModal) {
           setShowReturnModal(false);
+        } else if (showCollectModal) {
+          setShowCollectModal(false);
         }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [receipt.data, showReturnModal]);
+  }, [receipt.data, showReturnModal, showCollectModal]);
 
   // Summary Metrics
   const rawList = sales.data?.items ?? [];
@@ -129,6 +200,8 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
   const returnCount = salesSummary.data?.returns ?? 0;
   const debtCount = salesSummary.data?.debt ?? 0;
   const filteredSales = rawList;
+  const activeSale = sales.data?.items.find((s) => s.voucherId === voucherId);
+  const customerName = activeSale?.customerName;
 
   const handleReturnAll = () => {
     if (!returnable.data) return;
@@ -162,6 +235,17 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
         </div>
 
         <div className="flex items-center gap-3">
+          {debtReceipt && (
+            <button
+              type="button"
+              onClick={() => handlePrint(debtReceipt)}
+              className="btn btn-outline btn-xs font-semibold gap-1 text-emerald-700 hover:bg-emerald-50 border-emerald-300 shadow-sm"
+              title="Reprint the latest debt payment receipt"
+            >
+              <span>🖨️</span>
+              <span>Reprint Debt Receipt #{debtReceipt.voucherId}</span>
+            </button>
+          )}
           <PeriodFilter allowAll />
         </div>
       </header>
@@ -359,6 +443,16 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
                 </div>
 
                 <div className="flex items-center gap-1.5">
+                  {Boolean(receipt.data.outstanding && receipt.data.customerId) && (
+                    <button
+                      onClick={openCollectDebt}
+                      className="btn btn-warning btn-xs font-bold gap-1 shadow-sm"
+                      title="Collect debt payment for this sale"
+                    >
+                      <span>💳</span>
+                      <span>Pay Debt</span>
+                    </button>
+                  )}
                   {returnable.data && returnable.data.length > 0 && (
                     <button
                       onClick={() => setShowReturnModal(true)}
@@ -390,6 +484,11 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
                     <strong>
                       {sales.data?.items.find((s) => s.voucherId === receipt.data?.voucherId)?.customerName || "Walk-in Customer"}
                     </strong>
+                    {Boolean(receipt.data.customerId && receipt.data.outstanding) && (
+                      <span className="badge badge-warning badge-xs ml-1.5 font-bold">
+                        Has Debt
+                      </span>
+                    )}
                   </p>
                   <p className="text-[11px] text-gray-400">
                     Payment: {receipt.data.paymentMethod}
@@ -459,11 +558,24 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
                   )}
 
                   {!!receipt.data.outstanding && (
-                    <div className="flex justify-between text-amber-800 bg-amber-50 p-2 rounded font-semibold mt-1">
-                      <span>Outstanding Balance</span>
-                      <span className="font-mono">
-                        {money.format(receipt.data.outstanding)}
-                      </span>
+                    <div className="flex items-center justify-between text-amber-900 bg-amber-50 p-2.5 rounded-lg border border-amber-200 mt-2">
+                      <div>
+                        <span className="text-[11px] font-semibold text-amber-700 block uppercase tracking-wider">
+                          Outstanding Balance (အကြွေးကျန်ငွေ)
+                        </span>
+                        <span className="font-mono text-base font-bold text-amber-950">
+                          {money.format(receipt.data.outstanding)}
+                        </span>
+                      </div>
+                      {receipt.data.customerId && (
+                        <button
+                          type="button"
+                          onClick={openCollectDebt}
+                          className="btn btn-warning btn-xs font-bold shadow-sm"
+                        >
+                          💳 Collect Debt
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -638,6 +750,186 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Collect Debt Payment Modal */}
+      {showCollectModal && receipt.data && customerId && capabilities.debt && (
+        <div className="modal modal-open">
+          <div className="modal-box max-w-md p-6">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div>
+                <h3 className="font-bold text-lg text-gray-900">
+                  Collect Debt Payment (ကြွေးကျန်ဆပ်မည်)
+                </h3>
+                <p className="text-xs text-gray-500 font-mono">
+                  Receipt #{voucherId} · {customerName || "Customer"}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn btn-sm btn-circle btn-ghost"
+                onClick={() => setShowCollectModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!collectAmount || Number(collectAmount) <= 0) return;
+                collectDebt.mutate();
+              }}
+              className="mt-4 space-y-4"
+            >
+              {/* Balance Summary Card */}
+              <div className="p-3 rounded-xl bg-amber-50/80 border border-amber-200 space-y-2">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-amber-800">This Voucher Remaining:</span>
+                  <span className="font-mono font-bold text-amber-950 text-sm">
+                    {money.format(receipt.data.outstanding ?? 0)}
+                  </span>
+                </div>
+                {ledger.data && (
+                  <div className="flex justify-between items-center text-xs pt-1.5 border-t border-amber-200/60">
+                    <span className="text-amber-800">Customer Total Balance:</span>
+                    <span className="font-mono font-bold text-amber-950">
+                      {money.format(ledger.data.balance)}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Scope Quick Select */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-gray-700">
+                  Allocation Scope
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCollectScope("voucher");
+                      setCollectAmount(String(receipt.data?.outstanding ?? 0));
+                    }}
+                    className={`btn btn-xs py-1 h-auto text-left flex flex-col items-start ${
+                      collectScope === "voucher"
+                        ? "btn-primary"
+                        : "btn-outline border-gray-300"
+                    }`}
+                  >
+                    <span className="font-bold">This Voucher Only</span>
+                    <span className="text-[10px] opacity-80">
+                      {money.format(receipt.data.outstanding ?? 0)}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCollectScope("customer");
+                      setCollectAmount(
+                        String(ledger.data?.balance ?? receipt.data?.outstanding ?? 0),
+                      );
+                    }}
+                    className={`btn btn-xs py-1 h-auto text-left flex flex-col items-start ${
+                      collectScope === "customer"
+                        ? "btn-primary"
+                        : "btn-outline border-gray-300"
+                    }`}
+                  >
+                    <span className="font-bold">Total Account</span>
+                    <span className="text-[10px] opacity-80">
+                      {money.format(ledger.data?.balance ?? receipt.data?.outstanding ?? 0)}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Amount Input */}
+              <div className="form-control">
+                <label className="label py-1">
+                  <span className="label-text text-xs font-semibold">
+                    Amount Received (Ks) *
+                  </span>
+                </label>
+                <input
+                  required
+                  type="number"
+                  inputMode="decimal"
+                  min="0.01"
+                  step="any"
+                  value={collectAmount}
+                  onChange={(e) => setCollectAmount(e.target.value)}
+                  placeholder="0"
+                  className="input input-bordered input-sm font-bold text-base text-gray-900"
+                  autoFocus
+                />
+              </div>
+
+              {/* Payment Method Selector */}
+              <div className="form-control">
+                <label className="label py-1">
+                  <span className="label-text text-xs font-semibold">
+                    Payment Method *
+                  </span>
+                </label>
+                <select
+                  value={collectMethod}
+                  onChange={(e) => setCollectMethod(e.target.value)}
+                  className="select select-bordered select-sm w-full font-medium"
+                >
+                  {methods.data
+                    ?.filter((m) => m.isActive && m.code !== "debt")
+                    .map((m) => (
+                      <option key={m.id} value={m.code}>
+                        {m.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              {/* Note / Remarks */}
+              <div className="form-control">
+                <label className="label py-1">
+                  <span className="label-text text-xs font-semibold">
+                    Note / Remarks (Optional)
+                  </span>
+                </label>
+                <input
+                  value={collectNote}
+                  onChange={(e) => setCollectNote(e.target.value)}
+                  placeholder="e.g. Settled via cash / transfer reference"
+                  className="input input-bordered input-sm w-full"
+                />
+              </div>
+
+              {/* Modal Actions */}
+              <div className="modal-action pt-2 flex justify-between">
+                <button
+                  type="button"
+                  className="btn btn-sm btn-ghost"
+                  onClick={() => setShowCollectModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={
+                    collectDebt.isPending ||
+                    !Number(collectAmount) ||
+                    Number(collectAmount) <= 0
+                  }
+                  className="btn btn-sm btn-primary font-bold px-4"
+                >
+                  {collectDebt.isPending
+                    ? "Recording…"
+                    : `Confirm Payment (${money.format(Number(collectAmount) || 0)})`}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

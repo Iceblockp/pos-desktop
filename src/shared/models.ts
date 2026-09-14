@@ -89,6 +89,7 @@ export interface SaleDraft {
 }
 
 export interface Receipt {
+  saleId?: string;
   payments?: SalePayment[];
   outstanding?: number;
   customerId?: string | null;

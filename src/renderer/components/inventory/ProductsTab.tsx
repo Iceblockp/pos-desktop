@@ -480,7 +480,26 @@ export function ProductsTab({
       {/* Main Content Area: Table View or Cards View */}
       <div className="card bg-white shadow-sm border border-gray-200/80 flex-1 overflow-hidden">
         <div className="card-body p-0 flex flex-col overflow-hidden">
-          {shown.length > 0 ? (
+          {products.isLoading ? (
+            <div className="flex flex-col items-center justify-center flex-1 py-16 text-gray-400">
+              <span className="loading loading-spinner loading-lg text-emerald-600 mb-2"></span>
+              <p className="text-sm text-gray-500 font-medium">Loading products…</p>
+            </div>
+          ) : products.isError ? (
+            <div className="flex flex-col items-center justify-center flex-1 py-16 text-gray-400">
+              <span className="text-4xl mb-2">⚠️</span>
+              <p className="text-base font-bold text-gray-700">Failed to load products</p>
+              <p className="text-xs text-red-500 mt-1">
+                {(products.error as Error)?.message || "An error occurred"}
+              </p>
+              <button
+                className="btn btn-xs btn-outline btn-primary mt-3"
+                onClick={() => products.refetch()}
+              >
+                Retry
+              </button>
+            </div>
+          ) : shown.length > 0 ? (
             viewMode === "table" ? (
               /* High-Density Spreadsheet Table View */
               <div className="flex-1 overflow-y-auto">
@@ -541,7 +560,7 @@ export function ProductsTab({
                           <td className="py-2.5 px-3 text-center">
                             {isOutOfStock ? (
                               <span className="badge badge-error badge-sm text-white font-semibold">
-                                Out (0 {product.unit})
+                                Out ({product.quantity} {product.unit})
                               </span>
                             ) : isLowStock ? (
                               <span className="badge badge-warning badge-sm font-semibold">
