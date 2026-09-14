@@ -60,19 +60,7 @@ export function Settings({ notify }: { notify: (s: string) => void }) {
   ];
 
   if (!capabilities.owner) {
-    return (
-      <section className="h-full space-y-6">
-        <header className="border-b border-slate-200 pb-4">
-          <h2 className="text-xl font-black text-slate-800 tracking-tight">
-            Settings
-          </h2>
-          <p className="text-xs text-slate-500 mt-1">
-            Cashier view — contact the shop owner to modify tax, printers, or pricing.
-          </p>
-        </header>
-        <PrinterTab notify={notify} />
-      </section>
-    );
+    return <CashierSettings notify={notify} />;
   }
 
   return (
@@ -122,6 +110,25 @@ export function Settings({ notify }: { notify: (s: string) => void }) {
       </div>
     </section>
   );
+}
+
+/** Cashiers operate a terminal, but never alter shop-wide business policy. */
+function CashierSettings({ notify }: { notify: (s: string) => void }) {
+  const client = useQueryClient();
+  const [tab, setTab] = useState<'sync' | 'printer' | 'notifications' | 'diagnostics'>('sync');
+  const cloud = useQuery({ queryKey: ['cashier-cloud'], queryFn: () => window.storePos.cloud.state(), refetchInterval: 5_000 });
+  const retry = useMutation({ mutationFn: () => window.storePos.cloud.syncNow(), onSuccess: () => { void client.invalidateQueries({ queryKey: ['cashier-cloud'] }); notify('Sync started'); }, onError: (e: Error) => notify(e.message) });
+  const tabs = [{ key: 'sync' as const, icon: '☁️', label: 'Cloud sync' }, { key: 'printer' as const, icon: '🖨️', label: 'Printer' }, { key: 'notifications' as const, icon: '🔔', label: 'Notifications' }, { key: 'diagnostics' as const, icon: '🩺', label: 'Diagnostics' }];
+  return <section className="h-full space-y-5 overflow-y-auto pr-1 pb-10">
+    <header className="border-b border-slate-200 pb-4"><h2 className="text-xl font-black text-slate-800 tracking-tight">Cashier settings</h2><p className="text-xs text-slate-500 mt-1">Settings for this terminal only.</p></header>
+    <div className="flex flex-wrap gap-1.5 p-1 bg-slate-200/70 rounded-xl border border-slate-200/90 shadow-inner">{tabs.map((item) => <button key={item.key} type="button" onClick={() => setTab(item.key)} className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all ${tab === item.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/60'}`}><span>{item.icon}</span>{item.label}</button>)}</div>
+    <div className="mt-4">
+      {tab === 'sync' ? <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex flex-wrap items-center justify-between gap-3"><div><p className="font-semibold text-slate-800">Cloud sync</p><p className="text-xs text-slate-500 mt-1">{cloud.data?.shopName ?? 'Not connected'} · {cloud.data?.status ?? 'unknown'} · {cloud.data?.pending ?? 0} pending</p></div><button className="btn btn-sm btn-primary" disabled={retry.isPending || cloud.data?.status === 'signed_out'} onClick={() => retry.mutate()}>{retry.isPending ? 'Syncing…' : 'Sync now'}</button></div> : null}
+      {tab === 'printer' ? <PrinterTab notify={notify} /> : null}
+      {tab === 'notifications' ? <NotificationSettings notify={notify} /> : null}
+      {tab === 'diagnostics' ? <DiagnosticsTab notify={notify} readOnly /> : null}
+    </div>
+  </section>;
 }
 
 /* ==========================================================================
@@ -1523,7 +1530,7 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
 /* ==========================================================================
    6. DIAGNOSTICS & SYSTEM TAB
    ========================================================================== */
-function DiagnosticsTab({ notify }: { notify: (message: string) => void }) {
+function DiagnosticsTab({ notify, readOnly = false }: { notify: (message: string) => void; readOnly?: boolean }) {
   const client = useQueryClient();
   const version = useQuery({
     queryKey: ["app-version"],
@@ -1653,7 +1660,7 @@ function DiagnosticsTab({ notify }: { notify: (message: string) => void }) {
               <button className="btn btn-xs btn-outline" onClick={() => void copy()}>
                 Copy Diagnostics
               </button>
-              <button
+              {!readOnly ? <button
                 className="btn btn-xs btn-ghost text-rose-600"
                 disabled={clear.isPending}
                 onClick={() => {
@@ -1661,7 +1668,7 @@ function DiagnosticsTab({ notify }: { notify: (message: string) => void }) {
                 }}
               >
                 Clear Logs
-              </button>
+              </button> : null}
             </div>
           )}
         </div>
