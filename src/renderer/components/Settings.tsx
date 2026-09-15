@@ -118,12 +118,13 @@ function CashierSettings({ notify }: { notify: (s: string) => void }) {
   const [tab, setTab] = useState<'sync' | 'printer' | 'notifications' | 'diagnostics'>('sync');
   const cloud = useQuery({ queryKey: ['cashier-cloud'], queryFn: () => window.storePos.cloud.state(), refetchInterval: 5_000 });
   const retry = useMutation({ mutationFn: () => window.storePos.cloud.syncNow(), onSuccess: () => { void client.invalidateQueries({ queryKey: ['cashier-cloud'] }); notify('Sync started'); }, onError: (e: Error) => notify(e.message) });
+  const removeStation = useMutation({ mutationFn: () => window.storePos.cloud.removeLocalData(), onSuccess: () => { void client.invalidateQueries(); notify('This terminal was disconnected and local shop data was cleared'); }, onError: (e: Error) => notify(e.message) });
   const tabs = [{ key: 'sync' as const, icon: '☁️', label: 'Cloud sync' }, { key: 'printer' as const, icon: '🖨️', label: 'Printer' }, { key: 'notifications' as const, icon: '🔔', label: 'Notifications' }, { key: 'diagnostics' as const, icon: '🩺', label: 'Diagnostics' }];
   return <section className="h-full space-y-5 overflow-y-auto pr-1 pb-10">
     <header className="border-b border-slate-200 pb-4"><h2 className="text-xl font-black text-slate-800 tracking-tight">Cashier settings</h2><p className="text-xs text-slate-500 mt-1">Settings for this terminal only.</p></header>
     <div className="flex flex-wrap gap-1.5 p-1 bg-slate-200/70 rounded-xl border border-slate-200/90 shadow-inner">{tabs.map((item) => <button key={item.key} type="button" onClick={() => setTab(item.key)} className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all ${tab === item.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/60'}`}><span>{item.icon}</span>{item.label}</button>)}</div>
     <div className="mt-4">
-      {tab === 'sync' ? <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex flex-wrap items-center justify-between gap-3"><div><p className="font-semibold text-slate-800">Cloud sync</p><p className="text-xs text-slate-500 mt-1">{cloud.data?.shopName ?? 'Not connected'} · {cloud.data?.status ?? 'unknown'} · {cloud.data?.pending ?? 0} pending</p></div><button className="btn btn-sm btn-primary" disabled={retry.isPending || cloud.data?.status === 'signed_out'} onClick={() => retry.mutate()}>{retry.isPending ? 'Syncing…' : 'Sync now'}</button></div> : null}
+      {tab === 'sync' ? <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-semibold text-slate-800">Cloud sync</p><p className="text-xs text-slate-500 mt-1">{cloud.data?.shopName ?? 'Not connected'} · {cloud.data?.status ?? 'unknown'} · {cloud.data?.pending ?? 0} pending</p></div><button className="btn btn-sm btn-primary" disabled={retry.isPending || cloud.data?.status === 'signed_out'} onClick={() => retry.mutate()}>{retry.isPending ? 'Syncing…' : 'Sync now'}</button></div><div className="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold text-rose-800">Remove this terminal securely</p><p className="text-[11px] text-slate-500 mt-0.5">Disconnects only this terminal and clears its local shop data. Cloud data stays safe.</p></div><button className="btn btn-sm btn-outline btn-error" disabled={removeStation.isPending || (cloud.data?.pending ?? 0) > 0} onClick={() => { if ((cloud.data?.pending ?? 0) > 0) { notify('Sync all pending changes before removing this terminal'); return; } if (window.confirm('Remove this terminal from the shop? Local shop data will be cleared. Cloud data and other terminals stay safe.')) removeStation.mutate(); }}>{removeStation.isPending ? 'Removing…' : 'Remove this terminal'}</button></div></div> : null}
       {tab === 'printer' ? <PrinterTab notify={notify} /> : null}
       {tab === 'notifications' ? <NotificationSettings notify={notify} /> : null}
       {tab === 'diagnostics' ? <DiagnosticsTab notify={notify} readOnly /> : null}
@@ -1456,6 +1457,11 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
             <p className="font-bold text-slate-800">{item.label}</p><p className="text-sm font-black text-sky-700 mt-1">{new Intl.NumberFormat("en-US").format(item.amount)} Ks</p>{"saving" in item && item.saving ? <p className="text-[11px] text-emerald-700 font-bold mt-1">{item.saving}</p> : null}
           </button>)}
         </div>
+      </div>
+
+      <div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-5 flex flex-wrap items-center justify-between gap-4">
+        <div><p className="text-sm font-bold text-indigo-950">Want to ask before paying?</p><p className="text-xs text-indigo-800 mt-1">Contact us to confirm your selected plan and payment details.</p></div>
+        <div className="flex gap-2"><a className="btn btn-sm btn-outline" href="tel:09425743536">☎ Call 09425743536</a><a className="btn btn-sm bg-indigo-600 hover:bg-indigo-700 text-white border-none" href="https://viber.me/959425743536" target="_blank" rel="noreferrer">▣ Viber</a></div>
       </div>
 
       {/* Detail is available, but does not get in the way of buying. */}
