@@ -4,6 +4,7 @@ import type { ConnectResult, DeviceLimit, InactiveDevices, ShopSwitch } from "..
 
 export function CloudPanel({ notify }: { notify: (message: string) => void }) {
   const client = useQueryClient();
+  const [view, setView] = useState<"sync" | "devices">("sync");
   const cloud = useQuery({
     queryKey: ["cloud"],
     queryFn: () => window.storePos.cloud.state(),
@@ -14,7 +15,7 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
   const devices = useQuery({
     queryKey: ["cloud-devices"],
     queryFn: () => window.storePos.cloud.devices(),
-    enabled: connected,
+    enabled: connected && view === "devices",
   });
 
   const [mode, setMode] = useState<"login" | "register" | "join">("login");
@@ -120,6 +121,11 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
       <div className="p-5 space-y-6">
         {connected ? (
           <>
+            <div className="flex rounded-lg bg-slate-100 p-1 w-full sm:w-fit">
+              <button type="button" onClick={() => setView("sync")} className={`px-4 py-1.5 text-xs font-semibold rounded-md ${view === "sync" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500"}`}>Cloud & Backup</button>
+              {cloud.data?.role === "owner" ? <button type="button" onClick={() => setView("devices")} className={`px-4 py-1.5 text-xs font-semibold rounded-md ${view === "devices" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500"}`}>Devices & Staff</button> : null}
+            </div>
+            {view === "sync" ? <>
             {/* Active Account Overview */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80">
@@ -193,9 +199,10 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
                 <span>{cloud.data.error}</span>
               </div>
             )}
+            </> : null}
 
             {/* Cashier Pairing Code (For Owners) */}
-            {cloud.data?.role === "owner" && (
+            {view === "devices" && cloud.data?.role === "owner" && (
               <div className="p-4 rounded-xl border border-indigo-100 bg-indigo-50/50 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h4 className="text-sm font-bold text-indigo-950">Add Cashier POS Devices</h4>
@@ -229,7 +236,7 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
             )}
 
             {/* Connected Terminals List */}
-            <div className="space-y-3">
+            {view === "devices" ? <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider text-xs">
                   Connected POS Terminals ({devices.data?.length ?? 1})
@@ -291,7 +298,7 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
                   </div>
                 ))}
               </div>
-            </div>
+            </div> : null}
 
             {/* Sign Out / Disconnect */}
             <div className="pt-4 border-t border-slate-200 flex justify-between items-center">

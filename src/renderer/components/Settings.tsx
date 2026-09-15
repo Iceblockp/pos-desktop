@@ -1255,6 +1255,8 @@ function PricingAndFeaturesTab({ notify }: { notify: (s: string) => void }) {
    ========================================================================== */
 function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
   const [code, setCode] = useState("");
+  const [selectedTier, setSelectedTier] = useState<"offline_plus" | "cloud_pro">("cloud_pro");
+  const [selectedMonths, setSelectedMonths] = useState<1 | 3 | 12>(1);
   const cloud = useQuery({
     queryKey: ["cloud"],
     queryFn: () => window.storePos.cloud.state(),
@@ -1291,6 +1293,19 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
       : status.data?.tier === "offline_plus"
         ? "Offline Plus"
         : "Free Offline";
+  const packages = {
+    offline_plus: [
+      { months: 1 as const, amount: 8000, label: "၁ လ" },
+      { months: 3 as const, amount: 22000, label: "၃ လ" },
+      { months: 12 as const, amount: 80000, label: "၁ နှစ်", saving: "၂ လ အခမဲ့" },
+    ],
+    cloud_pro: [
+      { months: 1 as const, amount: 15000, label: "၁ လ" },
+      { months: 3 as const, amount: 42000, label: "၃ လ" },
+      { months: 12 as const, amount: 150000, label: "၁ နှစ်", saving: "၂ လ အခမဲ့" },
+    ],
+  };
+  const selectedPackage = packages[selectedTier].find((item) => item.months === selectedMonths)!;
 
   return (
     <div className="space-y-6">
@@ -1357,10 +1372,14 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
         )}
       </div>
 
+      <div>
+        <p className="text-sm font-bold text-slate-800">1. Choose the plan your shop needs</p>
+        <p className="text-xs text-slate-500 mt-1">Choose by the way you work, not by a long feature list.</p>
+      </div>
       {/* Signature Tier Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Offline Plus Card */}
-        <div className="rounded-2xl border-2 border-amber-300 bg-gradient-to-br from-amber-50/50 to-orange-50/20 p-5 space-y-4 shadow-xs">
+        <button type="button" onClick={() => { setSelectedTier("offline_plus"); setSelectedMonths(1); }} className={`text-left rounded-2xl border-2 bg-gradient-to-br from-amber-50/50 to-orange-50/20 p-5 space-y-4 shadow-xs transition ${selectedTier === "offline_plus" ? "border-amber-500 ring-2 ring-amber-100" : "border-amber-200 hover:border-amber-400"}`}>
           <div className="flex items-center justify-between">
             <PlanBadge plan="offline_plus" variant="pill" />
             <span className="badge badge-sm bg-amber-100 text-amber-800 border-amber-300 font-bold">
@@ -1370,7 +1389,7 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
           <div>
             <h4 className="font-bold text-slate-800 text-base">Offline Plus</h4>
             <p className="text-xs text-slate-500 mt-0.5">
-              Powerhouse local features for standalone shops — no internet needed
+              For shops that sell on credit or use wholesale / VIP prices
             </p>
           </div>
           <ul className="space-y-2 text-xs text-slate-700">
@@ -1388,13 +1407,14 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
             </li>
             <li className="flex items-center gap-2">
               <span className="text-amber-600 font-bold">✓</span>
-              <span>100% Offline Resilience (Zero downtime)</span>
+              <span>One device · works without internet</span>
             </li>
           </ul>
-        </div>
+          <p className="text-lg font-black text-amber-700">8,000 Ks / month</p>
+        </button>
 
         {/* Cloud Pro Card */}
-        <div className="rounded-2xl border-2 border-sky-300 bg-gradient-to-br from-sky-50/50 to-blue-50/20 p-5 space-y-4 shadow-xs">
+        <button type="button" onClick={() => { setSelectedTier("cloud_pro"); setSelectedMonths(1); }} className={`text-left rounded-2xl border-2 bg-gradient-to-br from-sky-50/50 to-blue-50/20 p-5 space-y-4 shadow-xs transition ${selectedTier === "cloud_pro" ? "border-sky-500 ring-2 ring-sky-100" : "border-sky-200 hover:border-sky-400"}`}>
           <div className="flex items-center justify-between">
             <PlanBadge plan="cloud_pro" variant="pill" />
             <span className="badge badge-sm bg-sky-100 text-sky-800 border-sky-300 font-bold">
@@ -1404,7 +1424,7 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
           <div>
             <h4 className="font-bold text-slate-800 text-base">Cloud Pro</h4>
             <p className="text-xs text-slate-500 mt-0.5">
-              Multi-device real-time sync with automatic secure cloud backup
+              For shops using two or more devices and needing cloud backup
             </p>
           </div>
           <ul className="space-y-2 text-xs text-slate-700">
@@ -1425,14 +1445,22 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
               <span>Cross-Device Live Inventory & Sales Access</span>
             </li>
           </ul>
+          <p className="text-lg font-black text-sky-700">15,000 Ks / month</p>
+        </button>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
+        <div><p className="text-sm font-bold text-slate-800">2. Choose subscription length</p><p className="text-xs text-slate-500 mt-1">Yearly includes two months free.</p></div>
+        <div className="grid grid-cols-3 gap-3 max-w-xl">
+          {packages[selectedTier].map((item) => <button key={item.months} type="button" onClick={() => setSelectedMonths(item.months)} className={`rounded-xl border p-3 text-center transition ${selectedMonths === item.months ? "border-sky-500 bg-sky-50 ring-1 ring-sky-200" : "border-slate-200 hover:border-slate-300"}`}>
+            <p className="font-bold text-slate-800">{item.label}</p><p className="text-sm font-black text-sky-700 mt-1">{new Intl.NumberFormat("en-US").format(item.amount)} Ks</p>{"saving" in item && item.saving ? <p className="text-[11px] text-emerald-700 font-bold mt-1">{item.saving}</p> : null}
+          </button>)}
         </div>
       </div>
 
-      {/* Feature Matrix Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-slate-100 bg-slate-50/50">
-          <h4 className="font-semibold text-slate-800 text-sm">Plan Features Comparison</h4>
-        </div>
+      {/* Detail is available, but does not get in the way of buying. */}
+      <details className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <summary className="p-4 cursor-pointer font-semibold text-slate-800 text-sm bg-slate-50/50">Compare every plan feature</summary>
         <div className="divide-y divide-slate-100 text-xs">
           {[
             {
@@ -1484,7 +1512,7 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
             </div>
           ))}
         </div>
-      </div>
+      </details>
 
       {/* Redeem Voucher / Code */}
       <form
@@ -1522,7 +1550,7 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
       </form>
 
       {/* Manual Payment Slips */}
-      <PaymentSlips notify={notify} />
+      <PaymentSlips notify={notify} tier={selectedTier} amount={selectedPackage.amount} packageLabel={selectedPackage.label} />
     </div>
   );
 }

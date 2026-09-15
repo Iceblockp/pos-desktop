@@ -1,17 +1,26 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { currentCurrency, formatCurrency } from '../../shared/currency';
 
-export function PaymentSlips({ notify }: { notify: (message: string) => void }) {
+const formatPlanPrice = (amount: number) => `${new Intl.NumberFormat('en-US').format(amount)} Ks`;
+
+export function PaymentSlips({
+  notify,
+  tier = "cloud_pro",
+  amount: packageAmount = 15000,
+  packageLabel = "၁ လ",
+}: {
+  notify: (message: string) => void;
+  tier?: "offline_plus" | "cloud_pro";
+  amount?: number;
+  packageLabel?: string;
+}) {
   const client = useQueryClient();
   const slips = useQuery({
     queryKey: ["payment-slips"],
     queryFn: () => window.storePos.cloud.listSlips(),
   });
 
-  const [tier, setTier] = useState<"offline_plus" | "cloud_pro">("cloud_pro");
   const [method, setMethod] = useState("kbzpay");
-  const [amount, setAmount] = useState("");
   const [reference, setReference] = useState("");
   const [note, setNote] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -21,14 +30,16 @@ export function PaymentSlips({ notify }: { notify: (message: string) => void }) 
       window.storePos.cloud.submitSlip({
         tier,
         method,
-        amount: Number(amount),
+        amount: packageAmount,
         reference: reference.trim(),
-        note: note.trim() || undefined,
+        note: [
+          `Package: ${tier} · ${packageLabel}`,
+          note.trim(),
+        ].filter(Boolean).join(" · "),
       }),
     onSuccess: () => {
       setReference("");
       setNote("");
-      setAmount("");
       setShowForm(false);
       void client.invalidateQueries({ queryKey: ["payment-slips"] });
       notify("Payment slip submitted for review");
@@ -53,7 +64,7 @@ export function PaymentSlips({ notify }: { notify: (message: string) => void }) 
         <div>
           <h3 className="font-semibold text-slate-800 text-base">Bank / Mobile Wallet Transfers</h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Paid directly via KBZPay or WavePay? Submit transaction reference for manual plan renewal
+            Transfer the package amount, then send its transaction ID. We activate the plan after review.
           </p>
         </div>
         <button
@@ -74,21 +85,14 @@ export function PaymentSlips({ notify }: { notify: (message: string) => void }) 
               submit.mutate();
             }}
           >
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="form-control">
-                <label className="label py-1">
-                  <span className="label-text text-xs font-bold text-slate-600">Plan Tier</span>
-                </label>
-                <select
-                  className="select select-bordered select-sm"
-                  value={tier}
-                  onChange={(e) => setTier(e.target.value as typeof tier)}
-                >
-                  <option value="offline_plus">Offline Plus</option>
-                  <option value="cloud_pro">Cloud Pro</option>
-                </select>
+            <div className="rounded-xl bg-sky-50 border border-sky-200 p-3 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-xs text-slate-500">Selected package</p>
+                <p className="font-bold text-slate-800 capitalize">{tier.replace("_", " ")} · {packageLabel}</p>
               </div>
-
+              <p className="text-xl font-black text-sky-700">{formatPlanPrice(packageAmount)}</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="form-control">
                 <label className="label py-1">
                   <span className="label-text text-xs font-bold text-slate-600">Payment Channel</span>
@@ -103,21 +107,6 @@ export function PaymentSlips({ notify }: { notify: (message: string) => void }) 
                   <option value="ayapay">AYAPay</option>
                   <option value="bank">Bank Transfer (KBZ, CB, AYA)</option>
                 </select>
-              </div>
-
-              <div className="form-control">
-                <label className="label py-1">
-                  <span className="label-text text-xs font-bold text-slate-600">Amount Paid ({currentCurrency().code})</span>
-                </label>
-                <input
-                  className="input input-bordered input-sm"
-                  type="number"
-                  min="1"
-                  required
-                  placeholder="e.g. 50000"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                />
               </div>
 
               <div className="form-control">
@@ -194,7 +183,7 @@ export function PaymentSlips({ notify }: { notify: (message: string) => void }) 
                     </div>
                     <p className="text-slate-500">
                       Tier: <strong className="capitalize">{slip.tier.replace("_", " ")}</strong> · Amount:{" "}
-                      <strong>{formatCurrency(Number(slip.amount))}</strong>
+                      <strong>{formatPlanPrice(Number(slip.amount))}</strong>
                     </p>
                     {slip.reviewNote && (
                       <p className="text-indigo-600 italic">Reviewer note: {slip.reviewNote}</p>
