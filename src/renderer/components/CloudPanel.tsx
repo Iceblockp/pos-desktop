@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ConnectResult, DeviceLimit, InactiveDevices, ShopSwitch } from "../../shared/models";
+import type { CashDrawer, ConnectResult, DeviceLimit, InactiveDevices, ShopSwitch } from "../../shared/models";
 
 export function CloudPanel({ notify }: { notify: (message: string) => void }) {
   const client = useQueryClient();
@@ -17,6 +17,9 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
     queryFn: () => window.storePos.cloud.devices(),
     enabled: connected && view === "devices",
   });
+  const drawers = useQuery({ queryKey: ['cash-drawers'], queryFn: () => window.storePos.cloud.cashDrawers(), enabled: connected && view === 'devices' && cloud.data?.role === 'owner' });
+  const [drawerName, setDrawerName] = useState('');
+  const drawerAction = useMutation({ mutationFn: (fn: () => Promise<unknown>) => fn(), onSuccess: () => { setDrawerName(''); void client.invalidateQueries({ queryKey: ['cash-drawers'] }); void client.invalidateQueries({ queryKey: ['cloud-devices'] }); }, onError: (e: Error) => notify(e.message) });
 
   const [mode, setMode] = useState<"login" | "register" | "join">("login");
   const [url, setUrl] = useState(
@@ -237,6 +240,11 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
 
             {/* Connected Terminals List */}
             {view === "devices" ? <div className="space-y-3">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                <div><h4 className="text-sm font-bold text-slate-800">Cash counters</h4><p className="text-xs text-slate-500">Main drawer is the default. Add another only for a separate physical counter.</p></div>
+                <div className="flex flex-wrap gap-2">{drawers.data?.map((drawer: CashDrawer) => <span key={drawer.id} className={`badge badge-lg ${drawer.activeSessionId ? 'badge-success' : 'badge-ghost'}`}>{drawer.name}{drawer.isDefault ? ' · Main' : ''}</span>)}</div>
+                <div className="flex gap-2"><input className="input input-sm input-bordered flex-1" value={drawerName} onChange={e => setDrawerName(e.target.value)} placeholder="Counter 2" /><button className="btn btn-sm btn-primary" disabled={!drawerName.trim() || drawerAction.isPending} onClick={() => drawerAction.mutate(() => window.storePos.cloud.createCashDrawer(drawerName))}>Add counter</button></div>
+              </div>
               <div className="flex justify-between items-center">
                 <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider text-xs">
                   Connected POS Terminals ({devices.data?.length ?? 1})
@@ -273,6 +281,7 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
                           ID: {device.deviceCode} · Role:{" "}
                           <span className="capitalize">{device.role}</span>
                         </p>
+                        <div className="mt-2 flex flex-wrap gap-1"><button className={`btn btn-xs ${!device.assignedCashDrawerId ? 'btn-primary' : 'btn-ghost'}`} onClick={() => drawerAction.mutate(() => window.storePos.cloud.assignCashDrawer(device.id, null, Boolean(device.canManageCashDrawer)))}>Unassigned</button>{drawers.data?.map((drawer: CashDrawer) => <button key={drawer.id} className={`btn btn-xs ${device.assignedCashDrawerId === drawer.id ? 'btn-primary' : 'btn-ghost'}`} onClick={() => drawerAction.mutate(() => window.storePos.cloud.assignCashDrawer(device.id, drawer.id, Boolean(device.canManageCashDrawer)))}>{drawer.name}</button>)}</div>
                       </div>
                     </div>
 

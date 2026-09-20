@@ -87,6 +87,9 @@ export const SYNC_TABLES: SyncTable[] = [
     strategy: "last_write_wins",
     columns: [
       "status",
+      "drawerId",
+      "openedByDeviceId",
+      "closedByDeviceId",
       "openedByName",
       "closedByName",
       "openingFloat",
@@ -225,7 +228,7 @@ export class PosDatabase {
       CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode);
       CREATE TABLE IF NOT EXISTS price_levels (id TEXT PRIMARY KEY, updatedAt TEXT NOT NULL, deletedAt TEXT, serverSeq INTEGER NOT NULL DEFAULT 0, dirty INTEGER NOT NULL DEFAULT 0, name TEXT NOT NULL, isDefault INTEGER NOT NULL DEFAULT 0, sortOrder INTEGER NOT NULL DEFAULT 0);
       CREATE TABLE IF NOT EXISTS bulk_pricing (id TEXT PRIMARY KEY, updatedAt TEXT NOT NULL, deletedAt TEXT, serverSeq INTEGER NOT NULL DEFAULT 0, dirty INTEGER NOT NULL DEFAULT 0, productId TEXT NOT NULL, minQuantity REAL NOT NULL DEFAULT 0, bulkPrice REAL NOT NULL DEFAULT 0, priceLevelId TEXT);
-      CREATE TABLE IF NOT EXISTS cash_sessions (id TEXT PRIMARY KEY, updatedAt TEXT NOT NULL, deletedAt TEXT, serverSeq INTEGER NOT NULL DEFAULT 0, dirty INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'open', openedByName TEXT, closedByName TEXT, openingFloat REAL NOT NULL DEFAULT 0, expectedCash REAL, countedCash REAL, difference REAL, note TEXT, openedAt TEXT NOT NULL, closedAt TEXT);
+      CREATE TABLE IF NOT EXISTS cash_sessions (id TEXT PRIMARY KEY, updatedAt TEXT NOT NULL, deletedAt TEXT, serverSeq INTEGER NOT NULL DEFAULT 0, dirty INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'open', drawerId TEXT, openedByDeviceId TEXT, closedByDeviceId TEXT, openedByName TEXT, closedByName TEXT, openingFloat REAL NOT NULL DEFAULT 0, expectedCash REAL, countedCash REAL, difference REAL, note TEXT, openedAt TEXT NOT NULL, closedAt TEXT);
       CREATE TABLE IF NOT EXISTS sales (id TEXT PRIMARY KEY, updatedAt TEXT NOT NULL, deletedAt TEXT, serverSeq INTEGER NOT NULL DEFAULT 0, dirty INTEGER NOT NULL DEFAULT 0, voucherId TEXT NOT NULL UNIQUE, type TEXT NOT NULL DEFAULT 'sale', originalSaleId TEXT, subtotal REAL NOT NULL DEFAULT 0, discount REAL NOT NULL DEFAULT 0, total REAL NOT NULL DEFAULT 0, customerId TEXT, cashSessionId TEXT, staffName TEXT, note TEXT, soldAt TEXT NOT NULL, priceLevelId TEXT);
       CREATE TABLE IF NOT EXISTS sale_items (id TEXT PRIMARY KEY, updatedAt TEXT NOT NULL, deletedAt TEXT, serverSeq INTEGER NOT NULL DEFAULT 0, dirty INTEGER NOT NULL DEFAULT 0, saleId TEXT NOT NULL, productId TEXT NOT NULL, productName TEXT NOT NULL, unit TEXT NOT NULL DEFAULT 'pcs', quantity REAL NOT NULL DEFAULT 0, unitPrice REAL NOT NULL DEFAULT 0, unitCost REAL NOT NULL DEFAULT 0, discount REAL NOT NULL DEFAULT 0, subtotal REAL NOT NULL DEFAULT 0);
       CREATE TABLE IF NOT EXISTS stock_movements (id TEXT PRIMARY KEY, updatedAt TEXT NOT NULL, deletedAt TEXT, serverSeq INTEGER NOT NULL DEFAULT 0, dirty INTEGER NOT NULL DEFAULT 0, productId TEXT NOT NULL, type TEXT NOT NULL, quantityDelta REAL NOT NULL DEFAULT 0, unitCost REAL, referenceId TEXT, supplierId TEXT, referenceNumber TEXT, reason TEXT, occurredAt TEXT NOT NULL);
@@ -236,6 +239,12 @@ export class PosDatabase {
       CREATE TABLE IF NOT EXISTS sync_conflicts (id TEXT PRIMARY KEY, tableName TEXT NOT NULL, rowId TEXT NOT NULL, discarded TEXT NOT NULL, detectedAt TEXT NOT NULL, acknowledged INTEGER NOT NULL DEFAULT 0);
       CREATE TABLE IF NOT EXISTS crash_logs (id TEXT PRIMARY KEY, message TEXT NOT NULL, source TEXT NOT NULL, appVersion TEXT, occurredAt TEXT NOT NULL);
     `);
+    // Released before drawer-aware sessions existed. SQLite has no ADD COLUMN
+    // IF NOT EXISTS, so keep this additive repair deliberately idempotent.
+    for (const column of ['drawerId TEXT', 'openedByDeviceId TEXT', 'closedByDeviceId TEXT']) {
+      try { this.sqlite.exec(`ALTER TABLE cash_sessions ADD COLUMN ${column}`); } catch { /* already present */ }
+    }
+    this.sqlite.exec('CREATE INDEX IF NOT EXISTS idx_cash_sessions_drawerId ON cash_sessions(drawerId)');
     for (const table of SYNC_TABLES) {
       this.sqlite.exec(
         `CREATE INDEX IF NOT EXISTS idx_${table.name}_dirty ON ${table.name}(dirty) WHERE dirty = 1`,
@@ -1908,11 +1917,15 @@ export class PosDatabase {
     if (!Number.isFinite(openingFloat) || openingFloat < 0) throw new Error("Enter a non-negative opening float");
     if (this.cashSession()) throw new Error("A till session is already open");
     const openedAt = now();
-    const date = new Date(openedAt);
-    const id = 'cash-' + date.getFullYear() + '-' + String(date.getMonth()+1).padStart(2,'0') + '-' + String(date.getDate()).padStart(2,'0');
+    // Never recycle a daily id: closing and reopening must preserve both
+    // reconciliation records, even for a local-only shop.
+    const id = randomUUID();
     this.writeLocal("cash_sessions", {
       id,
       status: "open",
+      drawerId: null,
+      openedByDeviceId: null,
+      closedByDeviceId: null,
       openedByName: "Desktop",
       closedByName: null,
       openingFloat: Number(openingFloat) || 0,

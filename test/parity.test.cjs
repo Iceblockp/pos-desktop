@@ -46,8 +46,10 @@ test('discounted return preserves the original unit price and refunds the paid v
 test('duplicate return lines cannot refund the same unit twice',t=>{
  const db=setup(t),p=product(db),receipt=sale(db,p);assert.throws(()=>db.returnSale(receipt.voucherId,[{productId:p.id,quantity:1},{productId:p.id,quantity:1}],'cash'));
 });
-test('cash sessions have the same local calendar ID on every device',t=>{
- const a=setup(t),b=setup(t);assert.equal(a.openCashSession(0).id,b.openCashSession(0).id);assert.match(a.cashSession().id,/^cash-\d{4}-\d{2}-\d{2}$/);
+test('cash sessions receive unique IDs so a reopened drawer preserves history',t=>{
+ const a=setup(t),b=setup(t);const first=a.openCashSession(0).id;const other=b.openCashSession(0).id;
+ assert.notEqual(first,other);assert.match(first,/^[0-9a-f-]{36}$/);
+ a.closeCashSession(0);assert.notEqual(a.openCashSession(0).id,first);
 });
 test('payment codes cannot change on rename or use reserved credit code',t=>{
  const db=setup(t),m=db.listPaymentMethods().find(m=>m.code==='cash');db.savePaymentMethod({...m,name:'Cash renamed',code:'new-code'});assert.equal(db.listPaymentMethods().find(x=>x.id===m.id).code,'cash');

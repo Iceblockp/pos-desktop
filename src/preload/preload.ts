@@ -102,6 +102,9 @@ const api: DesktopApi = {
     revokeDevice: (id) => ipcRenderer.invoke('cloud:revoke-device', id),
     billingStatus: () => ipcRenderer.invoke('cloud:billing-status'),
     redeemCode: (code) => ipcRenderer.invoke('cloud:redeem-code', code),
+    cashDrawers: () => ipcRenderer.invoke('cloud:cash-drawers'),
+    createCashDrawer: (name) => ipcRenderer.invoke('cloud:create-cash-drawer', name),
+    assignCashDrawer: (deviceId, drawerId, canManage) => ipcRenderer.invoke('cloud:assign-cash-drawer', deviceId, drawerId, canManage),
   },
   printer: {
     list: () => ipcRenderer.invoke('printer:list'),

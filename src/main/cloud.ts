@@ -101,6 +101,22 @@ export class CloudService {
     this.syncing = this.runSync().finally(() => { this.syncing = null; });
     return this.syncing;
   }
+  usesServerCashDrawers(): boolean { return Boolean(this.session) && this.db.capabilities().cloud; }
+  async openCashDrawer(openingFloat: number): Promise<any> {
+    if (!this.usesServerCashDrawers()) return null;
+    const result = await this.request<any>('POST', '/cash-drawers/default/open', { openingFloat }, true);
+    if (result.session) this.db.applyPulled([result.session]);
+    this.revision++;
+    return this.db.cashSession();
+  }
+  async closeCashDrawer(drawerId: string, sessionId: string, countedCash: number): Promise<any> {
+    if (!this.usesServerCashDrawers()) return null;
+    await this.syncNow();
+    const result = await this.request<any>('POST', `/cash-drawers/${encodeURIComponent(drawerId)}/close`, { sessionId, countedCash }, true);
+    if (result.session) this.db.applyPulled([result.session]);
+    this.revision++;
+    return { expected: result.session?.expectedCash, counted: result.session?.countedCash, difference: result.session?.difference };
+  }
   private async runSync(): Promise<CloudState> {
     if (!this.session) return this.state();
     if (!this.db.capabilities().cloud) { this.status = 'paused'; this.error = null; return this.state(); }
@@ -205,6 +221,9 @@ export class CloudService {
     return this.state();
   }
   async devices(): Promise<PairedDevice[]> { return (await this.request<{ devices: PairedDevice[] }>('GET', '/auth/devices', undefined, true)).devices; }
+  cashDrawers(): Promise<any[]> { return this.request('GET', '/cash-drawers', undefined, true); }
+  createCashDrawer(name: string): Promise<any> { return this.request('POST', '/cash-drawers', { name }, true); }
+  async assignCashDrawer(deviceId: string, drawerId: string | null, canManageCashDrawer?: boolean): Promise<void> { await this.request('POST', '/cash-drawers/devices/' + encodeURIComponent(deviceId), { drawerId, canManageCashDrawer }, true); }
   async revokeDevice(id: string): Promise<void> {
     if (id === this.session?.device.id) throw new Error('Use Disconnect for this desktop');
     await this.request('DELETE', '/auth/devices/' + encodeURIComponent(id), undefined, true);

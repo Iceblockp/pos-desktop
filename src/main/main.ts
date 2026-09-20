@@ -433,14 +433,21 @@ function registerIpc(): void {
     assertTrustedSender(event);
     return database.cashSession();
   });
-  ipcMain.handle("pos:open-cash-session", (event, openingFloat) => {
+  ipcMain.handle("pos:open-cash-session", async (event, openingFloat) => {
     assertTrustedSender(event);
+    if (cloud.usesServerCashDrawers()) return cloud.openCashDrawer(Number(openingFloat));
     const result = database.openCashSession(Number(openingFloat));
     void cloud.syncNow();
     return result;
   });
-  ipcMain.handle("pos:close-cash-session", (event, countedCash) => {
+  ipcMain.handle("pos:close-cash-session", async (event, countedCash) => {
     assertTrustedSender(event);
+    const active = database.cashSession();
+    if (cloud.usesServerCashDrawers()) {
+      // Sessions opened by an older build have no drawer id. Preserve that
+      // history by allowing its one final local close before using the server lock.
+      if (active?.drawerId) return cloud.closeCashDrawer(String(active.drawerId), String(active.id), Number(countedCash));
+    }
     const result = database.closeCashSession(Number(countedCash));
     void cloud.syncNow();
     return result;
@@ -510,6 +517,9 @@ function registerIpc(): void {
     assertTrustedSender(event);
     return cloud.redeemCode(String(code));
   });
+  ipcMain.handle('cloud:cash-drawers', (event) => { assertTrustedSender(event); return cloud.cashDrawers(); });
+  ipcMain.handle('cloud:create-cash-drawer', (event, name) => { assertTrustedSender(event); return cloud.createCashDrawer(String(name)); });
+  ipcMain.handle('cloud:assign-cash-drawer', (event, deviceId, drawerId, canManage) => { assertTrustedSender(event); return cloud.assignCashDrawer(String(deviceId), drawerId == null ? null : String(drawerId), typeof canManage === 'boolean' ? canManage : undefined); });
   ipcMain.handle("printer:list", async (event) => {
     assertTrustedSender(event);
     return listPrinters();

@@ -1,6 +1,7 @@
 export interface CartDraft { lines: CartLine[]; orderDiscount: number; customerId: string; note: string; soldAt: string; priceLevelId: string; }
 export interface Capabilities { owner: boolean; tier: string; effectivePlan: string; premiumUntil: string | null; cloud: boolean; debt: boolean; expenses: boolean; dayEnd: boolean; flags: { debt: boolean; expenses: boolean; dayEnd: boolean }; }
 export interface LoginDevice { id: string; name: string; deviceCode: string; lastSyncedAt: string | null; }
+export interface CashDrawer { id: string; name: string; isDefault: boolean; isActive: boolean; activeSessionId: string | null; }
 export interface DeviceLimit { status: 'device_limit'; limit: number; devices: LoginDevice[]; loginTicket: string; }
 export interface InactiveDevices { status: 'inactive_devices'; devices: LoginDevice[]; canCreateNew: boolean; loginTicket: string; }
 export interface ShopSwitch { status: 'shop_switch'; shopName: string; unsyncedCount: number; }
@@ -222,7 +223,7 @@ export interface CloudState {
   pullProgress?: { completed: number; total: number } | null;
 }
 export interface ShopProfile { name: string; address: string; phone: string; receiptFooter: string; currency?: string; }
-export interface PairedDevice { id: string; name: string; deviceCode: string; role: string; lastSyncedAt: string | null; isCurrent: boolean; }
+export interface PairedDevice { id: string; name: string; deviceCode: string; role: string; lastSyncedAt: string | null; isCurrent: boolean; assignedCashDrawerId?: string | null; canManageCashDrawer?: boolean; }
 export interface BillingStatus { tier: string; premiumUntil: string | null; entitlement?: string; daysAdded?: number; }
 
 export interface LoginInput {
@@ -330,6 +331,9 @@ export interface DesktopApi {
     revokeDevice: (id: string) => Promise<void>;
     billingStatus: () => Promise<BillingStatus>;
     redeemCode: (code: string) => Promise<BillingStatus>;
+    cashDrawers: () => Promise<CashDrawer[]>;
+    createCashDrawer: (name: string) => Promise<CashDrawer>;
+    assignCashDrawer: (deviceId: string, drawerId: string | null, canManageCashDrawer?: boolean) => Promise<void>;
   };
   printer: {
     list: () => Promise<PrinterInfo[]>;
