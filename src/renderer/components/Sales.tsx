@@ -103,11 +103,14 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
       setRefundAmount("");
       void client.invalidateQueries();
       setVoucherId(result.voucherId);
-      void client.invalidateQueries({ queryKey: ["sales"] });
-      void client.invalidateQueries({ queryKey: ["products"] });
+      void client.invalidateQueries({ queryKey: ["sales-page"] });
+      void client.invalidateQueries({ queryKey: ["sales-summary"] });
+      void client.invalidateQueries({ queryKey: ["product-page"] });
+      void client.invalidateQueries({ queryKey: ["product-summary"] });
+      void client.invalidateQueries({ queryKey: ["cart-products"] });
       void client.invalidateQueries({ queryKey: ["returnable-sale"] });
       void client.invalidateQueries({ queryKey: ["dashboard"] });
-      notify(`Return processed: #${result.voucherId}`, "success");
+      notify(`ပစ္စည်းပြန်သွင်းပြီးပါပြီ — #${result.voucherId}`, "success");
     },
     onError: (e: Error) => notify(e.message, "error"),
   });
@@ -116,13 +119,13 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
   const handlePrint = (r: Receipt) => {
     window.storePos.printer
       .printReceipt(r)
-      .then(() => notify(`Receipt #${r.voucherId} printed`, "success"))
+      .then(() => notify(`ဘောင်ချာ #${r.voucherId} ထုတ်ပြီးပါပြီ`, "success"))
       .catch((e) => notify(e.message, "error"));
   };
 
   const openCollectDebt = () => {
     if (!capabilities.debt) {
-      notify("Customer debt feature requires an active plan", "error");
+      notify("ဖောက်သည်အကြွေး အသုံးပြုရန် သက်တမ်းရှိအစီအစဉ် လိုအပ်သည်", "error");
       return;
     }
     if (!receipt.data) return;
@@ -166,9 +169,11 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
       void client.invalidateQueries({ queryKey: ["sales-page"] });
       void client.invalidateQueries({ queryKey: ["sales-summary"] });
       void client.invalidateQueries({ queryKey: ["debtors"] });
-      void client.invalidateQueries({ queryKey: ["customers"] });
+      void client.invalidateQueries({ queryKey: ["customer-page"] });
+      void client.invalidateQueries({ queryKey: ["counter-customer-page"] });
+      void client.invalidateQueries({ queryKey: ["customer-summary"] });
       void client.invalidateQueries({ queryKey: ["dashboard"] });
-      notify("Debt payment collected successfully", "success");
+      notify("အကြွေးဆပ်ငွေ လက်ခံပြီးပါပြီ", "success");
       handlePrint(resReceipt);
     },
     onError: (e: Error) => notify(e.message, "error"),
@@ -227,10 +232,10 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
       <header className="flex flex-wrap items-center justify-between gap-3 bg-white px-5 py-3 rounded-xl border border-gray-200/80 shadow-sm">
         <div>
           <h1 className="text-xl font-bold text-gray-900 leading-tight">
-            📊 Sales History & Receipts
+            📊 အရောင်းမှတ်တမ်းနှင့် ဘောင်ချာများ
           </h1>
           <p className="text-xs text-gray-500">
-            {periodLabel} · Showing {offset + 1}-{offset + filteredSales.length} of {sales.data?.total ?? 0} transactions
+            {periodLabel} · ပြထားသည် {offset + 1}-{offset + filteredSales.length} / {sales.data?.total ?? 0} ခု
           </p>
         </div>
 
@@ -240,10 +245,10 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
               type="button"
               onClick={() => handlePrint(debtReceipt)}
               className="btn btn-outline btn-xs font-semibold gap-1 text-emerald-700 hover:bg-emerald-50 border-emerald-300 shadow-sm"
-              title="Reprint the latest debt payment receipt"
+              title="နောက်ဆုံးအကြွေးဆပ်ဘောင်ချာကို ပြန်ထုတ်မည်"
             >
               <span>🖨️</span>
-              <span>Reprint Debt Receipt #{debtReceipt.voucherId}</span>
+              <span>အကြွေးဆပ်ဘောင်ချာ ပြန်ထုတ်မည် #{debtReceipt.voucherId}</span>
             </button>
           )}
           <PeriodFilter allowAll />
@@ -262,7 +267,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
         >
           <div>
             <p className={`text-[11px] font-semibold uppercase tracking-wider ${typeFilter === "all" ? "text-slate-300" : "text-gray-400"}`}>
-              Transactions
+              အရောင်းမှတ်တမ်း
             </p>
             <p className="text-xl font-black mt-0.5">{salesSummary.data?.total ?? 0}</p>
           </div>
@@ -279,7 +284,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
         >
           <div>
             <p className={`text-[11px] font-semibold uppercase tracking-wider ${typeFilter === "sales" ? "text-emerald-100" : "text-emerald-600"}`}>
-              Net Sales Volume
+              အသားတင်အရောင်း
             </p>
             <p className="text-xl font-black mt-0.5">{money.format(totalVolume)}</p>
           </div>
@@ -296,7 +301,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
         >
           <div>
             <p className={`text-[11px] font-semibold uppercase tracking-wider ${typeFilter === "debt" ? "text-amber-100" : "text-amber-600"}`}>
-              On Account (Credit)
+              အကြွေးအရောင်း
             </p>
             <p className="text-xl font-black mt-0.5">{debtCount}</p>
           </div>
@@ -313,7 +318,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
         >
           <div>
             <p className={`text-[11px] font-semibold uppercase tracking-wider ${typeFilter === "returns" ? "text-rose-100" : "text-rose-600"}`}>
-              Refunds / Returns
+              ပြန်အမ်း / ပြန်သွင်း
             </p>
             <p className="text-xl font-black mt-0.5">{returnCount}</p>
           </div>
@@ -332,7 +337,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
             </span>
             <input
               type="text"
-              placeholder="Search voucher # or customer name..."
+              placeholder="ဘောင်ချာအမှတ် သို့မဟုတ် ဖောက်သည်အမည်ဖြင့်ရှာပါ…"
               value={search}
               onChange={(e) => { setSearch(e.target.value); setOffset(0); }}
               className="input input-bordered input-sm w-full pl-9 text-xs bg-gray-50 focus:bg-white"
@@ -347,9 +352,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
               {filteredSales.map((sale: SaleSummary) => {
                 const isSelected = sale.voucherId === voucherId;
                 const isReturn = sale.type === "return";
-                const isDebt =
-                  sale.paymentMethod === "debt" ||
-                  sale.paymentMethod === "On Account";
+                const isDebt = sale.outstanding > 0;
 
                 return (
                   <button
@@ -369,15 +372,15 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
                           </span>
                           {isReturn ? (
                             <span className="badge badge-error badge-xs text-white">
-                              Return
+                              ပြန်သွင်း
                             </span>
                           ) : isDebt ? (
                             <span className="badge badge-warning badge-xs">
-                              On Account
+                              အကြွေး
                             </span>
                           ) : (
                             <span className="badge badge-success badge-xs text-white">
-                              Paid
+                              ရှင်းပြီး
                             </span>
                           )}
                         </div>
@@ -388,9 +391,10 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
                               {sale.customerName}
                             </strong>
                           ) : (
-                            "Walk-in Customer"
+                            "အထွေထွေဖောက်သည်"
                           )}{" "}
                           · {sale.paymentMethod}
+                          {isDebt ? ` · ကျန် ${money.format(sale.outstanding)}` : ""}
                         </p>
                         <p className="text-[11px] text-gray-400 mt-0.5">
                           {new Date(sale.soldAt).toLocaleString()}
@@ -403,20 +407,20 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
                             isReturn ? "text-rose-600" : "text-gray-900"
                           }`}
                         >
-                          {isReturn ? `-${money.format(sale.total)}` : money.format(sale.total)}
+                          {money.format(sale.total)}
                         </span>
                       </div>
                     </div>
                   </button>
                 );
               })}
-              <div className="flex items-center justify-between py-3 text-xs text-gray-500"><span>Current page: {filteredSales.length} rows</span><div className="flex gap-2"><button className="btn btn-xs" disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 50))}>Previous</button><button className="btn btn-xs" disabled={offset + filteredSales.length >= (sales.data?.total ?? 0)} onClick={() => setOffset(offset + 50)}>Next 50</button></div></div>
+              <div className="flex items-center justify-between py-3 text-xs text-gray-500"><span>လက်ရှိစာမျက်နှာ — {filteredSales.length} ခု</span><div className="flex gap-2"><button className="btn btn-xs" disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 50))}>ရှေ့သို့</button><button className="btn btn-xs" disabled={offset + filteredSales.length >= (sales.data?.total ?? 0)} onClick={() => setOffset(offset + 50)}>နောက် ၅၀ ခု</button></div></div>
               </>
             ) : (
               <div className="flex flex-col items-center justify-center h-48 text-gray-400">
                 <span className="text-3xl mb-1">🧾</span>
-                <p className="text-sm font-medium">No transactions found</p>
-                <p className="text-xs">Adjust your search query or period filter</p>
+                <p className="text-sm font-medium">အရောင်းမှတ်တမ်း မတွေ့ပါ</p>
+                <p className="text-xs">ရှာဖွေမှု သို့မဟုတ် ကာလကို ပြောင်းကြည့်ပါ</p>
               </div>
             )}
           </div>
@@ -427,7 +431,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
           {receipt.isFetching ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-400">
               <span className="loading loading-spinner loading-md text-emerald-600 mb-2"></span>
-              <p className="text-xs font-medium">Loading receipt...</p>
+              <p className="text-xs font-medium">ဘောင်ချာဖတ်နေသည်…</p>
             </div>
           ) : receipt.data ? (
             <div className="flex-1 flex flex-col overflow-hidden">
@@ -435,7 +439,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
               <div className="px-5 py-3.5 border-b border-gray-200 bg-gray-50/70 flex items-center justify-between">
                 <div>
                   <h3 className="font-bold text-sm text-gray-800 font-mono">
-                    Receipt #{receipt.data.voucherId}
+                    ဘောင်ချာအမှတ် #{receipt.data.voucherId}
                   </h3>
                   <p className="text-[11px] text-gray-500">
                     {new Date(receipt.data.soldAt).toLocaleString()}
@@ -447,10 +451,10 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
                     <button
                       onClick={openCollectDebt}
                       className="btn btn-warning btn-xs font-bold gap-1 shadow-sm"
-                      title="Collect debt payment for this sale"
+                      title="ဤအရောင်းအတွက် အကြွေးဆပ်ငွေ လက်ခံမည်"
                     >
                       <span>💳</span>
-                      <span>Pay Debt</span>
+                      <span>အကြွေးဆပ်</span>
                     </button>
                   )}
                   {returnable.data && returnable.data.length > 0 && (
@@ -458,16 +462,16 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
                       onClick={() => setShowReturnModal(true)}
                       className="btn btn-warning btn-xs font-semibold"
                     >
-                      ↩ Return
+                      ↩ ပြန်သွင်း
                     </button>
                   )}
                   <button
                     onClick={() => handlePrint(receipt.data!)}
                     className="btn btn-primary btn-xs font-bold gap-1 shadow-sm"
-                    title="Print Receipt (Ctrl+P / Cmd+P)"
+                    title="ဘောင်ချာထုတ်မည် (Ctrl+P / Cmd+P)"
                   >
                     <span>🖨️</span>
-                    <span>Print</span>
+                    <span>ပရင့်ထုတ်</span>
                   </button>
                 </div>
               </div>
@@ -477,29 +481,29 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
                 {/* Store Header & Customer Info */}
                 <div className="text-center pb-3 border-b border-dashed border-gray-200">
                   <h2 className="font-black text-lg text-gray-900 tracking-tight">
-                    {receipt.data.shopName || "STORE POS"}
+                    {receipt.data.shopName || "ဆိုင် POS"}
                   </h2>
                   <p className="text-xs text-gray-500">
-                    Customer:{" "}
+                    ဖောက်သည် —{" "}
                     <strong>
-                      {sales.data?.items.find((s) => s.voucherId === receipt.data?.voucherId)?.customerName || "Walk-in Customer"}
+                      {sales.data?.items.find((s) => s.voucherId === receipt.data?.voucherId)?.customerName || "အထွေထွေဖောက်သည်"}
                     </strong>
                     {Boolean(receipt.data.customerId && receipt.data.outstanding) && (
                       <span className="badge badge-warning badge-xs ml-1.5 font-bold">
-                        Has Debt
+                        အကြွေးရှိ
                       </span>
                     )}
                   </p>
                   <p className="text-[11px] text-gray-400">
-                    Payment: {receipt.data.paymentMethod}
+                    ပေးချေမှု — {receipt.data.paymentMethod}
                   </p>
                 </div>
 
                 {/* Line Items */}
                 <div className="space-y-2">
                   <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider flex justify-between pb-1 border-b border-gray-100">
-                    <span>Item</span>
-                    <span>Total</span>
+                    <span>ပစ္စည်း</span>
+                    <span>စုစုပေါင်း</span>
                   </div>
 
                   {receipt.data.lines.map((line) => (
@@ -541,7 +545,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
 
                   <div className="flex justify-between items-baseline pt-2 border-t border-gray-200">
                     <span className="text-sm font-bold text-gray-900">
-                      Total
+                      စုစုပေါင်း
                     </span>
                     <span className="text-xl font-black text-emerald-700">
                       {money.format(receipt.data.total)}
@@ -550,7 +554,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
 
                   {receipt.data.change != null && receipt.data.change > 0 && (
                     <div className="flex justify-between text-emerald-800 bg-emerald-50 p-2 rounded font-semibold mt-1">
-                      <span>Change Given</span>
+                      <span>ပြန်အမ်းငွေ</span>
                       <span className="font-mono">
                         {money.format(receipt.data.change)}
                       </span>
@@ -561,7 +565,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
                     <div className="flex items-center justify-between text-amber-900 bg-amber-50 p-2.5 rounded-lg border border-amber-200 mt-2">
                       <div>
                         <span className="text-[11px] font-semibold text-amber-700 block uppercase tracking-wider">
-                          Outstanding Balance (အကြွေးကျန်ငွေ)
+                          အကြွေးကျန်ငွေ
                         </span>
                         <span className="font-mono text-base font-bold text-amber-950">
                           {money.format(receipt.data.outstanding)}
@@ -573,7 +577,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
                           onClick={openCollectDebt}
                           className="btn btn-warning btn-xs font-bold shadow-sm"
                         >
-                          💳 Collect Debt
+                          💳 အကြွေးဆပ်ငွေ လက်ခံမည်
                         </button>
                       )}
                     </div>
@@ -581,9 +585,9 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
                 </div>
 
                 <div className="text-center pt-4 text-[11px] text-gray-400">
-                  <p>Thank you for your visit!</p>
+                  <p>အားပေးမှုအတွက် ကျေးဇူးတင်ပါသည်။</p>
                   <p className="font-mono mt-0.5 text-[10px]">
-                    Press Cmd+P / Ctrl+P to reprint
+                    ပြန်ထုတ်ရန် Cmd+P / Ctrl+P နှိပ်ပါ
                   </p>
                 </div>
               </div>
@@ -592,10 +596,10 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
             <div className="flex flex-col items-center justify-center h-full text-gray-400 p-8 text-center">
               <span className="text-4xl mb-2">🧾</span>
               <p className="text-sm font-semibold text-gray-700">
-                Select a transaction
+                အရောင်းတစ်ခုရွေးပါ
               </p>
               <p className="text-xs text-gray-400 mt-0.5">
-                Click any sale from the left list to view its receipt breakdown and options.
+                ဘောင်ချာအသေးစိတ်ကြည့်ရန် ဘယ်ဘက်စာရင်းမှ အရောင်းတစ်ခုကို ရွေးပါ။
               </p>
             </div>
           )}
@@ -609,10 +613,10 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <div>
                 <h3 className="font-bold text-lg text-gray-900">
-                  Process Return / Refund
+                  ပစ္စည်းပြန်သွင်း / ငွေပြန်အမ်းမည်
                 </h3>
                 <p className="text-xs text-gray-500 font-mono">
-                  Receipt #{voucherId}
+                  ဘောင်ချာအမှတ် #{voucherId}
                 </p>
               </div>
               <button
@@ -627,14 +631,14 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
             <div className="mt-3 space-y-4">
               <div className="flex justify-between items-center bg-gray-50 p-2.5 rounded-lg border border-gray-200">
                 <span className="text-xs text-gray-600">
-                  Select items to return:
+                  ပြန်သွင်းမည့်ပစ္စည်းရွေးပါ —
                 </span>
                 <button
                   type="button"
                   onClick={handleReturnAll}
                   className="btn btn-xs btn-outline font-semibold"
                 >
-                  Return All Items
+                  အားလုံးပြန်သွင်းမည်
                 </button>
               </div>
 
@@ -650,7 +654,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
                         {line.name}
                       </p>
                       <p className="text-[11px] text-gray-500">
-                        Up to {line.returnable} {line.unit} · {money.format(line.refundPerUnit)} each
+                        အများဆုံး {line.returnable} {line.unit} · {money.format(line.refundPerUnit)} စီ
                       </p>
                     </div>
 
@@ -681,7 +685,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
               {/* Total Refund Summary */}
               <div className="p-3 bg-rose-50 rounded-lg border border-rose-200 flex justify-between items-center text-xs">
                 <span className="font-semibold text-rose-900">
-                  Total Refund Amount:
+                  ပြန်အမ်းငွေစုစုပေါင်း —
                 </span>
                 <span className="text-base font-black text-rose-700">
                   {money.format(calculatedRefundTotal)}
@@ -692,7 +696,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
               <div className="form-control">
                 <label className="label py-1">
                   <span className="label-text text-xs font-semibold">
-                    Refund Payment Method
+                    ပြန်အမ်းမည့်နည်းလမ်း
                   </span>
                 </label>
                 <select
@@ -708,7 +712,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
                       </option>
                     ))}
                   {capabilities.debt && receipt.data?.customerId && (
-                    <option value="debt">Customer Credit Account</option>
+                    <option value="debt">ဖောက်သည်အကြွေးစာရင်းထဲသို့</option>
                   )}
                 </select>
               </div>
@@ -717,13 +721,13 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
               <div className="form-control">
                 <label className="label py-1">
                   <span className="label-text text-xs font-semibold">
-                    Reason / Note (optional)
+                    အကြောင်းပြချက် / မှတ်ချက် (မဖြည့်လည်းရ)
                   </span>
                 </label>
                 <input
                   value={returnNote}
                   onChange={(e) => setReturnNote(e.target.value)}
-                  placeholder="e.g. Expired, damaged packaging, wrong size"
+                  placeholder="ဥပမာ သက်တမ်းကုန်၊ အထုပ်ပျက်၊ အရွယ်မှား"
                   className="input input-bordered input-sm w-full"
                 />
               </div>
@@ -734,7 +738,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
                   className="btn btn-sm btn-ghost"
                   onClick={() => setShowReturnModal(false)}
                 >
-                  Cancel
+                  မလုပ်တော့ပါ
                 </button>
                 <button
                   type="button"
@@ -745,7 +749,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
                   onClick={() => returnSale.mutate()}
                 >
                   {returnSale.isPending
-                    ? "Processing..."
+                    ? "လုပ်ဆောင်နေသည်…"
                     : `Confirm Return · ${money.format(calculatedRefundTotal)}`}
                 </button>
               </div>
@@ -761,10 +765,10 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <div>
                 <h3 className="font-bold text-lg text-gray-900">
-                  Collect Debt Payment (ကြွေးကျန်ဆပ်မည်)
+                  အကြွေးဆပ်ငွေ လက်ခံမည်
                 </h3>
                 <p className="text-xs text-gray-500 font-mono">
-                  Receipt #{voucherId} · {customerName || "Customer"}
+                  ဘောင်ချာအမှတ် #{voucherId} · {customerName || "ဖောက်သည်"}
                 </p>
               </div>
               <button
@@ -787,14 +791,14 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
               {/* Balance Summary Card */}
               <div className="p-3 rounded-xl bg-amber-50/80 border border-amber-200 space-y-2">
                 <div className="flex justify-between items-center text-xs">
-                  <span className="text-amber-800">This Voucher Remaining:</span>
+                  <span className="text-amber-800">ဤဘောင်ချာကျန်ငွေ —</span>
                   <span className="font-mono font-bold text-amber-950 text-sm">
                     {money.format(receipt.data.outstanding ?? 0)}
                   </span>
                 </div>
                 {ledger.data && (
                   <div className="flex justify-between items-center text-xs pt-1.5 border-t border-amber-200/60">
-                    <span className="text-amber-800">Customer Total Balance:</span>
+                    <span className="text-amber-800">ဖောက်သည်အကြွေးစုစုပေါင်း —</span>
                     <span className="font-mono font-bold text-amber-950">
                       {money.format(ledger.data.balance)}
                     </span>
@@ -805,7 +809,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
               {/* Scope Quick Select */}
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-gray-700">
-                  Allocation Scope
+                  ဆပ်ငွေသတ်မှတ်မည့်နေရာ
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
@@ -820,7 +824,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
                         : "btn-outline border-gray-300"
                     }`}
                   >
-                    <span className="font-bold">This Voucher Only</span>
+                    <span className="font-bold">ဤဘောင်ချာအတွက်သာ</span>
                     <span className="text-[10px] opacity-80">
                       {money.format(receipt.data.outstanding ?? 0)}
                     </span>
@@ -840,7 +844,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
                         : "btn-outline border-gray-300"
                     }`}
                   >
-                    <span className="font-bold">Total Account</span>
+                    <span className="font-bold">အကြွေးအားလုံး</span>
                     <span className="text-[10px] opacity-80">
                       {money.format(ledger.data?.balance ?? receipt.data?.outstanding ?? 0)}
                     </span>
@@ -852,7 +856,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
               <div className="form-control">
                 <label className="label py-1">
                   <span className="label-text text-xs font-semibold">
-                    Amount Received (Ks) *
+                    လက်ခံရရှိငွေ *
                   </span>
                 </label>
                 <input
@@ -873,7 +877,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
               <div className="form-control">
                 <label className="label py-1">
                   <span className="label-text text-xs font-semibold">
-                    Payment Method *
+                    ပေးချေမှုနည်းလမ်း *
                   </span>
                 </label>
                 <select
@@ -895,13 +899,13 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
               <div className="form-control">
                 <label className="label py-1">
                   <span className="label-text text-xs font-semibold">
-                    Note / Remarks (Optional)
+                    မှတ်ချက် (မဖြည့်လည်းရ)
                   </span>
                 </label>
                 <input
                   value={collectNote}
                   onChange={(e) => setCollectNote(e.target.value)}
-                  placeholder="e.g. Settled via cash / transfer reference"
+                  placeholder="ဥပမာ ငွေသားဖြင့်ဆပ်သည် / လွှဲငွေအမှတ်"
                   className="input input-bordered input-sm w-full"
                 />
               </div>
@@ -913,7 +917,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
                   className="btn btn-sm btn-ghost"
                   onClick={() => setShowCollectModal(false)}
                 >
-                  Cancel
+                  မလုပ်တော့ပါ
                 </button>
                 <button
                   type="submit"
@@ -925,7 +929,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
                   className="btn btn-sm btn-primary font-bold px-4"
                 >
                   {collectDebt.isPending
-                    ? "Recording…"
+                    ? "မှတ်တမ်းတင်နေသည်…"
                     : `Confirm Payment (${money.format(Number(collectAmount) || 0)})`}
                 </button>
               </div>

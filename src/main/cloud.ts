@@ -105,13 +105,17 @@ export class CloudService {
   async openCashDrawer(openingFloat: number): Promise<any> {
     if (!this.usesServerCashDrawers()) return null;
     const result = await this.request<any>('POST', '/cash-drawers/default/open', { openingFloat }, true);
+    this.db.setState('cash.drawerId', result.drawer.id);
     if (result.session) this.db.applyPulled([result.session]);
     this.revision++;
     return this.db.cashSession();
   }
   async closeCashDrawer(drawerId: string, sessionId: string, countedCash: number): Promise<any> {
     if (!this.usesServerCashDrawers()) return null;
-    await this.syncNow();
+    const synced = await this.syncNow();
+    if (synced.status !== 'idle' || synced.pending > 0) {
+      throw new Error('Sync all pending cash activity before closing the drawer');
+    }
     const result = await this.request<any>('POST', `/cash-drawers/${encodeURIComponent(drawerId)}/close`, { sessionId, countedCash }, true);
     if (result.session) this.db.applyPulled([result.session]);
     this.revision++;
@@ -165,6 +169,9 @@ export class CloudService {
         if (page.changes?.length) this.revision++;
         if (!page.hasMore || !page.changes?.length) break;
       }
+      const drawer = await this.request<any>('GET', '/cash-drawers/active', undefined, true);
+      this.db.setState('cash.drawerId', drawer.drawer.id);
+      if (drawer.session) this.db.applyPulled([drawer.session]);
       // Pull reconciliation can queue tombstones and repaired price references.
       await pushPending();
       this.db.setState('cloud.lastSyncedAt', new Date().toISOString());

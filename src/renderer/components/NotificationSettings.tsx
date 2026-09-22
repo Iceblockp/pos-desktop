@@ -22,7 +22,7 @@ export function NotificationSettings({ notify }: { notify: (message: string) => 
           "Notifications could not be enabled. Check this app’s notification permission in system settings.",
         );
       } else {
-        notify("Notification preferences updated");
+        notify("သတိပေးချက်ဆက်တင် ပြင်ပြီးပါပြီ");
       }
     },
     onError: (e: Error) => notify(e.message),
@@ -33,9 +33,9 @@ export function NotificationSettings({ notify }: { notify: (message: string) => 
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
       <div className="p-5 border-b border-slate-100 bg-slate-50/50">
-        <h3 className="font-semibold text-slate-800 text-base">Desktop Notifications</h3>
+        <h3 className="font-semibold text-slate-800 text-base">ကွန်ပျူတာသတိပေးချက်</h3>
         <p className="text-xs text-slate-500 mt-0.5">
-          Local audio & desktop alerts while Store POS is running
+          Store POS ဖွင့်ထားစဉ် အသံနှင့် စနစ်သတိပေးချက်များ
         </p>
       </div>
 
@@ -45,7 +45,7 @@ export function NotificationSettings({ notify }: { notify: (message: string) => 
             {!value.supported && (
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-center gap-2">
                 <span>⚠️</span>
-                <span>System notifications are currently disabled or unsupported on this OS.</span>
+                <span>စနစ်သတိပေးချက်ကို ပိတ်ထားသည် သို့မဟုတ် ဤစနစ်တွင် မပံ့ပိုးပါ။</span>
               </div>
             )}
 
@@ -53,9 +53,9 @@ export function NotificationSettings({ notify }: { notify: (message: string) => 
               <div className="flex items-center gap-3">
                 <span className="text-xl p-2 bg-slate-100 rounded-lg">📦</span>
                 <div>
-                  <h4 className="text-sm font-medium text-slate-800">Low Stock Alert</h4>
+                  <h4 className="text-sm font-medium text-slate-800">လက်ကျန်နည်း သတိပေးချက်</h4>
                   <p className="text-xs text-slate-500">
-                    Notify immediately when a completed sale reduces item inventory to or below minimum stock
+                    အရောင်းပြီးနောက် လက်ကျန်အနည်းဆုံးအရေအတွက် ရောက်လျှင် ချက်ချင်းသတိပေးမည်
                   </p>
                 </div>
               </div>
@@ -75,9 +75,9 @@ export function NotificationSettings({ notify }: { notify: (message: string) => 
                 <div className="flex items-center gap-3">
                   <span className="text-xl p-2 bg-slate-100 rounded-lg">⏰</span>
                   <div>
-                    <h4 className="text-sm font-medium text-slate-800">Daily Shift Summary Reminder</h4>
+                    <h4 className="text-sm font-medium text-slate-800">နေ့စဉ်အဆိုင်းပိတ်ရန် သတိပေးချက်</h4>
                     <p className="text-xs text-slate-500">
-                      Prompt cashiers to reconcile registers and review daily sales figures
+                      ငွေစာရင်းကိုက်ပြီး နေ့စဉ်အရောင်းစစ်ရန် ငွေကိုင်ကို သတိပေးမည်
                     </p>
                   </div>
                 </div>
@@ -94,7 +94,7 @@ export function NotificationSettings({ notify }: { notify: (message: string) => 
 
               {value.dailyEnabled && (
                 <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                  <span className="text-xs font-medium text-slate-600">Reminder Time</span>
+                  <span className="text-xs font-medium text-slate-600">သတိပေးမည့်အချိန်</span>
                   <input
                     type="time"
                     className="input input-bordered input-xs max-w-[120px] font-mono text-center"
@@ -113,7 +113,7 @@ export function NotificationSettings({ notify }: { notify: (message: string) => 
           </>
         ) : (
           <div className="py-6 text-center text-slate-400 text-sm">
-            Loading notification preferences…
+            သတိပေးချက်ဆက်တင် ဖတ်နေသည်…
           </div>
         )}
       </div>

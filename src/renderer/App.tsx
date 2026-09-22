@@ -18,6 +18,7 @@ import { Reports } from "./components/Reports";
 import { Settings } from "./components/Settings";
 import { PlanBadge } from "./components/PlanBadge";
 import { cacheCurrency, formatCurrency, parseCurrency } from '../shared/currency';
+import { myanmarMessage } from './myanmar';
 
 type Page =
   | "counter"
@@ -68,6 +69,7 @@ export function App() {
   // Toasts
   const [toasts, setToasts] = useState<Toast[]>([]);
   const showToast = (message: string, type?: "success" | "error" | "info") => {
+    message = myanmarMessage(message);
     const inferredType: "success" | "error" | "info" =
       type ??
       (/fail|error|reject|cannot|denied|invalid|err/i.test(message)
@@ -92,7 +94,7 @@ export function App() {
       void window.storePos.pos
         .saveCartDraft(draft)
         .catch((error) =>
-          showToast("Cart could not be saved: " + error.message, "error"),
+          showToast("ဈေးခြင်းကို မသိမ်းနိုင်ပါ — " + error.message, "error"),
         );
   }, [draft]);
 
@@ -116,9 +118,9 @@ export function App() {
     try {
       await window.storePos.cloud.syncNow();
       await client.invalidateQueries();
-      showToast("Cloud sync completed", "success");
+      showToast("Cloud နှင့် အချက်အလက်ညှိပြီးပါပြီ", "success");
     } catch (err: any) {
-      showToast(err?.message || "Sync failed", "error");
+      showToast(err?.message || "Cloud နှင့် အချက်အလက် မညှိနိုင်ပါ", "error");
     } finally {
       setTimeout(() => setIsSyncing(false), 600);
     }
@@ -193,35 +195,35 @@ export function App() {
     icon: string;
     badge?: React.ReactNode;
   }[] = [
-    { key: "counter", label: "Counter", icon: "🛒" },
-    { key: "sales", label: "Sales", icon: "📊" },
-    { key: "inventory", label: "Inventory", icon: "📦" },
-    { key: "customers", label: "Customers", icon: "👥" },
+    { key: "counter", label: "အရောင်းကောင်တာ", icon: "🛒" },
+    { key: "sales", label: "အရောင်းမှတ်တမ်း", icon: "📊" },
+    { key: "inventory", label: "ကုန်ပစ္စည်း", icon: "📦" },
+    { key: "customers", label: "ဖောက်သည်", icon: "👥" },
     {
       key: "cash-drawer",
-      label: "Cash Drawer",
+      label: "ငွေစာရင်းပုံး",
       icon: "💵",
       badge: isDrawerOpen ? (
         <span className="badge badge-success badge-xs py-0.5 px-1.5 text-[10px] text-white">
-          Open
+          ဖွင့်ထားသည်
         </span>
       ) : (
         <span className="badge badge-ghost badge-xs py-0.5 px-1.5 text-[10px] text-gray-400 bg-white/10 border-0">
-          Closed
+          ပိတ်ထားသည်
         </span>
       ),
     },
     {
       key: "reports",
-      label: "Reports",
+      label: "အစီရင်ခံစာ",
       icon: "📈",
       badge: !capabilities.owner ? (
         <span className="badge badge-neutral badge-xs py-0.5 px-1.5 text-[10px] text-gray-400 bg-white/10 border-0">
-          Owner
+          ဆိုင်ပိုင်ရှင်
         </span>
       ) : undefined,
     },
-    { key: "settings", label: "Settings", icon: "⚙️" },
+    { key: "settings", label: "ဆက်တင်", icon: "⚙️" },
   ];
 
   return (
@@ -239,7 +241,7 @@ export function App() {
                 Store <span className="text-emerald-400 font-extrabold">POS</span>
               </h1>
               <p className="text-[11px] text-emerald-400/90 font-medium truncate max-w-[150px]">
-                {cloud.data?.shopName || "Offline Counter"}
+                {cloud.data?.shopName || "အော့ဖ်လိုင်းကောင်တာ"}
               </p>
             </div>
           </div>
@@ -247,7 +249,7 @@ export function App() {
             <div className="flex items-center gap-1.5 truncate flex-1 min-w-0">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></span>
               <span className="truncate">
-                {cloud.data?.deviceName || "Desktop"}
+                {cloud.data?.deviceName || "ကွန်ပျူတာ"}
                 {cloud.data?.role ? ` (${cloud.data.role})` : ""}
               </span>
             </div>
@@ -285,11 +287,11 @@ export function App() {
           <div
             onClick={() => setPage("cash-drawer")}
             className="p-2.5 rounded-lg bg-slate-800/40 border border-slate-700/50 hover:bg-slate-800/80 transition cursor-pointer"
-            title="Click to view Cash Drawer"
+            title="ငွေစာရင်းပုံးကို ကြည့်မည်"
           >
             <div className="flex items-center justify-between mb-1">
               <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">
-                Cash Drawer
+                ငွေစာရင်းပုံး
               </span>
               <span
                 className={`w-2 h-2 rounded-full ${
@@ -299,7 +301,7 @@ export function App() {
             </div>
             <div className="flex items-center justify-between text-xs">
               <span className="font-medium text-slate-200">
-                {isDrawerOpen ? "Session Open" : "Drawer Closed"}
+                {isDrawerOpen ? "ငွေစာရင်းပုံး ဖွင့်ထားသည်" : "ငွေစာရင်းပုံး ပိတ်ထားသည်"}
               </span>
               {isDrawerOpen && session.data?.openingFloat != null && (
                 <span className="text-[11px] text-emerald-400 font-mono">
@@ -326,18 +328,18 @@ export function App() {
                 />
                 <span className="text-xs font-medium text-slate-200 truncate">
                   {syncStatus === "syncing" || isSyncing
-                    ? "Syncing data..."
+                    ? "အချက်အလက် Sync လုပ်နေသည်…"
                     : syncStatus === "error"
-                      ? "Sync error"
+                      ? "Sync မအောင်မြင်ပါ"
                       : cloud.data?.deviceId
-                        ? "Cloud Online"
-                        : "Offline Mode"}
+                        ? "Cloud ချိတ်ဆက်ထားသည်"
+                        : "အော့ဖ်လိုင်း အသုံးပြုနေသည်"}
                 </span>
               </div>
               <p className="text-[10px] text-slate-400 mt-0.5 truncate pl-3.5">
                 {pendingCount > 0
                   ? `${pendingCount} pending upload`
-                  : "All records synced"}
+                  : "အချက်အလက်အားလုံး Sync ပြီးပါပြီ"}
               </p>
             </div>
 
@@ -345,7 +347,7 @@ export function App() {
             <button
               onClick={handleManualSync}
               disabled={isSyncing || syncStatus === "syncing"}
-              title="Sync now with cloud"
+              title="Cloud နှင့် ယခု Sync လုပ်မည်"
               className="btn btn-ghost btn-xs btn-square text-slate-300 hover:text-white hover:bg-slate-700"
             >
               <svg

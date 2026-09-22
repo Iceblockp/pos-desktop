@@ -63,9 +63,9 @@ export function ProductModal({
               <label className="label">
                 <span className="label-text">
                   {field === "minStock"
-                    ? "Low-stock level"
+                    ? "လက်ကျန်နည်း သတိပေးမည့်အရေအတွက်"
                     : field === "quantity"
-                      ? "Opening quantity"
+                      ? "အဖွင့်လက်ကျန်"
                       : field.charAt(0).toUpperCase() + field.slice(1)}
                 </span>
               </label>
@@ -88,10 +88,10 @@ export function ProductModal({
 
           <div className="modal-action">
             <button type="button" className="btn btn-ghost" onClick={onClose}>
-              Cancel
+              မလုပ်တော့ပါ
             </button>
             <button type="submit" className="btn btn-primary" disabled={saving}>
-              {saving ? "Saving…" : "Save product"}
+              {saving ? "သိမ်းနေသည်…" : "ကုန်ပစ္စည်းသိမ်းမည်"}
             </button>
           </div>
         </form>

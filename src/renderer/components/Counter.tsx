@@ -197,7 +197,7 @@ export function Counter({
       setSplit(false);
       void client.invalidateQueries();
       afterSale();
-      notify(`Sale completed: #${result.voucherId}`, "success");
+      notify(`အရောင်းပြီးပါပြီ — #${result.voucherId}`, "success");
     },
     onError: (error: Error) => notify(error.message, "error"),
   });
@@ -206,13 +206,15 @@ export function Counter({
     mutationFn: (input: { name: string; phone?: string }) =>
       window.storePos.pos.saveCustomer(input),
     onSuccess: (saved) => {
-      void client.invalidateQueries({ queryKey: ["customers"] });
+      void client.invalidateQueries({ queryKey: ["customer-page"] });
+      void client.invalidateQueries({ queryKey: ["counter-customer-page"] });
+      void client.invalidateQueries({ queryKey: ["customer-summary"] });
       setCustomerId(saved.id);
       setShowAddCustomer(false);
       setCustomerModal(false);
       setNewCustomerName("");
       setNewCustomerPhone("");
-      notify(`Customer ${saved.name} added`, "success");
+      notify(`ဖောက်သည် ${saved.name} ကို ထည့်ပြီးပါပြီ`, "success");
     },
     onError: (err: Error) => notify(err.message, "error"),
   });
@@ -354,9 +356,9 @@ export function Counter({
           const product = await window.storePos.pos.findByBarcode(code);
           if (product) {
             addProduct(product);
-            notify(`✓ Scanned: ${product.name}`, "success");
+            notify(`✓ ဘားကုဒ်ဖတ်ပြီး — ${product.name}`, "success");
           } else {
-            notify(`Barcode "${code}" not found`, "error");
+            notify(`ဘားကုဒ် “${code}” ကို မတွေ့ပါ`, "error");
           }
         } catch (e) {
           notify((e as Error).message, "error");
@@ -378,9 +380,9 @@ export function Counter({
               const product = await window.storePos.pos.findByBarcode(code);
               if (product) {
                 addProduct(product);
-                notify(`✓ Scanned: ${product.name}`, "success");
+                notify(`✓ ဘားကုဒ်ဖတ်ပြီး — ${product.name}`, "success");
               } else {
-                notify(`Barcode "${code}" not found`, "error");
+                notify(`ဘားကုဒ် “${code}” ကို မတွေ့ပါ`, "error");
               }
             } catch (e) {
               notify((e as Error).message, "error");
@@ -421,7 +423,7 @@ export function Counter({
         if (exact) {
           addProduct(exact);
           setSearch("");
-          notify(`✓ Scanned: ${exact.name}`, "success");
+          notify(`✓ ဘားကုဒ်ဖတ်ပြီး — ${exact.name}`, "success");
           return;
         }
       } catch {}
@@ -430,9 +432,9 @@ export function Counter({
       if (firstProduct) {
         addProduct(firstProduct);
         setSearch("");
-        notify(`Added: ${firstProduct.name}`, "success");
+        notify(`ဈေးခြင်းထဲ ထည့်ပြီး — ${firstProduct.name}`, "success");
       } else {
-        notify(`No product matching "${term}"`, "error");
+        notify(`“${term}” နှင့်ကိုက်ညီသော ကုန်ပစ္စည်းမရှိပါ`, "error");
       }
     }
   };
@@ -462,10 +464,10 @@ export function Counter({
           </div>
           <div>
             <h1 className="text-xl font-bold text-gray-900 leading-tight">
-              Counter
+              အရောင်းကောင်တာ
             </h1>
             <p className="text-xs text-gray-500">
-              Scan barcode or click items to ring up
+              ဘားကုဒ်ဖတ်ပါ သို့မဟုတ် ကုန်ပစ္စည်းကို နှိပ်၍ ရောင်းပါ
             </p>
           </div>
         </div>
@@ -474,23 +476,23 @@ export function Counter({
           {/* Barcode Scanner Active Indicator */}
           <div
             className="flex items-center gap-2 px-2.5 py-1.5 bg-emerald-50 border border-emerald-200/80 rounded-lg text-xs text-emerald-800 shadow-2xs select-none"
-            title="USB, Wireless & Bluetooth barcode scanners work automatically. Point your scanner and scan barcodes anytime!"
+            title="USB၊ Wireless နှင့် Bluetooth ဘားကုဒ်စကင်နာများကို အလိုအလျောက် အသုံးပြုနိုင်ပါသည်။"
           >
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             <span className="font-semibold flex items-center gap-1">
               <span>📷</span>
-              <span>Scanner Ready</span>
+              <span>စကင်နာ အသင့်</span>
             </span>
             <span className="text-emerald-600/80 text-[11px] hidden xl:inline font-mono">
-              (Point & Scan)
+              (ချိန်၍ ဖတ်ပါ)
             </span>
           </div>
 
           {capabilities.effectivePlan !== "free" ? (
             <label className="flex items-center gap-2 text-xs font-medium text-gray-600 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
-              <span>Price level:</span>
+              <span>စျေးနှုန်းအဆင့် —</span>
               <select
-                aria-label="Price level"
+                aria-label="စျေးနှုန်းအဆင့်"
                 className="select select-bordered select-xs bg-white"
                 value={priceLevelId}
                 onChange={(e) => setPriceLevelId(e.target.value)}
@@ -522,7 +524,7 @@ export function Counter({
               }}
               className="btn btn-ghost btn-xs text-rose-600 hover:bg-rose-50"
             >
-              Clear cart
+              ဈေးခြင်းရှင်းမည်
             </button>
           )}
         </div>
@@ -542,13 +544,13 @@ export function Counter({
               value={search}
               onChange={(e) => { setSearch(e.target.value); setProductOffset(0); }}
               onKeyDown={handleSearchKeyDown}
-              placeholder="Search product or scan barcode (F2)..."
+              placeholder="ကုန်ပစ္စည်းရှာပါ သို့မဟုတ် ဘားကုဒ်ဖတ်ပါ (F2)…"
               className="input input-bordered input-sm w-full pl-9 pr-24 text-sm bg-gray-50 focus:bg-white"
               autoFocus
             />
             <div className="absolute inset-y-0 right-2.5 flex items-center gap-1 pointer-events-none">
               <span className="badge badge-xs bg-slate-100 border-slate-200 text-[10px] text-slate-500 font-mono">
-                📷 Barcode OK
+                📷 ဘားကုဒ် အသင့်
               </span>
             </div>
           </div>
@@ -563,7 +565,7 @@ export function Counter({
                   : "btn-ghost bg-gray-100 hover:bg-gray-200 text-gray-700"
               }`}
             >
-              All items
+              အားလုံး
             </button>
             {categories.data?.map((cat) => (
               <button
@@ -621,7 +623,7 @@ export function Counter({
                         </span>
                         {isOutOfStock ? (
                           <span className="badge badge-error badge-xs text-white px-1 text-[9px]">
-                            {product.quantity < 0 ? product.quantity : "Out"}
+                            {product.quantity < 0 ? product.quantity : "ကုန်ပြီ"}
                           </span>
                         ) : isLowStock ? (
                           <span className="badge badge-warning badge-xs px-1 text-[9px]">
@@ -638,18 +640,18 @@ export function Counter({
                 })}
               </div>
               <div className="flex items-center justify-between gap-2 py-3 text-xs text-gray-500">
-                <span>Showing {productOffset + 1}-{productOffset + filteredProducts.length} of {products.data?.total ?? 0}</span>
+                <span>ပြထားသည် {productOffset + 1}-{productOffset + filteredProducts.length} / {products.data?.total ?? 0}</span>
                 <div className="flex gap-2">
-                  <button className="btn btn-xs" disabled={productOffset === 0} onClick={() => setProductOffset(Math.max(0, productOffset - 100))}>Previous</button>
-                  <button className="btn btn-xs" disabled={productOffset + filteredProducts.length >= (products.data?.total ?? 0)} onClick={() => setProductOffset(productOffset + 100)}>Next 100</button>
+                  <button className="btn btn-xs" disabled={productOffset === 0} onClick={() => setProductOffset(Math.max(0, productOffset - 100))}>ရှေ့သို့</button>
+                  <button className="btn btn-xs" disabled={productOffset + filteredProducts.length >= (products.data?.total ?? 0)} onClick={() => setProductOffset(productOffset + 100)}>နောက် ၁၀၀ ခု</button>
                 </div>
               </div>
               </>
             ) : (
               <div className="flex flex-col items-center justify-center h-48 text-gray-400">
                 <span className="text-3xl mb-2">🔍</span>
-                <p className="text-sm font-medium">No products found</p>
-                <p className="text-xs">Try a different search term or category</p>
+                <p className="text-sm font-medium">ကုန်ပစ္စည်း မတွေ့ပါ</p>
+                <p className="text-xs">အခြားစာလုံး သို့မဟုတ် အမျိုးအစားဖြင့် ရှာကြည့်ပါ</p>
               </div>
             )}
           </div>
@@ -660,7 +662,7 @@ export function Counter({
           {/* Cart Header */}
           <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-gray-50/60">
             <span className="font-bold text-sm text-gray-800">
-              Cart Items ({cart.reduce((s, l) => s + l.quantity, 0)})
+              ဈေးခြင်း ({cart.reduce((s, l) => s + l.quantity, 0)})
             </span>
             {cart.length > 0 && (
               <button
@@ -672,7 +674,7 @@ export function Counter({
               >
                 {orderDiscount > 0
                   ? `Disc: -${money.format(orderDiscount)}`
-                  : "+ Order Discount"}
+                  : "+ ဘောင်ချာလျှော့စျေး"}
               </button>
             )}
           </div>
@@ -682,9 +684,9 @@ export function Counter({
             {cart.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-gray-400 py-12">
                 <span className="text-4xl mb-2">🛒</span>
-                <p className="text-sm font-medium">Cart is empty</p>
+                <p className="text-sm font-medium">ဈေးခြင်းထဲတွင် ပစ္စည်းမရှိပါ</p>
                 <p className="text-xs text-gray-400 text-center max-w-[200px] mt-1">
-                  Scan a barcode or click items from the catalog to ring up
+                  ဘားကုဒ်ဖတ်ပါ သို့မဟုတ် ဘယ်ဘက်မှ ပစ္စည်းကို နှိပ်ပါ
                 </p>
               </div>
             ) : (
@@ -702,7 +704,7 @@ export function Counter({
                         <span>{money.format(line.unitPrice)}</span>
                         {line.discount > 0 && (
                           <span className="text-orange-600 font-medium">
-                            · -{money.format(line.discount)} off
+                            · -{money.format(line.discount)} လျှော့
                           </span>
                         )}
                       </div>
@@ -754,7 +756,7 @@ export function Counter({
                     <div className="flex items-center gap-1">
                       <button
                         className="btn btn-xs btn-ghost btn-square h-6 w-6 min-h-0 text-emerald-700 font-bold"
-                        title="Item Discount"
+                        title="ပစ္စည်းလျှော့စျေး"
                         onClick={() => {
                           setDiscountProductId(line.productId);
                           setDiscountDraft(String(line.discount));
@@ -765,7 +767,7 @@ export function Counter({
                       </button>
                       <button
                         className="btn btn-xs btn-ghost btn-square h-6 w-6 min-h-0 text-rose-500 hover:text-rose-700 hover:bg-rose-50"
-                        title="Remove item"
+                        title="ပစ္စည်းဖယ်မည်"
                         onClick={() => updateQuantity(line.productId, 0)}
                       >
                         ✕
@@ -783,23 +785,23 @@ export function Counter({
               {/* Financial Subtotals */}
               <div className="space-y-1 text-xs text-gray-600">
                 <div className="flex justify-between">
-                  <span>Subtotal</span>
+                  <span>မူလစုစုပေါင်း</span>
                   <span>{money.format(gross)}</span>
                 </div>
                 {lineDiscounts > 0 && (
                   <div className="flex justify-between text-orange-600 font-medium">
-                    <span>Line discounts</span>
+                    <span>ပစ္စည်းအလိုက် လျှော့စျေး</span>
                     <span>-{money.format(lineDiscounts)}</span>
                   </div>
                 )}
                 {orderDiscount > 0 && (
                   <div className="flex justify-between text-orange-600 font-medium">
-                    <span>Order discount</span>
+                    <span>ဘောင်ချာလျှော့စျေး</span>
                     <span>-{money.format(orderDiscount)}</span>
                   </div>
                 )}
                 <div className="flex justify-between items-baseline pt-1 border-t border-gray-200">
-                  <span className="text-sm font-bold text-gray-900">Total</span>
+                  <span className="text-sm font-bold text-gray-900">စုစုပေါင်း</span>
                   <span className="text-2xl font-black text-emerald-700">
                     {money.format(total)}
                   </span>
@@ -819,7 +821,7 @@ export function Counter({
                   <span className="text-sm">👤</span>
                   <div className="truncate">
                     <p className="font-semibold truncate">
-                      {selectedCustomer ? selectedCustomer.name : "Walk-in Customer"}
+                      {selectedCustomer ? selectedCustomer.name : "အထွေထွေဖောက်သည်"}
                     </p>
                     {selectedCustomer?.phone && (
                       <p className="text-[10px] text-gray-500">
@@ -842,7 +844,7 @@ export function Counter({
                     </button>
                   ) : (
                     <span className="text-[11px] text-emerald-600 font-medium">
-                      Change
+                      ပြန်အမ်းငွေ
                     </span>
                   )}
                 </div>
@@ -873,7 +875,7 @@ export function Counter({
                           : "btn-outline border-gray-300 bg-white hover:bg-gray-100 text-gray-700"
                       }`}
                     >
-                      On Account
+                      အကြွေး
                     </button>
                   )}
                 </div>
@@ -884,14 +886,14 @@ export function Counter({
                   <div className="space-y-2 p-2.5 rounded-lg bg-white border border-gray-200">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-xs font-medium text-gray-600">
-                        Cash received:
+                        လက်ခံငွေ —
                       </span>
                       <input
                         type="number"
                         inputMode="decimal"
                         value={tendered}
                         onChange={(e) => setTendered(e.target.value)}
-                        placeholder="Optional"
+                        placeholder="မဖြည့်လည်းရပါသည်"
                         className="input input-xs input-bordered w-32 text-right font-bold text-xs"
                       />
                     </div>
@@ -909,7 +911,7 @@ export function Counter({
                           }`}
                         >
                           {amt === effectiveCashAmount
-                            ? "Exact"
+                            ? "အတိအကျ"
                             : money.format(amt)}
                         </button>
                       ))}
@@ -918,7 +920,7 @@ export function Counter({
                     {/* Live Change Box */}
                     {hasCashChange && (
                       <div className="flex items-center justify-between p-2 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-900">
-                        <span className="text-xs font-medium">Change Due:</span>
+                        <span className="text-xs font-medium">ပြန်အမ်းရန် —</span>
                         <span className="text-sm font-black text-emerald-700">
                           {money.format(cashChange)}
                         </span>
@@ -936,7 +938,7 @@ export function Counter({
                   className="w-full px-3 py-2 text-xs font-medium text-gray-600 flex items-center justify-between hover:bg-gray-50 transition"
                 >
                   <span>
-                    {showAdvanced ? "▾ Hide options" : "▸ Note, Date & Split Payment"}
+                    {showAdvanced ? "▾ အခြားရွေးချယ်မှုများ ပိတ်မည်" : "▸ မှတ်ချက်၊ ရက်စွဲနှင့် ခွဲပေးချေမှု"}
                   </span>
                   {note || soldAt || split ? (
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
@@ -952,7 +954,7 @@ export function Counter({
                         onChange={(e) => setSplit(e.target.checked)}
                         className="checkbox checkbox-xs checkbox-primary"
                       />
-                      <span>Split payment across multiple methods</span>
+                      <span>ငွေပေးချေမှုနည်းလမ်း အမျိုးမျိုးဖြင့် ခွဲပေးမည်</span>
                     </label>
 
                     {split && (
@@ -981,13 +983,13 @@ export function Counter({
 
                     {outstanding > 0 && (
                       <p className="text-xs text-amber-700 bg-amber-50 p-2 rounded border border-amber-200">
-                        Remaining debt: <strong>{money.format(outstanding)}</strong>
+                        ကျန်အကြွေး — <strong>{money.format(outstanding)}</strong>
                       </p>
                     )}
 
                     <div className="space-y-1">
                       <label className="text-[11px] font-medium text-gray-500">
-                        Custom sale date (optional)
+                        အရောင်းရက် သတ်မှတ်မည် (မဖြည့်လည်းရ)
                       </label>
                       <input
                         type="datetime-local"
@@ -999,10 +1001,10 @@ export function Counter({
 
                     <div className="space-y-1">
                       <label className="text-[11px] font-medium text-gray-500">
-                        Sale note / order details
+                        အရောင်းမှတ်ချက်
                       </label>
                       <input
-                        placeholder="Optional note for receipt..."
+                        placeholder="ဘောင်ချာတွင် ထည့်မည့် မှတ်ချက်…"
                         className="input input-bordered input-xs w-full"
                         value={note}
                         onChange={(e) => setNote(e.target.value)}
@@ -1045,7 +1047,7 @@ export function Counter({
           <div className="modal-box max-w-md p-5">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <h3 className="font-bold text-lg text-gray-900">
-                Select Customer
+                ဖောက်သည်ရွေးမည်
               </h3>
               <button
                 className="btn btn-sm btn-ghost btn-circle"
@@ -1065,7 +1067,7 @@ export function Counter({
                     type="text"
                     value={customerSearch}
                     onChange={(e) => setCustomerSearch(e.target.value)}
-                    placeholder="Search by name or phone..."
+                    placeholder="အမည် သို့မဟုတ် ဖုန်းဖြင့်ရှာပါ…"
                     className="input input-bordered input-sm flex-1"
                     autoFocus
                   />
@@ -1073,7 +1075,7 @@ export function Counter({
                     onClick={() => setShowAddCustomer(true)}
                     className="btn btn-sm btn-primary"
                   >
-                    + New
+                    + အသစ်ထည့်
                   </button>
                 </div>
 
@@ -1090,8 +1092,8 @@ export function Counter({
                   }`}
                 >
                   <div>
-                    <p className="font-bold text-sm">Walk-in Customer</p>
-                    <p className="text-xs text-gray-500">Standard retail sale (no account)</p>
+                    <p className="font-bold text-sm">အထွေထွေဖောက်သည်</p>
+                    <p className="text-xs text-gray-500">သာမန်လက်လီအရောင်း (အကြွေးမရှိ)</p>
                   </div>
                   {!customerId && <span className="text-emerald-600 font-bold">✓</span>}
                 </button>
@@ -1116,7 +1118,7 @@ export function Counter({
                             {c.name}
                           </p>
                           <p className="text-xs text-gray-500">
-                            {c.phone || "No phone"}
+                            {c.phone || "ဖုန်းမရှိ"}
                           </p>
                         </div>
                         {customerId === c.id && (
@@ -1142,7 +1144,7 @@ export function Counter({
                 <div className="form-control">
                   <label className="label py-1">
                     <span className="label-text text-xs font-semibold">
-                      Customer Name *
+                      ဖောက်သည်အမည် *
                     </span>
                   </label>
                   <input
@@ -1150,7 +1152,7 @@ export function Counter({
                     required
                     value={newCustomerName}
                     onChange={(e) => setNewCustomerName(e.target.value)}
-                    placeholder="e.g. Daw Khin, Ko Aung"
+                    placeholder="ဥပမာ ဒေါ်ခင်၊ ကိုအောင်"
                     className="input input-bordered input-sm w-full"
                     autoFocus
                   />
@@ -1159,7 +1161,7 @@ export function Counter({
                 <div className="form-control">
                   <label className="label py-1">
                     <span className="label-text text-xs font-semibold">
-                      Phone Number (optional)
+                      ဖုန်းနံပါတ် (မဖြည့်လည်းရ)
                     </span>
                   </label>
                   <input
@@ -1177,14 +1179,14 @@ export function Counter({
                     className="btn btn-sm btn-ghost"
                     onClick={() => setShowAddCustomer(false)}
                   >
-                    Back
+                    နောက်သို့
                   </button>
                   <button
                     type="submit"
                     className="btn btn-sm btn-primary"
                     disabled={saveCustomer.isPending || !newCustomerName.trim()}
                   >
-                    {saveCustomer.isPending ? "Saving..." : "Save & Select"}
+                    {saveCustomer.isPending ? "သိမ်းနေသည်…" : "သိမ်းပြီး ရွေးမည်"}
                   </button>
                 </div>
               </form>
@@ -1200,20 +1202,20 @@ export function Counter({
             <div className="text-center pb-4 border-b border-gray-100">
               <span className="text-4xl">🧾</span>
               <h3 className="font-bold text-xl text-gray-900 mt-2">
-                Sale Completed
+                အရောင်းပြီးပါပြီ
               </h3>
               <p className="text-xs text-gray-500 font-mono">
-                Receipt #{receipt.voucherId}
+                ဘောင်ချာအမှတ် #{receipt.voucherId}
               </p>
             </div>
 
             <div className="py-4 space-y-2 text-sm">
               <div className="flex justify-between text-xs text-gray-500">
-                <span>Date</span>
+                <span>ရက်စွဲ</span>
                 <span>{new Date(receipt.soldAt).toLocaleString()}</span>
               </div>
               <div className="flex justify-between font-medium">
-                <span>Payment</span>
+                <span>ပေးချေမှု</span>
                 <span>{receipt.paymentMethod}</span>
               </div>
               {receipt.payments?.map((p, i) => (
@@ -1223,12 +1225,12 @@ export function Counter({
                 </div>
               ))}
               <div className="flex justify-between text-base font-bold text-gray-900 pt-2 border-t border-gray-100">
-                <span>Total Paid</span>
+                <span>ပေးပြီးစုစုပေါင်း</span>
                 <span className="text-emerald-700">{money.format(receipt.total)}</span>
               </div>
               {receipt.change != null && receipt.change > 0 && (
                 <div className="flex justify-between text-sm font-semibold text-emerald-800 bg-emerald-50 p-2 rounded">
-                  <span>Change Given</span>
+                  <span>ပြန်အမ်းငွေ</span>
                   <span>{money.format(receipt.change)}</span>
                 </div>
               )}
@@ -1239,7 +1241,7 @@ export function Counter({
                 className="btn btn-outline btn-sm flex-1"
                 onClick={() => setReceipt(null)}
               >
-                Close
+                ပိတ်မည်
               </button>
               <button
                 className="btn btn-primary btn-sm flex-1"
@@ -1247,13 +1249,13 @@ export function Counter({
                   void window.storePos.printer
                     .printReceipt(receipt)
                     .then(() => {
-                      notify("Receipt sent to printer", "success");
+                      notify("ဘောင်ချာကို ပရင်တာသို့ ပို့ပြီးပါပြီ", "success");
                       setReceipt(null);
                     })
                     .catch((e) => notify(e.message, "error"));
                 }}
               >
-                Print Receipt
+                ဘောင်ချာထုတ်မည်
               </button>
             </div>
           </div>
@@ -1265,11 +1267,11 @@ export function Counter({
         <div className="modal modal-open">
           <div className="modal-box max-w-sm">
             <h3 className="font-bold text-lg mb-3">
-              {discountModal === "line" ? "Item Discount" : "Order Discount"}
+              {discountModal === "line" ? "ပစ္စည်းလျှော့စျေး" : "ဘောင်ချာလျှော့စျေး"}
             </h3>
             <div className="form-control">
               <label className="label py-1">
-                <span className="label-text text-xs">Discount amount</span>
+                <span className="label-text text-xs">လျှော့မည့်ငွေ</span>
               </label>
               <input
                 type="number"
@@ -1285,7 +1287,7 @@ export function Counter({
                 className="btn btn-sm btn-ghost"
                 onClick={() => setDiscountModal(null)}
               >
-                Cancel
+                မလုပ်တော့ပါ
               </button>
               <button
                 className="btn btn-sm btn-primary"
@@ -1295,7 +1297,7 @@ export function Counter({
                     : saveOrderDiscount()
                 }
               >
-                Apply Discount
+                လျှော့စျေးသတ်မှတ်မည်
               </button>
             </div>
           </div>

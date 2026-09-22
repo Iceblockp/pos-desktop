@@ -63,8 +63,8 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
       notify(
         result.error ||
           (result.status === "signed_out"
-            ? "Disconnected. Local database was kept safe."
-            : `Cloud status: ${result.status}`),
+            ? "Cloud မှဖြုတ်ပြီးပါပြီ။ စက်တွင်းဒေတာ မပျက်ပါ။"
+            : `Cloud အခြေအနေ — ${result.status}`),
       );
     },
     onError: (error: Error) => notify(error.message),
@@ -94,15 +94,15 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
   const statusBadge = (status?: string) => {
     switch (status) {
       case "idle":
-        return <span className="badge badge-success text-white font-medium">Synced & Ready</span>;
+        return <span className="badge badge-success text-white font-medium">Sync ပြီး အသင့်ဖြစ်သည်</span>;
       case "syncing":
-        return <span className="badge badge-info text-white font-medium animate-pulse">Syncing…</span>;
+        return <span className="badge badge-info text-white font-medium animate-pulse">Sync လုပ်နေသည်…</span>;
       case "offline":
-        return <span className="badge badge-warning text-amber-900 font-medium">Offline Mode</span>;
+        return <span className="badge badge-warning text-amber-900 font-medium">အော့ဖ်လိုင်း အသုံးပြုနေသည်</span>;
       case "error":
-        return <span className="badge badge-error text-white font-medium">Sync Error</span>;
+        return <span className="badge badge-error text-white font-medium">Sync မအောင်မြင်ပါ</span>;
       default:
-        return <span className="badge badge-neutral text-white font-medium">{status ?? "Disconnected"}</span>;
+        return <span className="badge badge-neutral text-white font-medium">{status ?? "မချိတ်ဆက်ထားပါ"}</span>;
     }
   };
 
@@ -112,10 +112,10 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
       <div className="p-5 border-b border-slate-100 flex flex-wrap justify-between items-center gap-3 bg-slate-50/50">
         <div>
           <h3 className="font-semibold text-slate-800 text-base flex items-center gap-2">
-            <span>☁️</span> Cloud Account & Multi-Device Sync
+            <span>☁️</span> Cloud အကောင့်နှင့် စက်အများအပြား Sync
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Backup transactions, sync multiple cashier terminals, and access reports remotely
+            အရောင်းဒေတာ backup လုပ်ပြီး ငွေကိုင်စက်များနှင့် Sync လုပ်ပါ
           </p>
         </div>
         {connected && statusBadge(cloud.data?.status)}
@@ -125,34 +125,34 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
         {connected ? (
           <>
             <div className="flex rounded-lg bg-slate-100 p-1 w-full sm:w-fit">
-              <button type="button" onClick={() => setView("sync")} className={`px-4 py-1.5 text-xs font-semibold rounded-md ${view === "sync" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500"}`}>Cloud & Backup</button>
-              {cloud.data?.role === "owner" ? <button type="button" onClick={() => setView("devices")} className={`px-4 py-1.5 text-xs font-semibold rounded-md ${view === "devices" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500"}`}>Devices & Staff</button> : null}
+              <button type="button" onClick={() => setView("sync")} className={`px-4 py-1.5 text-xs font-semibold rounded-md ${view === "sync" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500"}`}>Cloud နှင့် Backup</button>
+              {cloud.data?.role === "owner" ? <button type="button" onClick={() => setView("devices")} className={`px-4 py-1.5 text-xs font-semibold rounded-md ${view === "devices" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500"}`}>စက်များနှင့် ဝန်ထမ်း</button> : null}
             </div>
             {view === "sync" ? <>
             {/* Active Account Overview */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80">
                 <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold">
-                  Shop Name
+                  ဆိုင်အမည်
                 </span>
                 <p className="text-base font-bold text-slate-800 mt-1">
                   {cloud.data?.shopName || "—"}
                 </p>
                 <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
-                  Role: <span className="font-semibold capitalize text-slate-700">{cloud.data?.role}</span>
+                  တာဝန် — <span className="font-semibold capitalize text-slate-700">{cloud.data?.role}</span>
                 </div>
               </div>
 
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80">
                 <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold">
-                  This Terminal
+                  ဤစက်
                 </span>
                 <p className="text-base font-bold text-slate-800 mt-1">
-                  {cloud.data?.deviceName || "Desktop Counter"}
+                  {cloud.data?.deviceName || "ကွန်ပျူတာကောင်တာ"}
                 </p>
                 <p className="text-xs text-slate-500 mt-2">
-                  Pending Sync:{" "}
+                  Sync ပို့ရန်ကျန် —{" "}
                   <strong className={cloud.data?.pending ? "text-amber-600 font-bold" : "text-slate-700"}>
                     {cloud.data?.pullProgress
                       ? `${cloud.data.pullProgress.completed} / ${cloud.data.pullProgress.total} processed`
@@ -164,12 +164,12 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 flex flex-col justify-between">
                 <div>
                   <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold">
-                    Last Cloud Sync
+                    နောက်ဆုံး Cloud Sync
                   </span>
                   <p className="text-xs font-medium text-slate-700 mt-1">
                     {cloud.data?.lastSyncedAt
                       ? new Date(cloud.data.lastSyncedAt).toLocaleString()
-                      : "Never"}
+                      : "တစ်ကြိမ်မျှ မလုပ်ရသေး"}
                   </p>
                 </div>
                 <button
@@ -191,7 +191,7 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
                       d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"
                     />
                   </svg>
-                  {action.isPending ? "Syncing…" : "Sync Now"}
+                  {action.isPending ? "Sync လုပ်နေသည်…" : "ယခု Sync လုပ်မည်"}
                 </button>
               </div>
             </div>
@@ -208,18 +208,18 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
             {view === "devices" && cloud.data?.role === "owner" && (
               <div className="p-4 rounded-xl border border-indigo-100 bg-indigo-50/50 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h4 className="text-sm font-bold text-indigo-950">Add Cashier POS Devices</h4>
+                  <h4 className="text-sm font-bold text-indigo-950">ငွေကိုင် POS စက် ထပ်ချိတ်မည်</h4>
                   <p className="text-xs text-indigo-700">
-                    Generate a 6-digit temporary pairing code to link other laptops, desktops, or phones as cashiers
+                    အခြားကွန်ပျူတာ သို့မဟုတ် ဖုန်းကို ငွေကိုင်စက်အဖြစ်ချိတ်ရန် ၆ လုံးပါကုဒ် ဖန်တီးပါ
                   </p>
                   {pair && (
                     <div className="mt-2 flex items-center gap-2">
-                      <span className="text-xs font-semibold text-indigo-900">Pairing Code:</span>
+                      <span className="text-xs font-semibold text-indigo-900">ချိတ်ဆက်ကုဒ် —</span>
                       <span className="px-3 py-1 bg-white font-mono font-black tracking-widest text-indigo-700 rounded border border-indigo-200 text-base shadow-sm">
                         {pair.code}
                       </span>
                       <span className="text-[11px] text-indigo-500">
-                        (Expires {new Date(pair.expiresAt).toLocaleTimeString()})
+                        (သက်တမ်းကုန်ရန် {new Date(pair.expiresAt).toLocaleTimeString()})
                       </span>
                     </div>
                   )}
@@ -233,7 +233,7 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
                     })
                   }
                 >
-                  🔑 Create Pairing Code
+                  🔑 ချိတ်ဆက်ကုဒ် ဖန်တီးမည်
                 </button>
               </div>
             )}
@@ -241,16 +241,16 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
             {/* Connected Terminals List */}
             {view === "devices" ? <div className="space-y-3">
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
-                <div><h4 className="text-sm font-bold text-slate-800">Cash counters</h4><p className="text-xs text-slate-500">Main drawer is the default. Add another only for a separate physical counter.</p></div>
-                <div className="flex flex-wrap gap-2">{drawers.data?.map((drawer: CashDrawer) => <span key={drawer.id} className={`badge badge-lg ${drawer.activeSessionId ? 'badge-success' : 'badge-ghost'}`}>{drawer.name}{drawer.isDefault ? ' · Main' : ''}</span>)}</div>
-                <div className="flex gap-2"><input className="input input-sm input-bordered flex-1" value={drawerName} onChange={e => setDrawerName(e.target.value)} placeholder="Counter 2" /><button className="btn btn-sm btn-primary" disabled={!drawerName.trim() || drawerAction.isPending} onClick={() => drawerAction.mutate(() => window.storePos.cloud.createCashDrawer(drawerName))}>Add counter</button></div>
+                <div><h4 className="text-sm font-bold text-slate-800">ငွေရှင်းကောင်တာများ</h4><p className="text-xs text-slate-500">Main drawer သည် မူလဖြစ်သည်။ သီးခြားကောင်တာရှိမှသာ အသစ်ထည့်ပါ။</p></div>
+                <div className="flex flex-wrap gap-2">{drawers.data?.map((drawer: CashDrawer) => <span key={drawer.id} className={`badge badge-lg ${drawer.activeSessionId ? 'badge-success' : 'badge-ghost'}`}>{drawer.name}{drawer.isDefault ? ' · ပင်မ' : ''}</span>)}</div>
+                <div className="flex gap-2"><input className="input input-sm input-bordered flex-1" value={drawerName} onChange={e => setDrawerName(e.target.value)} placeholder="ကောင်တာ ၂" /><button className="btn btn-sm btn-primary" disabled={!drawerName.trim() || drawerAction.isPending} onClick={() => drawerAction.mutate(() => window.storePos.cloud.createCashDrawer(drawerName))}>ကောင်တာထည့်မည်</button></div>
               </div>
               <div className="flex justify-between items-center">
                 <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider text-xs">
-                  Connected POS Terminals ({devices.data?.length ?? 1})
+                  ချိတ်ဆက်ထားသော POS စက်များ ({devices.data?.length ?? 1})
                 </h4>
                 {devices.isFetching && (
-                  <span className="text-xs text-slate-400">Refreshing devices…</span>
+                  <span className="text-xs text-slate-400">စက်စာရင်း ပြန်ဖတ်နေသည်…</span>
                 )}
               </div>
 
@@ -273,15 +273,16 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
                           <p className="text-sm font-semibold text-slate-800">{device.name}</p>
                           {device.isCurrent && (
                             <span className="badge badge-xs badge-primary font-medium">
-                              This Device
+                              ဤစက်
                             </span>
                           )}
                         </div>
                         <p className="text-xs text-slate-500 font-mono">
-                          ID: {device.deviceCode} · Role:{" "}
+                          စက်အမှတ် — {device.deviceCode} · တာဝန် —{" "}
                           <span className="capitalize">{device.role}</span>
                         </p>
-                        <div className="mt-2 flex flex-wrap gap-1"><button className={`btn btn-xs ${!device.assignedCashDrawerId ? 'btn-primary' : 'btn-ghost'}`} onClick={() => drawerAction.mutate(() => window.storePos.cloud.assignCashDrawer(device.id, null, Boolean(device.canManageCashDrawer)))}>Unassigned</button>{drawers.data?.map((drawer: CashDrawer) => <button key={drawer.id} className={`btn btn-xs ${device.assignedCashDrawerId === drawer.id ? 'btn-primary' : 'btn-ghost'}`} onClick={() => drawerAction.mutate(() => window.storePos.cloud.assignCashDrawer(device.id, drawer.id, Boolean(device.canManageCashDrawer)))}>{drawer.name}</button>)}</div>
+                        <div className="mt-2 flex flex-wrap gap-1"><button className={`btn btn-xs ${!device.assignedCashDrawerId ? 'btn-primary' : 'btn-ghost'}`} onClick={() => drawerAction.mutate(() => window.storePos.cloud.assignCashDrawer(device.id, null, Boolean(device.canManageCashDrawer)))}>မသတ်မှတ်ရသေး</button>{drawers.data?.map((drawer: CashDrawer) => <button key={drawer.id} className={`btn btn-xs ${device.assignedCashDrawerId === drawer.id ? 'btn-primary' : 'btn-ghost'}`} onClick={() => drawerAction.mutate(() => window.storePos.cloud.assignCashDrawer(device.id, drawer.id, Boolean(device.canManageCashDrawer)))}>{drawer.name}</button>)}</div>
+                        {device.role === 'cashier' ? <label className="mt-2 flex items-center gap-2 text-xs text-slate-600"><input type="checkbox" className="toggle toggle-xs toggle-primary" checked={Boolean(device.canManageCashDrawer)} onChange={() => drawerAction.mutate(() => window.storePos.cloud.assignCashDrawer(device.id, device.assignedCashDrawerId ?? null, !device.canManageCashDrawer))} />ဤငွေစာရင်းပုံးကို ဖွင့်/ပိတ်နိုင်သည်</label> : <p className="mt-1 text-[11px] text-slate-400">ဆိုင်ပိုင်ရှင်သည် သတ်မှတ်ထားသောပုံးကို အမြဲဖွင့်/ပိတ်နိုင်သည်။</p>}
                       </div>
                     </div>
 
@@ -301,7 +302,7 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
                           }
                         }}
                       >
-                        Revoke
+                        စက်ဖြုတ်မည်
                       </button>
                     )}
                   </div>
@@ -312,9 +313,9 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
             {/* Sign Out / Disconnect */}
             <div className="pt-4 border-t border-slate-200 flex justify-between items-center">
               <div>
-                <p className="text-xs font-semibold text-slate-700">Sign Out of Cloud Account</p>
+                <p className="text-xs font-semibold text-slate-700">Cloud အကောင့်မှ ထွက်မည်</p>
                 <p className="text-[11px] text-slate-500">
-                  Local offline sales and inventory data will remain intact on this machine.
+                  ဤစက်ရှိ အော့ဖ်လိုင်းအရောင်းနှင့် ကုန်လက်ကျန်ဒေတာများ မပျက်ပါ။
                 </p>
               </div>
               <button
@@ -330,7 +331,7 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
                   }
                 }}
               >
-                Disconnect Cloud
+                Cloud မှဖြုတ်မည်
               </button>
             </div>
           </>
@@ -348,9 +349,9 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
                 <div className="flex rounded-lg bg-slate-100 p-1 mb-4">
                   {(
                     [
-                      { key: "login", label: "Owner Sign In" },
-                      { key: "register", label: "Create Shop" },
-                      { key: "join", label: "Join as Cashier" },
+                      { key: "login", label: "ဆိုင်ပိုင်ရှင် ဝင်မည်" },
+                      { key: "register", label: "ဆိုင်အသစ်ဖွင့်မည်" },
+                      { key: "join", label: "ငွေကိုင်အဖြစ် ချိတ်မည်" },
                     ] as const
                   ).map((t) => (
                     <button
@@ -371,13 +372,13 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
                 <div className="form-control">
                   <label className="label py-1">
                     <span className="label-text text-xs font-bold text-slate-600">
-                      Terminal Name
+                      စက်အမည်
                     </span>
                   </label>
                   <input
                     className="input input-bordered input-sm"
                     required
-                    placeholder="e.g. Counter 1, Front Desk"
+                    placeholder="ဥပမာ ကောင်တာ ၁၊ ရှေ့ကောင်တာ"
                     value={deviceName}
                     onChange={(e) => setDeviceName(e.target.value)}
                   />
@@ -387,13 +388,13 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
                   <div className="form-control">
                     <label className="label py-1">
                       <span className="label-text text-xs font-bold text-slate-600">
-                        Shop Name
+                        ဆိုင်အမည်
                       </span>
                     </label>
                     <input
                       className="input input-bordered input-sm"
                       required
-                      placeholder="e.g. City Supermarket"
+                      placeholder="ဥပမာ မြို့မစူပါမားကတ်"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                     />
@@ -404,7 +405,7 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
                   <div className="form-control">
                     <label className="label py-1">
                       <span className="label-text text-xs font-bold text-slate-600">
-                        6-Digit Pairing Code
+                        ၆ လုံးပါ ချိတ်ဆက်ကုဒ်
                       </span>
                     </label>
                     <input
@@ -417,7 +418,7 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
                     />
                     <label className="label py-0.5">
                       <span className="label-text-alt text-slate-400">
-                        Ask your shop owner to generate a pairing code from their POS Settings
+                        ဆိုင်ပိုင်ရှင်အား POS ဆက်တင်မှ ချိတ်ဆက်ကုဒ် ဖန်တီးပေးရန် ပြောပါ
                       </span>
                     </label>
                   </div>
@@ -426,7 +427,7 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
                     <div className="form-control">
                       <label className="label py-1">
                         <span className="label-text text-xs font-bold text-slate-600">
-                          Shop Phone Number
+                          ဆိုင်ဖုန်းနံပါတ်
                         </span>
                       </label>
                       <input
@@ -441,7 +442,7 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
                     <div className="form-control">
                       <label className="label py-1">
                         <span className="label-text text-xs font-bold text-slate-600">
-                          Password
+                          စကားဝှက်
                         </span>
                       </label>
                       <input
@@ -459,7 +460,7 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
                 {/* Advanced Server URL Accordion */}
                 <details className="text-xs text-slate-500 pt-2">
                   <summary className="cursor-pointer hover:text-slate-700 font-medium">
-                    ⚙️ Cloud Server URL (Advanced)
+                    ⚙️ Cloud Server URL (အဆင့်မြင့်)
                   </summary>
                   <div className="form-control mt-2">
                     <input
@@ -475,7 +476,7 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
                   className="btn btn-primary w-full mt-4"
                   disabled={action.isPending}
                 >
-                  {action.isPending ? "Connecting…" : mode === "login" ? "Sign In & Sync" : mode === "register" ? "Create Shop Account" : "Join Shop"}
+                  {action.isPending ? "ချိတ်ဆက်နေသည်…" : mode === "login" ? "အကောင့်ဝင်ပြီး Sync လုပ်မည်" : mode === "register" ? "ဆိုင်အကောင့် ဖန်တီးမည်" : "ဆိုင်သို့ ချိတ်ဆက်မည်"}
                 </button>
               </form>
             )}
@@ -484,10 +485,10 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
             {limit && (
               <div className="max-w-md mx-auto p-4 rounded-xl bg-amber-50 border border-amber-200 space-y-3">
                 <h4 className="font-bold text-amber-900 text-sm">
-                  Device Limit Reached ({limit.limit})
+                  ချိတ်ဆက်နိုင်သော စက်အရေအတွက် ပြည့်သွားပါပြီ ({limit.limit})
                 </h4>
                 <p className="text-xs text-amber-800">
-                  Your current subscription allows up to {limit.limit} active devices. Select an existing device to disconnect and replace:
+                  လက်ရှိအစီအစဉ်ဖြင့် အများဆုံး {limit.limit} လုံး ချိတ်နိုင်သည်။ ဖြုတ်ပြီး အစားထိုးမည့်စက်ကို ရွေးပါ —
                 </p>
                 <div className="space-y-2">
                   {limit.devices.map((device) => (
@@ -506,7 +507,7 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
                       }
                     >
                       <span>{device.name}</span>
-                      <span className="text-xs font-normal text-slate-500">Replace</span>
+                      <span className="text-xs font-normal text-slate-500">အစားထိုးမည်</span>
                     </button>
                   ))}
                 </div>
@@ -515,7 +516,7 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
                   disabled={action.isPending}
                   onClick={() => setLimit(null)}
                 >
-                  Cancel
+                  မလုပ်တော့ပါ
                 </button>
               </div>
             )}
@@ -523,9 +524,9 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
             {/* A reset terminal can explicitly revive a signed-out identity. */}
             {inactive && (
               <div className="max-w-md mx-auto p-4 rounded-xl bg-blue-50 border border-blue-200 space-y-3">
-                <h4 className="font-bold text-blue-950 text-sm">Reuse a previous device</h4>
+                <h4 className="font-bold text-blue-950 text-sm">ယခင်စက်တစ်လုံးကို ပြန်သုံးမည်</h4>
                 <p className="text-xs text-blue-900">
-                  These devices are already signed out. Reusing one keeps its receipt namespace; active devices are never shown here.
+                  ဤစက်များသည် အကောင့်မှထွက်ထားပြီးဖြစ်သည်။ ပြန်သုံးလျှင် မူလဘောင်ချာအမှတ်စဉ်ကို ဆက်သုံးပါမည်။
                 </p>
                 <div className="space-y-2">
                   {inactive.devices.map((device) => (
@@ -538,7 +539,7 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
                       }))}
                     >
                       <span>{device.name} · {device.deviceCode}</span>
-                      <span className="text-xs font-normal text-slate-500">Reuse</span>
+                      <span className="text-xs font-normal text-slate-500">ပြန်သုံးမည်</span>
                     </button>
                   ))}
                 </div>
@@ -548,8 +549,8 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
                   onClick={() => action.mutate(() => window.storePos.cloud.completeLogin({
                     loginTicket: inactive.loginTicket, createNew: true, deviceName,
                   }))}
-                >Use as a new device</button> : null}
-                <button className="btn btn-xs btn-ghost w-full" disabled={action.isPending} onClick={() => setInactive(null)}>Cancel</button>
+                >စက်အသစ်အဖြစ် သုံးမည်</button> : null}
+                <button className="btn btn-xs btn-ghost w-full" disabled={action.isPending} onClick={() => setInactive(null)}>မလုပ်တော့ပါ</button>
               </div>
             )}
 
@@ -557,12 +558,12 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
             {switching && (
               <div className="max-w-md mx-auto p-4 rounded-xl bg-amber-50 border border-amber-200 space-y-3">
                 <h4 className="font-bold text-amber-900 text-sm">
-                  Switch Shop Data to {switching.shopName}?
+                  ဆိုင်ဒေတာ ပြောင်းမည် — {switching.shopName}?
                 </h4>
                 <p className="text-xs text-amber-800">
                   {switching.unsyncedCount > 0
                     ? `This terminal has ${switching.unsyncedCount} unsynced Shop A changes. Sync Shop A before switching.`
-                    : 'Shop A is fully synced. Its local copy will be cleared before Shop B is downloaded.'}
+                    : 'ယခင်ဆိုင်၏ ဒေတာအားလုံး Sync ပြီးပါပြီ။ ဆိုင်အသစ်၏ဒေတာ မယူမီ ယခင်စက်တွင်းဒေတာကို ရှင်းပါမည်။'}
                 </p>
                 <div className="flex gap-2">
                   <button
@@ -575,7 +576,7 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
                       })
                     }
                   >
-                    Switch to this shop
+                    ဤဆိုင်သို့ ပြောင်းမည်
                   </button>
                   <button
                     className="btn btn-sm btn-ghost"
@@ -587,7 +588,7 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
                       })
                     }
                   >
-                    Cancel
+                    မလုပ်တော့ပါ
                   </button>
                 </div>
               </div>

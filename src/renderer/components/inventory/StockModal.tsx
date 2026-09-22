@@ -52,7 +52,7 @@ export function StockModal({
     <div className="modal modal-open">
       <div className="modal-box max-w-2xl">
         <h3 className="font-bold text-lg mb-4">
-          Stock movement · {product.name}
+          လက်ကျန်အပြောင်းအလဲ · {product.name}
         </h3>
         <button
           type="button"
@@ -63,7 +63,7 @@ export function StockModal({
         </button>
 
         <p className="mb-4">
-          Current stock:{" "}
+          လက်ရှိလက်ကျန် —{" "}
           <span className="font-bold">
             {product.quantity} {product.unit}
           </span>
@@ -78,29 +78,29 @@ export function StockModal({
         >
           <div className="form-control">
             <label className="label">
-              <span className="label-text">Action</span>
+              <span className="label-text">လုပ်ဆောင်ချက်</span>
             </label>
             <select
               className="select select-bordered"
               value={action}
               onChange={(event) => setAction(event.target.value as StockAction)}
             >
-              <option value="stock_in">Receive stock</option>
-              <option value="waste">Waste / damaged</option>
-              <option value="adjustment">Stock count</option>
+              <option value="stock_in">ကုန်ဝင်လက်ခံမည်</option>
+              <option value="waste">ပျက်စီး / ဆုံးရှုံး</option>
+              <option value="adjustment">မြေပြင်လက်ကျန် ရေတွက်မည်</option>
             </select>
           </div>
 
           <div className="form-control">
             <label className="label">
               <span className="label-text">
-                {action === "adjustment" ? "Counted stock" : "Quantity"}
+                {action === "adjustment" ? "ရေတွက်ရရှိသော လက်ကျန်" : "အရေအတွက်"}
               </span>
             </label>
             <input
               required
               inputMode="decimal"
-              placeholder={action === "adjustment" ? "Actual quantity on shelf" : "5"}
+              placeholder={action === "adjustment" ? "မြေပြင်တွင် အမှန်တကယ်ရှိသောအရေအတွက်" : "5"}
               value={quantity}
               onChange={(event) => setQuantity(event.target.value)}
               className="input input-bordered"
@@ -111,14 +111,14 @@ export function StockModal({
             <>
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text">Supplier</span>
+                  <span className="label-text">ပေးသွင်းသူ</span>
                 </label>
                 <select
                   className="select select-bordered"
                   value={supplierId}
                   onChange={(event) => setSupplierId(event.target.value)}
                 >
-                  <option value="">No supplier recorded</option>
+                  <option value="">ပေးသွင်းသူ မသတ်မှတ်ထားပါ</option>
                   {suppliers.map((supplier) => (
                     <option key={supplier.id} value={supplier.id}>
                       {supplier.name}
@@ -129,11 +129,11 @@ export function StockModal({
 
               {showCost && <div className="form-control">
                 <label className="label">
-                  <span className="label-text">Unit cost</span>
+                  <span className="label-text">တစ်ယူနစ်ဝယ်ရင်းစျေး</span>
                 </label>
                 <input
                   inputMode="decimal"
-                  placeholder="Optional; leave blank if unknown"
+                  placeholder="မသိလျှင် မဖြည့်ဘဲထားနိုင်သည်"
                   value={unitCost}
                   onChange={(event) => setUnitCost(event.target.value)}
                   className="input input-bordered"
@@ -142,10 +142,10 @@ export function StockModal({
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text">Delivery reference</span>
+                  <span className="label-text">ပို့ဆောင်မှုရည်ညွှန်းအမှတ်</span>
                 </label>
                 <input
-                  placeholder="Invoice or delivery number"
+                  placeholder="အဝယ်ဘောင်ချာ သို့မဟုတ် ပို့ဆောင်မှုအမှတ်"
                   value={referenceNumber}
                   onChange={(event) => setReferenceNumber(event.target.value)}
                   className="input input-bordered"
@@ -155,7 +155,7 @@ export function StockModal({
           ) : (
             <div className="form-control">
               <label className="label">
-                <span className="label-text">Reason</span>
+                <span className="label-text">အကြောင်းပြချက်</span>
               </label>
               <input
                 value={reason}
@@ -167,14 +167,14 @@ export function StockModal({
 
           <div className="modal-action">
             <button type="button" className="btn btn-ghost" onClick={onClose}>
-              Cancel
+              မလုပ်တော့ပါ
             </button>
             <button
               type="submit"
               className="btn btn-primary"
               disabled={saving || !quantity}
             >
-              {saving ? "Saving…" : "Save movement"}
+              {saving ? "သိမ်းနေသည်…" : "လက်ကျန်အပြောင်းအလဲ သိမ်းမည်"}
             </button>
           </div>
         </form>

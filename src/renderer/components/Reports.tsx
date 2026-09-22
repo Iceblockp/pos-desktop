@@ -55,9 +55,9 @@ export function Reports({
       <section className="h-full flex flex-col items-center justify-center text-center p-8">
         <div className="bg-white rounded-2xl shadow-xl max-w-md p-8 border border-slate-200">
           <div className="text-4xl mb-3">🔒</div>
-          <h2 className="text-xl font-bold text-slate-800 mb-2">Owner Access Required</h2>
+          <h2 className="text-xl font-bold text-slate-800 mb-2">ဆိုင်ပိုင်ရှင်သာ ကြည့်နိုင်သည်</h2>
           <p className="text-xs text-slate-500 mb-4">
-            Sales analytics, profit margins, and audit activity logs are restricted to the store owner.
+            အရောင်းခွဲခြမ်းစိတ်ဖြာမှု၊ အမြတ်နှင့် စစ်ဆေးမှတ်တမ်းများကို ဆိုင်ပိုင်ရှင်သာ ကြည့်နိုင်ပါသည်။
           </p>
         </div>
       </section>
@@ -70,10 +70,10 @@ export function Reports({
       <header className="flex flex-wrap items-center justify-between gap-3 bg-white px-5 py-3 rounded-xl border border-gray-200/80 shadow-sm shrink-0">
         <div>
           <h1 className="text-xl font-bold text-gray-900 leading-tight">
-            📈 Reports & Financial Analytics
+            📈 အစီရင်ခံစာနှင့် ငွေစာရင်းခွဲခြမ်းစိတ်ဖြာမှု
           </h1>
           <p className="text-xs text-gray-500">
-            Review sales volume, gross profitability, payment tender intake, and audit logs
+            အရောင်း၊ အမြတ်၊ ပေးချေငွေနှင့် စစ်ဆေးမှတ်တမ်းများကို ကြည့်ပါ
           </p>
         </div>
 
@@ -87,7 +87,7 @@ export function Reports({
                 : "text-gray-500 hover:text-gray-900"
             }`}
           >
-            📊 Sales Analytics
+            📊 အရောင်းခွဲခြမ်းစိတ်ဖြာမှု
           </button>
           <button
             onClick={() => setTab("activity")}
@@ -97,7 +97,7 @@ export function Reports({
                 : "text-gray-500 hover:text-gray-900"
             }`}
           >
-            📋 Audit Activity Log
+            📋 စစ်ဆေးမှတ်တမ်း
           </button>
         </div>
       </header>
@@ -142,7 +142,7 @@ function ReportsTab() {
       {/* Top Filter Bar */}
       <div className="flex justify-between items-center bg-white px-5 py-2.5 rounded-xl border border-gray-200/80 shadow-sm shrink-0">
         <div className="text-xs text-slate-500">
-          Analytics period: <strong className="text-slate-800">{periodLabel}</strong>
+          အစီရင်ခံကာလ — <strong className="text-slate-800">{periodLabel}</strong>
         </div>
         <PeriodFilter />
       </div>
@@ -152,7 +152,7 @@ function ReportsTab() {
         <div className="bg-white p-3.5 rounded-xl border border-gray-200/80 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-              Net Sales Volume
+              အသားတင်အရောင်း
             </p>
             <p className="text-xl font-black text-blue-700 mt-0.5">
               {money.format(data?.netSales ?? 0)}
@@ -165,7 +165,7 @@ function ReportsTab() {
           <div>
             <div className="flex items-center gap-1.5">
               <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-                Gross Profit
+                အကြမ်းအမြတ်
               </p>
               {grossMargin > 0 && (
                 <span className="badge badge-xs badge-success text-white font-mono font-bold">
@@ -183,7 +183,7 @@ function ReportsTab() {
         <div className="bg-white p-3.5 rounded-xl border border-gray-200/80 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-              Petty Expenses
+              အသုံးစရိတ်
             </p>
             <p className="text-xl font-black text-amber-600 mt-0.5">
               {money.format(data?.expenses ?? 0)}
@@ -195,7 +195,7 @@ function ReportsTab() {
         <div className="bg-white p-3.5 rounded-xl border border-gray-200/80 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-              Net Profit
+              အသားတင်အမြတ်
             </p>
             <p
               className={`text-xl font-black mt-0.5 ${
@@ -215,23 +215,23 @@ function ReportsTab() {
         <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm p-4 flex flex-col justify-between">
           <div>
             <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider pb-2 border-b border-slate-100 flex items-center gap-1.5">
-              <span>🧾</span> Financial Sales Breakdown
+              <span>🧾</span> အရောင်းငွေစာရင်း အသေးစိတ်
             </h3>
             <div className="divide-y divide-slate-50 mt-1">
-              <ReportRow label="Gross Sales" value={data?.grossSales ?? 0} />
-              <ReportRow label="Returns & Refunds" value={-(data?.refunds ?? 0)} negative />
-              <ReportRow label="Promotional Discounts" value={-(data?.discounts ?? 0)} negative />
+              <ReportRow label="အကြမ်းအရောင်း" value={data?.grossSales ?? 0} />
+              <ReportRow label="ပြန်သွင်းနှင့် ပြန်အမ်းငွေ" value={-(data?.refunds ?? 0)} negative />
+              <ReportRow label="လျှော့စျေး" value={-(data?.discounts ?? 0)} negative />
               <div className="pt-1">
-                <ReportRow label="Net Sales Volume" value={data?.netSales ?? 0} bold />
+                <ReportRow label="အသားတင်အရောင်း" value={data?.netSales ?? 0} bold />
               </div>
-              <ReportRow label="Cost of Goods Sold (COGS)" value={-(data?.cost ?? 0)} negative />
+              <ReportRow label="ရောင်းကုန်ဝယ်ရင်းတန်ဖိုး" value={-(data?.cost ?? 0)} negative />
               <div className="pt-1">
-                <ReportRow label="Gross Profit" value={data?.grossProfit ?? 0} bold />
+                <ReportRow label="အကြမ်းအမြတ်" value={data?.grossProfit ?? 0} bold />
               </div>
             </div>
           </div>
           <div className="mt-3 pt-3 border-t border-slate-100 flex justify-between items-center text-xs">
-            <span className="text-slate-500">Gross Margin:</span>
+            <span className="text-slate-500">အကြမ်းအမြတ်ရာခိုင်နှုန်း —</span>
             <span className="font-bold text-emerald-700 font-mono">{grossMargin}%</span>
           </div>
         </div>
@@ -239,7 +239,7 @@ function ReportsTab() {
         {/* Top Products */}
         <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm p-4 flex flex-col">
           <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider pb-2 border-b border-slate-100 flex items-center gap-1.5">
-            <span>🏆</span> Top Selling Products
+            <span>🏆</span> အရောင်းရဆုံးကုန်ပစ္စည်းများ
           </h3>
           <div className="flex-1 overflow-y-auto space-y-2 mt-2 max-h-64">
             {analytics.data?.topProducts.length ? (
@@ -267,7 +267,7 @@ function ReportsTab() {
                         {item.productName}
                       </p>
                       <p className="text-[11px] text-slate-400">
-                        {item.quantity} units sold
+                        {item.quantity} ယူနစ် ရောင်းပြီး
                       </p>
                     </div>
                   </div>
@@ -278,7 +278,7 @@ function ReportsTab() {
               ))
             ) : (
               <p className="text-center py-10 text-slate-400 text-xs">
-                No product sales recorded in this period.
+                ဤကာလအတွင်း ကုန်ပစ္စည်းအရောင်း မရှိပါ။
               </p>
             )}
           </div>
@@ -287,7 +287,7 @@ function ReportsTab() {
         {/* Sales by Category */}
         <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm p-4 flex flex-col">
           <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider pb-2 border-b border-slate-100 flex items-center gap-1.5">
-            <span>🏷️</span> Sales by Category
+            <span>🏷️</span> အမျိုးအစားအလိုက် အရောင်း
           </h3>
           <div className="flex-1 overflow-y-auto space-y-1.5 mt-2 max-h-64">
             {analytics.data?.categories.length ? (
@@ -300,7 +300,7 @@ function ReportsTab() {
               ))
             ) : (
               <p className="text-center py-10 text-slate-400 text-xs">
-                No category sales recorded in this period.
+                ဤကာလအတွင်း အမျိုးအစားအလိုက် အရောင်းမရှိပါ။
               </p>
             )}
           </div>
@@ -310,7 +310,7 @@ function ReportsTab() {
         <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm p-4 flex flex-col justify-between">
           <div>
             <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider pb-2 border-b border-slate-100 flex items-center gap-1.5">
-              <span>💳</span> Payment Tender Intake
+              <span>💳</span> ပေးချေမှုနည်းလမ်းအလိုက် လက်ခံငွေ
             </h3>
             <div className="divide-y divide-slate-50 mt-1">
               {data?.payments.length ? (
@@ -323,14 +323,14 @@ function ReportsTab() {
                 ))
               ) : (
                 <p className="text-center py-6 text-slate-400 text-xs">
-                  No payment records in this period.
+                  ဤကာလအတွင်း ပေးချေမှုမှတ်တမ်း မရှိပါ။
                 </p>
               )}
             </div>
           </div>
           <div className="pt-3 border-t border-slate-100 mt-2">
             <ReportRow
-              label="Outstanding Customer Debt"
+              label="ဖောက်သည်ထံမှ ရရန်ကျန်အကြွေး"
               value={data?.outstandingDebt ?? 0}
               negative={Boolean((data?.outstandingDebt ?? 0) > 0)}
               bold
@@ -341,7 +341,7 @@ function ReportsTab() {
         {/* Slow-moving Products */}
         <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm p-4 flex flex-col">
           <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider pb-2 border-b border-slate-100 flex items-center gap-1.5">
-            <span>🐢</span> Slow-Moving Products
+            <span>🐢</span> အရောင်းနှေးသော ကုန်ပစ္စည်းများ
           </h3>
           <div className="flex-1 overflow-y-auto space-y-1.5 mt-2 max-h-64">
             {analytics.data?.slowMoving.length ? (
@@ -354,13 +354,13 @@ function ReportsTab() {
                     {item.productName}
                   </span>
                   <span className="text-slate-400 text-[11px]">
-                    {item.quantity} units sold
+                    {item.quantity} ယူနစ် ရောင်းပြီး
                   </span>
                 </div>
               ))
             ) : (
               <p className="text-center py-10 text-slate-400 text-xs">
-                No slow-moving inventory detected.
+                အရောင်းနှေးသော ကုန်ပစ္စည်း မတွေ့ပါ။
               </p>
             )}
           </div>
@@ -369,7 +369,7 @@ function ReportsTab() {
         {/* Cash Register Shifts Audit */}
         <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm p-4 flex flex-col">
           <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider pb-2 border-b border-slate-100 flex items-center gap-1.5">
-            <span>🔒</span> Shift Reconciliations
+            <span>🔒</span> အဆိုင်းစာရင်းကိုက်မှု
           </h3>
           <div className="flex-1 overflow-y-auto space-y-2 mt-2 max-h-64">
             {sessions.data?.length ? (
@@ -388,7 +388,7 @@ function ReportsTab() {
                           }`}
                         />
                         <p className="font-semibold text-slate-800">
-                          {session.status === "open" ? "Active Shift" : "Closed Shift"}
+                          {session.status === "open" ? "ဖွင့်ထားသော အဆိုင်း" : "ပိတ်ပြီးသော အဆိုင်း"}
                         </p>
                       </div>
                       <p className="text-[11px] text-slate-400 mt-0.5">
@@ -399,7 +399,7 @@ function ReportsTab() {
                     <div className="text-right">
                       {session.difference == null ? (
                         <span className="font-mono text-slate-600">
-                          Float: {money.format(session.openingFloat)}
+                          အဖွင့်ငွေ — {money.format(session.openingFloat)}
                         </span>
                       ) : (
                         <span
@@ -411,7 +411,7 @@ function ReportsTab() {
                                 : "badge-error text-white"
                           }`}
                         >
-                          {diff === 0 ? "Balanced" : diff > 0 ? `+${money.format(diff)}` : money.format(diff)}
+                          {diff === 0 ? "စာရင်းကိုက်သည်" : diff > 0 ? `+${money.format(diff)}` : money.format(diff)}
                         </span>
                       )}
                     </div>
@@ -420,7 +420,7 @@ function ReportsTab() {
               })
             ) : (
               <p className="text-center py-10 text-slate-400 text-xs">
-                No past cash sessions recorded.
+                ယခင်ငွေစာရင်းမှတ်တမ်း မရှိပါ။
               </p>
             )}
           </div>
@@ -441,10 +441,10 @@ function ActivityTab() {
   });
 
   const labels = {
-    discount: "Discount",
-    return: "Return",
-    adjustment: "Stock Adjustment",
-    waste: "Damaged / Waste",
+    discount: "လျှော့စျေး",
+    return: "ပြန်သွင်း",
+    adjustment: "လက်ကျန်ပြင်ဆင်မှု",
+    waste: "ပျက်စီး / ဆုံးရှုံး",
   };
 
   const filtered =
@@ -459,11 +459,11 @@ function ActivityTab() {
         <div className="flex flex-wrap gap-1.5">
           {(
             [
-              { key: "all", label: "All Audit Actions" },
-              { key: "discount", label: "Discounts" },
-              { key: "return", label: "Returns" },
-              { key: "adjustment", label: "Adjustments" },
-              { key: "waste", label: "Waste / Loss" },
+              { key: "all", label: "လုပ်ဆောင်မှုအားလုံး" },
+              { key: "discount", label: "လျှော့စျေး" },
+              { key: "return", label: "ပြန်သွင်းမှု" },
+              { key: "adjustment", label: "လက်ကျန်ပြင်ဆင်မှု" },
+              { key: "waste", label: "ပျက်စီး / ဆုံးရှုံး" },
             ] as const
           ).map((item) => (
             <button
@@ -481,7 +481,7 @@ function ActivityTab() {
         </div>
 
         <span className="text-xs text-slate-400">
-          Showing {filtered.length} log entries
+          ပြထားသည် {filtered.length} မှတ်တမ်း
         </span>
       </div>
 
@@ -515,7 +515,7 @@ function ActivityTab() {
                         </span>
                       </div>
                       <p className="text-slate-600 mt-0.5">
-                        {entry.detail || "No details provided"}
+                        {entry.detail || "အသေးစိတ် မရှိပါ"}
                       </p>
                     </div>
                   </div>
@@ -537,7 +537,7 @@ function ActivityTab() {
                       </span>
                     )}
                     <p className="text-[10px] text-slate-400 mt-0.5">
-                      Actor: {entry.actor || "System"}
+                      လုပ်ဆောင်သူ — {entry.actor || "စနစ်"}
                     </p>
                   </div>
                 </div>
@@ -546,9 +546,9 @@ function ActivityTab() {
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center py-16 text-center text-slate-400">
               <span className="text-4xl mb-2">📋</span>
-              <p className="text-sm font-semibold text-slate-700">No activity logged</p>
+              <p className="text-sm font-semibold text-slate-700">လုပ်ဆောင်မှုမှတ်တမ်း မရှိပါ</p>
               <p className="text-xs text-slate-400 mt-0.5">
-                Audit logs for discounts, refunds, and stock alterations will appear here.
+                လျှော့စျေး၊ ပြန်အမ်းမှုနှင့် လက်ကျန်ပြင်ဆင်မှုများကို ဤနေရာတွင် ပြပါမည်။
               </p>
             </div>
           )}

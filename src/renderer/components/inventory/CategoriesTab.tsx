@@ -27,8 +27,9 @@ export function CategoriesTab({ notify }: { notify: (s: string) => void }) {
       setCategoryName("");
       setEditingId("");
       void client.invalidateQueries({ queryKey: ["categories"] });
-      void client.invalidateQueries({ queryKey: ["products"] });
-      notify("Category saved");
+      void client.invalidateQueries({ queryKey: ["product-page"] });
+      void client.invalidateQueries({ queryKey: ["category-product-counts"] });
+      notify("အမျိုးအစား သိမ်းပြီးပါပြီ");
     },
     onError: (e: Error) => notify(e.message),
   });
@@ -37,8 +38,9 @@ export function CategoriesTab({ notify }: { notify: (s: string) => void }) {
     mutationFn: (id: string) => window.storePos.pos.removeCategory(id),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["categories"] });
-      void client.invalidateQueries({ queryKey: ["products"] });
-      notify("Category removed. Associated products are now uncategorized.");
+      void client.invalidateQueries({ queryKey: ["product-page"] });
+      void client.invalidateQueries({ queryKey: ["category-product-counts"] });
+      notify("အမျိုးအစား ဖယ်ရှားပြီးပါပြီ။ သက်ဆိုင်ရာကုန်ပစ္စည်းများကို အမျိုးအစားမရှိအဖြစ် ထားပါမည်။");
     },
     onError: (e: Error) => notify(e.message),
   });
@@ -64,15 +66,15 @@ export function CategoriesTab({ notify }: { notify: (s: string) => void }) {
       <header className="flex items-center justify-between bg-white px-5 py-3 rounded-xl border border-gray-200/80 shadow-sm">
         <div>
           <h2 className="text-lg font-bold text-gray-900 leading-tight">
-            Product Categories
+            ကုန်ပစ္စည်းအမျိုးအစားများ
           </h2>
           <p className="text-xs text-gray-500">
-            Organize catalog items into departments and groups
+            ကုန်ပစ္စည်းများကို အုပ်စုအလိုက် စီမံပါ
           </p>
         </div>
         {owner && (
           <button onClick={openNew} className="btn btn-primary btn-sm">
-            + Add category
+            + အမျိုးအစားအသစ်
           </button>
         )}
       </header>
@@ -84,21 +86,21 @@ export function CategoriesTab({ notify }: { notify: (s: string) => void }) {
             <table className="table table-sm w-full">
               <thead className="bg-gray-50 text-gray-600 sticky top-0 z-10 border-b border-gray-200">
                 <tr>
-                  <th className="py-3 px-4">Category Name</th>
-                  <th className="py-3 px-4 text-center">Products Count</th>
-                  {owner && <th className="py-3 px-4 text-right">Actions</th>}
+                  <th className="py-3 px-4">အမျိုးအစားအမည်</th>
+                  <th className="py-3 px-4 text-center">ကုန်ပစ္စည်းအရေအတွက်</th>
+                  {owner && <th className="py-3 px-4 text-right">လုပ်ဆောင်ချက်</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 text-xs">
                 {/* Uncategorized Pseudo-Row */}
                 <tr className="bg-gray-50/50 text-gray-600">
                   <td className="py-3 px-4 font-medium italic">
-                    Uncategorized Products
+                    အမျိုးအစားမရှိသော ကုန်ပစ္စည်းများ
                   </td>
                   <td className="py-3 px-4 text-center font-bold">
                     {uncategorizedCount}
                   </td>
-                  {owner && <td className="py-3 px-4 text-right text-gray-400 italic">Default system group</td>}
+                  {owner && <td className="py-3 px-4 text-right text-gray-400 italic">စနစ်၏ မူလအုပ်စု</td>}
                 </tr>
 
                 {categories.data?.map((cat) => (
@@ -108,7 +110,7 @@ export function CategoriesTab({ notify }: { notify: (s: string) => void }) {
                     </td>
                     <td className="py-3 px-4 text-center">
                       <span className="badge badge-ghost badge-sm font-mono">
-                        {categoryCounts[cat.id] ?? 0} items
+                        {categoryCounts[cat.id] ?? 0} ခု
                       </span>
                     </td>
                     {owner && (
@@ -118,7 +120,7 @@ export function CategoriesTab({ notify }: { notify: (s: string) => void }) {
                             className="btn btn-xs btn-ghost text-gray-700 hover:bg-gray-100"
                             onClick={() => openEdit(cat.id, cat.name)}
                           >
-                            Edit
+                            ပြင်မည်
                           </button>
                           <button
                             className="btn btn-xs btn-ghost text-rose-600 hover:bg-rose-50"
@@ -126,14 +128,14 @@ export function CategoriesTab({ notify }: { notify: (s: string) => void }) {
                             onClick={() => {
                               if (
                                 window.confirm(
-                                  `Remove category "${cat.name}"? Products in it will become Uncategorized.`,
+                                  `အမျိုးအစား “${cat.name}” ကို ဖယ်ရှားမည်လား။ သက်ဆိုင်ရာကုန်ပစ္စည်းများကို အမျိုးအစားမရှိအဖြစ် ပြောင်းပါမည်။`,
                                 )
                               ) {
                                 removeCategory.mutate(cat.id);
                               }
                             }}
                           >
-                            Delete
+                            ဖျက်မည်
                           </button>
                         </div>
                       </td>
@@ -147,7 +149,7 @@ export function CategoriesTab({ notify }: { notify: (s: string) => void }) {
                       colSpan={owner ? 3 : 2}
                       className="text-center py-12 text-gray-400"
                     >
-                      No custom categories created yet. Click "+ Add category" above.
+                      စိတ်ကြိုက်အမျိုးအစား မရှိသေးပါ။ အပေါ်မှ “အမျိုးအစားအသစ်” ကိုနှိပ်ပါ။
                     </td>
                   </tr>
                 )}
@@ -162,7 +164,7 @@ export function CategoriesTab({ notify }: { notify: (s: string) => void }) {
         <div className="modal modal-open">
           <div className="modal-box max-w-sm">
             <h3 className="font-bold text-lg mb-3">
-              {modal === "edit" ? "Edit Category" : "New Category"}
+              {modal === "edit" ? "အမျိုးအစားပြင်မည်" : "အမျိုးအစားအသစ်"}
             </h3>
             <form
               onSubmit={(e) => {
@@ -175,14 +177,14 @@ export function CategoriesTab({ notify }: { notify: (s: string) => void }) {
               <div className="form-control">
                 <label className="label py-1">
                   <span className="label-text text-xs font-semibold">
-                    Category Name *
+                    အမျိုးအစားအမည် *
                   </span>
                 </label>
                 <input
                   required
                   value={categoryName}
                   onChange={(e) => setCategoryName(e.target.value)}
-                  placeholder="e.g. Beverages, Bakery, Electronics"
+                  placeholder="ဥပမာ အချိုရည်၊ မုန့်၊ လျှပ်စစ်ပစ္စည်း"
                   className="input input-bordered input-sm w-full"
                   autoFocus
                 />
@@ -194,14 +196,14 @@ export function CategoriesTab({ notify }: { notify: (s: string) => void }) {
                   className="btn btn-sm btn-ghost"
                   onClick={() => setModal(null)}
                 >
-                  Cancel
+                  မလုပ်တော့ပါ
                 </button>
                 <button
                   type="submit"
                   className="btn btn-sm btn-primary"
                   disabled={saveCategory.isPending || !categoryName.trim()}
                 >
-                  {saveCategory.isPending ? "Saving..." : "Save Category"}
+                  {saveCategory.isPending ? "သိမ်းနေသည်…" : "အမျိုးအစားသိမ်းမည်"}
                 </button>
               </div>
             </form>

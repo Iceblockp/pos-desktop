@@ -96,9 +96,11 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
     onSuccess: (saved) => {
       setModal(null);
       setCustomerForm(emptyCustomer);
-      void client.invalidateQueries({ queryKey: ["customers"] });
+      void client.invalidateQueries({ queryKey: ["customer-page"] });
+      void client.invalidateQueries({ queryKey: ["counter-customer-page"] });
+      void client.invalidateQueries({ queryKey: ["customer-summary"] });
       void client.invalidateQueries({ queryKey: ["debtors"] });
-      notify(`Customer ${saved.name} saved`, "success");
+      notify(`ဖောက်သည် ${saved.name} ကို သိမ်းပြီးပါပြီ`, "success");
     },
     onError: (e: Error) => notify(e.message, "error"),
   });
@@ -109,9 +111,11 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
       setModal(null);
       setSelectedCustomerId("");
       setCustomerForm(emptyCustomer);
-      void client.invalidateQueries({ queryKey: ["customers"] });
+      void client.invalidateQueries({ queryKey: ["customer-page"] });
+      void client.invalidateQueries({ queryKey: ["counter-customer-page"] });
+      void client.invalidateQueries({ queryKey: ["customer-summary"] });
       void client.invalidateQueries({ queryKey: ["debtors"] });
-      notify("Customer profile removed; sales history preserved.", "success");
+      notify("ဖောက်သည်အချက်အလက် ဖယ်ရှားပြီး အရောင်းမှတ်တမ်းကို ဆက်လက်သိမ်းထားပါသည်။", "success");
     },
     onError: (e: Error) => notify(e.message, "error"),
   });
@@ -134,7 +138,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
       setCollectNote("");
       setModal(null);
       void client.invalidateQueries();
-      notify("Debt payment recorded successfully", "success");
+      notify("အကြွေးဆပ်ငွေ မှတ်တမ်းတင်ပြီးပါပြီ", "success");
     },
     onError: (e: Error) => notify(e.message, "error"),
   });
@@ -161,7 +165,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
 
   const openCollect = (customerId = "") => {
     if (!capabilities.debt) {
-      notify("Customer debt requires an active plan and Debt feature", "error");
+      notify("ဖောက်သည်အကြွေး အသုံးပြုရန် သက်တမ်းရှိအစီအစဉ်နှင့် အကြွေးလုပ်ဆောင်ချက် လိုအပ်သည်", "error");
       return;
     }
     setSelectedCustomerId(customerId);
@@ -185,10 +189,10 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
       <header className="flex flex-wrap items-center justify-between gap-3 bg-white px-5 py-3 rounded-xl border border-gray-200/80 shadow-sm">
         <div>
           <h1 className="text-xl font-bold text-gray-900 leading-tight">
-            👥 Customers & Credit Accounts
+            👥 ဖောက်သည်နှင့် အကြွေးစာရင်း
           </h1>
           <p className="text-xs text-gray-500">
-            Manage customer directories, track outstanding balances, and collect debt
+            ဖောက်သည်စာရင်း၊ ကျန်အကြွေးနှင့် အကြွေးဆပ်မှုများကို စီမံပါ
           </p>
         </div>
 
@@ -198,17 +202,17 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
               onClick={() => {
                 window.storePos.printer
                   .printReceipt(debtReceipt)
-                  .then(() => notify("Debt receipt sent to printer", "success"))
+                  .then(() => notify("အကြွေးဆပ်ဘောင်ချာကို ပရင်တာသို့ ပို့ပြီးပါပြီ", "success"))
                   .catch((e) => notify(e.message, "error"));
               }}
               className="btn btn-outline btn-xs font-semibold gap-1 text-emerald-700 hover:bg-emerald-50"
             >
               <span>🖨️</span>
-              <span>Reprint Last Debt Receipt</span>
+              <span>နောက်ဆုံးအကြွေးဆပ်ဘောင်ချာ ပြန်ထုတ်မည်</span>
             </button>
           )}
           <button onClick={openNewCustomer} className="btn btn-primary btn-sm">
-            + New Customer
+            + ဖောက်သည်အသစ်
           </button>
         </div>
       </header>
@@ -225,7 +229,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
         >
           <div>
             <p className={`text-[11px] font-semibold uppercase tracking-wider ${filter === "all" ? "text-slate-300" : "text-gray-400"}`}>
-              Total Customers
+              ဖောက်သည်စုစုပေါင်း
             </p>
             <p className="text-xl font-black mt-0.5">{totalCustomerCount}</p>
           </div>
@@ -242,7 +246,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
         >
           <div>
             <p className={`text-[11px] font-semibold uppercase tracking-wider ${filter === "debt" ? "text-amber-100" : "text-amber-600"}`}>
-              Active Debtors
+              အကြွေးကျန်သူ
             </p>
             <p className="text-xl font-black mt-0.5">{debtorCount}</p>
           </div>
@@ -252,7 +256,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
         <div className="bg-white p-3.5 rounded-xl border border-gray-200/80 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-[11px] font-semibold text-rose-600 uppercase tracking-wider">
-              Total Outstanding Receivables
+              ရရန်ကျန်ငွေစုစုပေါင်း
             </p>
             <p className="text-xl font-black text-rose-700 mt-0.5">
               {money.format(totalReceivables)}
@@ -272,7 +276,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
             </span>
             <input
               type="text"
-              placeholder="Search customer by name, phone, or note..."
+              placeholder="အမည်၊ ဖုန်း သို့မဟုတ် မှတ်ချက်ဖြင့်ရှာပါ…"
               value={search}
               onChange={(e) => { setSearch(e.target.value); setOffset(0); }}
               className="input input-bordered input-sm w-full pl-9 text-xs bg-gray-50 focus:bg-white"
@@ -290,7 +294,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
                   : "btn-ghost bg-gray-100 hover:bg-gray-200 text-gray-700"
               }`}
             >
-              All ({totalCustomerCount})
+              အားလုံး ({totalCustomerCount})
             </button>
             <button
               onClick={() => { setFilter("debt"); setOffset(0); }}
@@ -300,7 +304,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
                   : "btn-ghost bg-gray-100 hover:bg-gray-200 text-gray-700"
               }`}
             >
-              With Debt ({debtorCount})
+              အကြွေးရှိ ({debtorCount})
             </button>
             <button
               onClick={() => { setFilter("clear"); setOffset(0); }}
@@ -310,7 +314,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
                   : "btn-ghost bg-gray-100 hover:bg-gray-200 text-gray-700"
               }`}
             >
-              Zero Balance ({totalCustomerCount - debtorCount})
+              အကြွေးမရှိ ({totalCustomerCount - debtorCount})
             </button>
           </div>
         </div>
@@ -324,11 +328,11 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
               <table className="table table-sm w-full">
                 <thead className="bg-gray-50 text-gray-600 sticky top-0 z-10 border-b border-gray-200">
                   <tr>
-                    <th className="py-3 px-4 font-semibold">Customer Name</th>
-                    <th className="py-3 px-4 font-semibold">Phone Number</th>
-                    <th className="py-3 px-4 font-semibold">Outstanding Debt</th>
-                    <th className="py-3 px-4 font-semibold">Note / Remarks</th>
-                    <th className="py-3 px-4 font-semibold text-right">Actions</th>
+                    <th className="py-3 px-4 font-semibold">ဖောက်သည်အမည်</th>
+                    <th className="py-3 px-4 font-semibold">ဖုန်းနံပါတ်</th>
+                    <th className="py-3 px-4 font-semibold">ကျန်အကြွေး</th>
+                    <th className="py-3 px-4 font-semibold">မှတ်ချက်</th>
+                    <th className="py-3 px-4 font-semibold text-right">လုပ်ဆောင်ချက်</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 text-xs">
@@ -352,11 +356,11 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
                         <td className="py-3 px-4">
                           {hasDebt ? (
                             <span className="badge badge-warning badge-sm font-bold text-amber-900 bg-amber-100 border-amber-300">
-                              Owes {money.format(debt)}
+                              အကြွေး {money.format(debt)}
                             </span>
                           ) : (
                             <span className="badge badge-ghost badge-sm text-gray-400 bg-gray-50">
-                              Clear (0.00)
+                              ရှင်းပြီး (၀)
                             </span>
                           )}
                         </td>
@@ -370,20 +374,20 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
                                 className="btn btn-xs btn-warning font-bold shadow-xs"
                                 onClick={() => openCollect(c.id)}
                               >
-                                Collect
+                                အကြွေးဆပ်
                               </button>
                             )}
                             <button
                               className="btn btn-xs btn-outline border-gray-300 text-gray-700 hover:bg-gray-100"
                               onClick={() => openLedger(c.id)}
                             >
-                              Ledger
+                              စာရင်းကြည့်
                             </button>
                             <button
                               className="btn btn-xs btn-ghost text-gray-600 hover:bg-gray-100"
                               onClick={() => openEditCustomer(c)}
                             >
-                              Edit
+                              ပြင်မည်
                             </button>
                             {!hasDebt && (
                               <button
@@ -391,7 +395,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
                                 onClick={() => {
                                   if (
                                     window.confirm(
-                                      `Remove customer "${c.name}"? Past sales will remain preserved.`,
+                                      `ဖောက်သည် “${c.name}” ကို ဖယ်ရှားမည်လား။ ယခင်အရောင်းမှတ်တမ်းများ မပျက်ပါ။`,
                                     )
                                   ) {
                                     removeCustomer.mutate(c.id);
@@ -409,18 +413,18 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
                 </tbody>
               </table>
               <div className="flex items-center justify-between px-4 py-3 text-xs text-gray-500 border-t border-gray-100">
-                <span>Showing {offset + 1}-{offset + filteredCustomers.length} of {customers.data?.total ?? 0}</span>
-                <div className="flex gap-2"><button className="btn btn-xs" disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 100))}>Previous</button><button className="btn btn-xs" disabled={offset + filteredCustomers.length >= (customers.data?.total ?? 0)} onClick={() => setOffset(offset + 100)}>Next 100</button></div>
+                <span>ပြထားသည် {offset + 1}-{offset + filteredCustomers.length} / {customers.data?.total ?? 0}</span>
+                <div className="flex gap-2"><button className="btn btn-xs" disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 100))}>ရှေ့သို့</button><button className="btn btn-xs" disabled={offset + filteredCustomers.length >= (customers.data?.total ?? 0)} onClick={() => setOffset(offset + 100)}>နောက် ၁၀၀ ခု</button></div>
               </div>
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center flex-1 py-16 text-gray-400">
               <span className="text-4xl mb-2">👥</span>
               <p className="text-base font-bold text-gray-700">
-                No customers found
+                ဖောက်သည် မတွေ့ပါ
               </p>
               <p className="text-xs text-gray-500 mt-1">
-                Try searching a different name/phone or clear your filters.
+                အခြားအမည်/ဖုန်းဖြင့်ရှာပါ သို့မဟုတ် စစ်ထုတ်မှုကိုရှင်းပါ။
               </p>
             </div>
           )}
@@ -433,7 +437,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
           <div className="modal-box max-w-md p-6">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <h3 className="font-bold text-lg text-gray-900">
-                {customerForm.id ? "Edit Customer" : "New Customer"}
+                {customerForm.id ? "ဖောက်သည်ပြင်မည်" : "ဖောက်သည်အသစ်"}
               </h3>
               <button
                 className="btn btn-sm btn-circle btn-ghost"
@@ -454,7 +458,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
               <div className="form-control">
                 <label className="label py-1">
                   <span className="label-text text-xs font-semibold">
-                    Customer Name *
+                    ဖောက်သည်အမည် *
                   </span>
                 </label>
                 <input
@@ -463,7 +467,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
                   onChange={(e) =>
                     setCustomerForm({ ...customerForm, name: e.target.value })
                   }
-                  placeholder="e.g. Daw Khin, Ko Aung"
+                  placeholder="ဥပမာ ဒေါ်ခင်၊ ကိုအောင်"
                   className="input input-bordered input-sm w-full"
                   autoFocus
                 />
@@ -472,7 +476,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
               <div className="form-control">
                 <label className="label py-1">
                   <span className="label-text text-xs font-semibold">
-                    Phone Number
+                    ဖုန်းနံပါတ်
                   </span>
                 </label>
                 <input
@@ -489,7 +493,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
               <div className="form-control">
                 <label className="label py-1">
                   <span className="label-text text-xs font-semibold">
-                    Note / Address
+                    မှတ်ချက် / လိပ်စာ
                   </span>
                 </label>
                 <textarea
@@ -497,7 +501,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
                   onChange={(e) =>
                     setCustomerForm({ ...customerForm, note: e.target.value })
                   }
-                  placeholder="Optional delivery address or remarks..."
+                  placeholder="ပို့ရန်လိပ်စာ သို့မဟုတ် မှတ်ချက်…"
                   className="textarea textarea-bordered textarea-sm w-full"
                   rows={2}
                 />
@@ -509,14 +513,14 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
                   className="btn btn-sm btn-ghost"
                   onClick={() => setModal(null)}
                 >
-                  Cancel
+                  မလုပ်တော့ပါ
                 </button>
                 <button
                   type="submit"
                   className="btn btn-sm btn-primary"
                   disabled={saveCustomer.isPending || !customerForm.name.trim()}
                 >
-                  {saveCustomer.isPending ? "Saving..." : "Save Customer"}
+                  {saveCustomer.isPending ? "သိမ်းနေသည်…" : "ဖောက်သည်သိမ်းမည်"}
                 </button>
               </div>
             </form>
@@ -534,7 +538,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
                   {activeCustomer.name}
                 </h3>
                 <p className="text-xs text-gray-500 font-mono">
-                  {activeCustomer.phone || "No phone recorded"}
+                  {activeCustomer.phone || "ဖုန်းနံပါတ် မမှတ်ထားပါ"}
                   {activeCustomer.note ? ` · ${activeCustomer.note}` : ""}
                 </p>
               </div>
@@ -550,7 +554,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
             <div className="my-4 p-4 rounded-xl border flex items-center justify-between bg-gray-50">
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Current Account Balance
+                  လက်ရှိအကြွေးလက်ကျန်
                 </p>
                 <p
                   className={`text-2xl font-black mt-0.5 ${
@@ -568,7 +572,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
                   onClick={() => openCollect(activeCustomer.id)}
                   className="btn btn-warning btn-sm font-bold shadow-sm"
                 >
-                  Collect Debt Payment
+                  အကြွေးဆပ်ငွေ လက်ခံမည်
                 </button>
               )}
             </div>
@@ -577,7 +581,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
             <div className="flex-1 overflow-y-auto space-y-3">
               <div>
                 <h4 className="font-bold text-xs text-gray-700 uppercase tracking-wider mb-2">
-                  Unpaid / Credit Sales
+                  မရှင်းရသေးသော အကြွေးအရောင်း
                 </h4>
                 {ledger.data?.sales.length ? (
                   <div className="space-y-1.5">
@@ -596,10 +600,10 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
                         </div>
                         <div className="text-right">
                           <p className="font-bold text-gray-800">
-                            Total: {money.format(sale.total)}
+                            စုစုပေါင်း — {money.format(sale.total)}
                           </p>
                           <p className="text-[11px] font-semibold text-amber-700">
-                            Remaining: {money.format(sale.remaining)}
+                            ကျန်ငွေ — {money.format(sale.remaining)}
                           </p>
                         </div>
                       </div>
@@ -607,7 +611,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
                   </div>
                 ) : (
                   <p className="text-xs text-gray-400 italic py-2">
-                    No credit sales on record.
+                    အကြွေးအရောင်းမှတ်တမ်း မရှိပါ။
                   </p>
                 )}
               </div>
@@ -616,7 +620,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
 
               <div>
                 <h4 className="font-bold text-xs text-gray-700 uppercase tracking-wider mb-2">
-                  Repayment History
+                  အကြွေးဆပ်မှတ်တမ်း
                 </h4>
                 {ledger.data?.payments.length ? (
                   <div className="space-y-1.5">
@@ -627,7 +631,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
                       >
                         <div>
                           <p className="font-bold text-emerald-900">
-                            Repayment ({p.methodName})
+                            ဆပ်ငွေ ({p.methodName})
                           </p>
                           <p className="text-[11px] text-gray-500">
                             {new Date(p.paidAt).toLocaleString()}
@@ -642,7 +646,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
                   </div>
                 ) : (
                   <p className="text-xs text-gray-400 italic py-2">
-                    No debt repayments recorded yet.
+                    အကြွေးဆပ်မှတ်တမ်း မရှိသေးပါ။
                   </p>
                 )}
               </div>
@@ -654,14 +658,14 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
                 className="btn btn-sm btn-ghost"
                 onClick={() => setModal(null)}
               >
-                Close
+                ပိတ်မည်
               </button>
               <button
                 type="button"
                 className="btn btn-sm btn-outline"
                 onClick={() => openEditCustomer(activeCustomer)}
               >
-                Edit Profile
+                အချက်အလက်ပြင်မည်
               </button>
             </div>
           </div>
@@ -674,7 +678,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
           <div className="modal-box max-w-md p-6">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <h3 className="font-bold text-lg text-gray-900">
-                Collect Debt Payment
+                အကြွေးဆပ်ငွေ လက်ခံမည်
               </h3>
               <button
                 className="btn btn-sm btn-circle btn-ghost"
@@ -696,7 +700,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
               <div className="form-control">
                 <label className="label py-1">
                   <span className="label-text text-xs font-semibold">
-                    Debtor Customer *
+                    အကြွေးရှင်ဖောက်သည် *
                   </span>
                 </label>
                 <select
@@ -710,10 +714,10 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
                   }}
                   className="select select-bordered select-sm w-full font-medium"
                 >
-                  <option value="">Select a customer...</option>
+                  <option value="">ဖောက်သည်ရွေးပါ…</option>
                   {debtors.data?.map((d) => (
                     <option key={d.id} value={d.id}>
-                      {d.name} (Owes {money.format(d.debt)})
+                      {d.name} (အကြွေး {money.format(d.debt)})
                     </option>
                   ))}
                 </select>
@@ -723,7 +727,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
               {selectedCustomerId && (debtMap.get(selectedCustomerId) ?? 0) > 0 && (
                 <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-between text-xs">
                   <div>
-                    <span className="text-amber-800">Total Owed:</span>{" "}
+                    <span className="text-amber-800">အကြွေးစုစုပေါင်း —</span>{" "}
                     <strong className="text-amber-900">
                       {money.format(debtMap.get(selectedCustomerId) ?? 0)}
                     </strong>
@@ -737,7 +741,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
                     }
                     className="btn btn-xs btn-outline border-amber-400 text-amber-900 hover:bg-amber-200"
                   >
-                    Pay Full Balance
+                    အပြည့်ဆပ်မည်
                   </button>
                 </div>
               )}
@@ -746,7 +750,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
               <div className="form-control">
                 <label className="label py-1">
                   <span className="label-text text-xs font-semibold">
-                    Amount Received *
+                    လက်ခံရရှိငွေ *
                   </span>
                 </label>
                 <input
@@ -767,7 +771,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
               <div className="form-control">
                 <label className="label py-1">
                   <span className="label-text text-xs font-semibold">
-                    Payment Method *
+                    ပေးချေမှုနည်းလမ်း *
                   </span>
                 </label>
                 <select
@@ -789,7 +793,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
               <div className="form-control">
                 <label className="label py-1">
                   <span className="label-text text-xs font-semibold">
-                    Allocation
+                    ငွေခွဲသတ်မှတ်မှု
                   </span>
                 </label>
                 <select
@@ -797,12 +801,12 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
                   value={collectSaleId}
                   onChange={(e) => setCollectSaleId(e.target.value)}
                 >
-                  <option value="">Apply to oldest unpaid debt first</option>
+                  <option value="">အဟောင်းဆုံးအကြွေးမှ စဆပ်မည်</option>
                   {ledger.data?.sales
                     .filter((s) => s.remaining > 0)
                     .map((s) => (
                       <option key={s.id} value={s.id}>
-                        Voucher #{s.voucherId} ({money.format(s.remaining)} remaining)
+                        ဘောင်ချာ #{s.voucherId} ({money.format(s.remaining)} ကျန်)
                       </option>
                     ))}
                 </select>
@@ -812,13 +816,13 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
               <div className="form-control">
                 <label className="label py-1">
                   <span className="label-text text-xs font-semibold">
-                    Note / Receipt Remarks
+                    ဘောင်ချာမှတ်ချက်
                   </span>
                 </label>
                 <input
                   value={collectNote}
                   onChange={(e) => setCollectNote(e.target.value)}
-                  placeholder="e.g. Settled via cash / transfer reference"
+                  placeholder="ဥပမာ ငွေသားဖြင့်ဆပ်သည် / လွှဲငွေအမှတ်"
                   className="input input-bordered input-sm w-full"
                 />
               </div>
@@ -829,7 +833,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
                   className="btn btn-sm btn-ghost"
                   onClick={() => setModal(null)}
                 >
-                  Cancel
+                  မလုပ်တော့ပါ
                 </button>
                 <button
                   type="submit"
@@ -841,7 +845,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
                   }
                 >
                   {collectDebt.isPending
-                    ? "Recording..."
+                    ? "မှတ်တမ်းတင်နေသည်…"
                     : `Confirm Payment · ${money.format(Number(collectAmount) || 0)}`}
                 </button>
               </div>

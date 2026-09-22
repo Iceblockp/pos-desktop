@@ -42,7 +42,7 @@ export function PaymentSlips({
       setNote("");
       setShowForm(false);
       void client.invalidateQueries({ queryKey: ["payment-slips"] });
-      notify("Payment slip submitted for review");
+      notify("ငွေပေးချေမှုအထောက်အထားကို စစ်ဆေးရန် ပေးပို့ပြီးပါပြီ");
     },
     onError: (e: Error) => notify(e.message),
   });
@@ -50,11 +50,11 @@ export function PaymentSlips({
   const statusBadge = (status: string) => {
     switch (status) {
       case "approved":
-        return <span className="badge badge-success text-white badge-sm">Approved</span>;
+        return <span className="badge badge-success text-white badge-sm">အတည်ပြုပြီး</span>;
       case "rejected":
-        return <span className="badge badge-error text-white badge-sm">Rejected</span>;
+        return <span className="badge badge-error text-white badge-sm">ငြင်းပယ်ထားသည်</span>;
       default:
-        return <span className="badge badge-warning badge-sm">Under Review</span>;
+        return <span className="badge badge-warning badge-sm">စစ်ဆေးနေသည်</span>;
     }
   };
 
@@ -62,9 +62,9 @@ export function PaymentSlips({
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
       <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
         <div>
-          <h3 className="font-semibold text-slate-800 text-base">Bank / Mobile Wallet Transfers</h3>
+          <h3 className="font-semibold text-slate-800 text-base">ဘဏ် / Mobile Wallet ငွေလွှဲခြင်း</h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Transfer the package amount, then send its transaction ID. We activate the plan after review.
+            အစီအစဉ်ကျသင့်ငွေကို လွှဲပြီး ငွေလွှဲအမှတ်ပေးပို့ပါ။ စစ်ဆေးပြီးနောက် အစီအစဉ်ဖွင့်ပေးပါမည်။
           </p>
         </div>
         <button
@@ -72,7 +72,7 @@ export function PaymentSlips({
           onClick={() => setShowForm(!showForm)}
           className="btn btn-sm btn-outline"
         >
-          {showForm ? "Cancel" : "+ Submit Payment Slip"}
+          {showForm ? "မလုပ်တော့ပါ" : "+ ငွေပေးချေမှုအထောက်အထား ပို့မည်"}
         </button>
       </div>
 
@@ -87,7 +87,7 @@ export function PaymentSlips({
           >
             <div className="rounded-xl bg-sky-50 border border-sky-200 p-3 flex flex-wrap items-center justify-between gap-2">
               <div>
-                <p className="text-xs text-slate-500">Selected package</p>
+                <p className="text-xs text-slate-500">ရွေးထားသောအစီအစဉ်</p>
                 <p className="font-bold text-slate-800 capitalize">{tier.replace("_", " ")} · {packageLabel}</p>
               </div>
               <p className="text-xl font-black text-sky-700">{formatPlanPrice(packageAmount)}</p>
@@ -95,7 +95,7 @@ export function PaymentSlips({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="form-control">
                 <label className="label py-1">
-                  <span className="label-text text-xs font-bold text-slate-600">Payment Channel</span>
+                  <span className="label-text text-xs font-bold text-slate-600">ငွေပေးချေမှုနည်းလမ်း</span>
                 </label>
                 <select
                   className="select select-bordered select-sm"
@@ -105,13 +105,13 @@ export function PaymentSlips({
                   <option value="kbzpay">KBZPay</option>
                   <option value="wavepay">WavePay</option>
                   <option value="ayapay">AYAPay</option>
-                  <option value="bank">Bank Transfer (KBZ, CB, AYA)</option>
+                  <option value="bank">ဘဏ်ငွေလွှဲ (KBZ၊ CB၊ AYA)</option>
                 </select>
               </div>
 
               <div className="form-control">
                 <label className="label py-1">
-                  <span className="label-text text-xs font-bold text-slate-600">Transaction Ref / ID</span>
+                  <span className="label-text text-xs font-bold text-slate-600">ငွေလွှဲအမှတ် / ID</span>
                 </label>
                 <input
                   className="input input-bordered input-sm font-mono"
@@ -127,12 +127,12 @@ export function PaymentSlips({
 
             <div className="form-control">
               <label className="label py-1">
-                <span className="label-text text-xs font-bold text-slate-600">Notes / Remarks (Optional)</span>
+                <span className="label-text text-xs font-bold text-slate-600">မှတ်ချက် (မဖြည့်လည်းရ)</span>
               </label>
               <input
                 className="input input-bordered input-sm"
                 maxLength={500}
-                placeholder="Account name, phone number or remarks"
+                placeholder="အကောင့်အမည်၊ ဖုန်းနံပါတ် သို့မဟုတ် မှတ်ချက်"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
               />
@@ -144,14 +144,14 @@ export function PaymentSlips({
                 className="btn btn-sm btn-ghost"
                 onClick={() => setShowForm(false)}
               >
-                Cancel
+                မလုပ်တော့ပါ
               </button>
               <button
                 type="submit"
                 className="btn btn-sm btn-primary"
                 disabled={submit.isPending}
               >
-                {submit.isPending ? "Submitting…" : "Submit Slip"}
+                {submit.isPending ? "ပေးပို့နေသည်…" : "အထောက်အထားပို့မည်"}
               </button>
             </div>
           </form>
@@ -160,7 +160,7 @@ export function PaymentSlips({
         {/* History of Submitted Slips */}
         <div>
           <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-            Submitted Payment History
+            ပေးပို့ထားသော ငွေပေးချေမှုမှတ်တမ်း
           </h4>
 
           {slips.error && (
@@ -182,11 +182,11 @@ export function PaymentSlips({
                       {statusBadge(slip.status)}
                     </div>
                     <p className="text-slate-500">
-                      Tier: <strong className="capitalize">{slip.tier.replace("_", " ")}</strong> · Amount:{" "}
+                      အစီအစဉ် — <strong className="capitalize">{slip.tier.replace("_", " ")}</strong> · ငွေပမာဏ —{" "}
                       <strong>{formatPlanPrice(Number(slip.amount))}</strong>
                     </p>
                     {slip.reviewNote && (
-                      <p className="text-indigo-600 italic">Reviewer note: {slip.reviewNote}</p>
+                      <p className="text-indigo-600 italic">စစ်ဆေးသူမှတ်ချက် — {slip.reviewNote}</p>
                     )}
                   </div>
                   <span className="text-[11px] text-slate-400">
@@ -197,7 +197,7 @@ export function PaymentSlips({
             </div>
           ) : (
             <div className="text-center py-6 text-slate-400 text-xs bg-slate-50 rounded-xl border border-dashed border-slate-200">
-              No manual payment slips submitted yet.
+              ငွေပေးချေမှုအထောက်အထား မပေးပို့ရသေးပါ။
             </div>
           )}
         </div>

@@ -27,20 +27,20 @@ export function FeatureSettings({ notify }: { notify: (message: string) => void 
   }[] = [
     {
       key: "debt",
-      title: "Customer Credit & Debt",
-      description: "Allow selling on account and tracking customer receivables ledger",
+      title: "ဖောက်သည်အကြွေး",
+      description: "အကြွေးရောင်းပြီး ဖောက်သည်ထံမှ ရရန်ကျန်ငွေကို မှတ်တမ်းတင်နိုင်သည်",
       icon: "👥",
     },
     {
       key: "expenses",
-      title: "Petty Cash & Expenses",
-      description: "Record daily shop cash payouts and operational expenses in cash drawer",
+      title: "အသုံးစရိတ်",
+      description: "နေ့စဉ်ဆိုင်အသုံးစရိတ်နှင့် ငွေသားထုတ်သုံးမှုများကို မှတ်တမ်းတင်နိုင်သည်",
       icon: "💸",
     },
     {
       key: "dayEnd",
-      title: "Day-End Register Reconciliation",
-      description: "Require shift open floats and end-of-day cash reconciliation",
+      title: "နေ့ကုန်ငွေစာရင်းကိုက်ညှိမှု",
+      description: "အဆိုင်းအဖွင့်ငွေနှင့် နေ့ကုန်ငွေစာရင်းကိုက်ညှိမှု ပြုလုပ်နိုင်သည်",
       icon: "🔒",
     },
   ];
@@ -51,9 +51,9 @@ export function FeatureSettings({ notify }: { notify: (message: string) => void 
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
       <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
         <div>
-          <h3 className="font-semibold text-slate-800 text-base">Shop Features</h3>
+          <h3 className="font-semibold text-slate-800 text-base">ဆိုင်လုပ်ဆောင်ချက်များ</h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Turn operational capabilities on or off based on your store workflow
+            ဆိုင်အသုံးပြုပုံအလိုက် လုပ်ဆောင်ချက်များကို ဖွင့်/ပိတ်နိုင်သည်
           </p>
         </div>
         <span
@@ -61,7 +61,7 @@ export function FeatureSettings({ notify }: { notify: (message: string) => void 
             isPaid ? "badge-success text-white" : "badge-neutral"
           }`}
         >
-          {value.effectivePlan} Plan
+          {value.effectivePlan} အစီအစဉ်
         </span>
       </div>
 
@@ -69,7 +69,7 @@ export function FeatureSettings({ notify }: { notify: (message: string) => void 
         <div className="p-4 bg-amber-50 border-b border-amber-100 flex items-center gap-3">
           <span className="text-amber-600 text-lg">💡</span>
           <p className="text-xs text-amber-800">
-            Customer debt, expenses, and register shifts require an active <strong>Offline Plus</strong> or <strong>Cloud Pro</strong> plan.
+            ဖောက်သည်အကြွေး၊ အသုံးစရိတ်နှင့် ငွေစာရင်းပုံးအဆိုင်းအတွက် <strong>Offline Plus</strong> သို့မဟုတ် <strong>Cloud Pro</strong> အစီအစဉ် လိုအပ်သည်။
           </p>
         </div>
       )}

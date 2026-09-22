@@ -195,6 +195,37 @@ const SYNC_BY_NAME = new Map(SYNC_TABLES.map((table) => [table.name, table]));
 const now = () => new Date().toISOString();
 
 /**
+ * Outstanding credit per receipt. General repayments (payments with no
+ * saleId) clear a customer's oldest debt first, matching the mobile app.
+ */
+const OUTSTANDING_SALES_CTE = `
+  WITH direct_payments AS (
+    SELECT saleId, SUM(amount) AS paid FROM payments
+     WHERE deletedAt IS NULL AND saleId IS NOT NULL GROUP BY saleId
+  ), payment_pools AS (
+    SELECT customerId, SUM(amount) AS paid FROM payments
+     WHERE deletedAt IS NULL AND saleId IS NULL AND customerId IS NOT NULL GROUP BY customerId
+  ), credit_sales AS (
+    SELECT s.id, s.customerId, s.soldAt,
+      MAX(0, s.total - COALESCE(d.paid, 0)) AS base,
+      COALESCE(p.paid, 0) AS pool
+     FROM sales s
+     LEFT JOIN direct_payments d ON d.saleId = s.id
+     LEFT JOIN payment_pools p ON p.customerId = s.customerId
+     WHERE s.deletedAt IS NULL AND s.customerId IS NOT NULL
+  ), running_credit AS (
+    SELECT *, SUM(base) OVER (
+      PARTITION BY customerId ORDER BY soldAt, id
+      ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    ) AS cumulative
+    FROM credit_sales
+  ), unpaid_sales AS (
+    SELECT id,
+      MAX(0, cumulative - pool) - MAX(0, cumulative - base - pool) AS outstanding
+    FROM running_credit
+  )`;
+
+/**
  * SQLite is kept exclusively in Electron's main process. Every row uses the
  * same envelope as mobile: dirty means not yet accepted by the API; serverSeq
  * is the server's monotonic pull cursor.
@@ -232,7 +263,7 @@ export class PosDatabase {
       CREATE TABLE IF NOT EXISTS sales (id TEXT PRIMARY KEY, updatedAt TEXT NOT NULL, deletedAt TEXT, serverSeq INTEGER NOT NULL DEFAULT 0, dirty INTEGER NOT NULL DEFAULT 0, voucherId TEXT NOT NULL UNIQUE, type TEXT NOT NULL DEFAULT 'sale', originalSaleId TEXT, subtotal REAL NOT NULL DEFAULT 0, discount REAL NOT NULL DEFAULT 0, total REAL NOT NULL DEFAULT 0, customerId TEXT, cashSessionId TEXT, staffName TEXT, note TEXT, soldAt TEXT NOT NULL, priceLevelId TEXT);
       CREATE TABLE IF NOT EXISTS sale_items (id TEXT PRIMARY KEY, updatedAt TEXT NOT NULL, deletedAt TEXT, serverSeq INTEGER NOT NULL DEFAULT 0, dirty INTEGER NOT NULL DEFAULT 0, saleId TEXT NOT NULL, productId TEXT NOT NULL, productName TEXT NOT NULL, unit TEXT NOT NULL DEFAULT 'pcs', quantity REAL NOT NULL DEFAULT 0, unitPrice REAL NOT NULL DEFAULT 0, unitCost REAL NOT NULL DEFAULT 0, discount REAL NOT NULL DEFAULT 0, subtotal REAL NOT NULL DEFAULT 0);
       CREATE TABLE IF NOT EXISTS stock_movements (id TEXT PRIMARY KEY, updatedAt TEXT NOT NULL, deletedAt TEXT, serverSeq INTEGER NOT NULL DEFAULT 0, dirty INTEGER NOT NULL DEFAULT 0, productId TEXT NOT NULL, type TEXT NOT NULL, quantityDelta REAL NOT NULL DEFAULT 0, unitCost REAL, referenceId TEXT, supplierId TEXT, referenceNumber TEXT, reason TEXT, occurredAt TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS payments (id TEXT PRIMARY KEY, updatedAt TEXT NOT NULL, deletedAt TEXT, serverSeq INTEGER NOT NULL DEFAULT 0, dirty INTEGER NOT NULL DEFAULT 0, saleId TEXT, customerId TEXT, amount REAL NOT NULL DEFAULT 0, methodCode TEXT NOT NULL, methodName TEXT NOT NULL, tendered REAL, cashSessionId TEXT, note TEXT, paidAt TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS payments (id TEXT PRIMARY KEY, updatedAt TEXT NOT NULL, deletedAt TEXT, serverSeq INTEGER NOT NULL DEFAULT 0, dirty INTEGER NOT NULL DEFAULT 0, saleId TEXT, customerId TEXT, amount REAL NOT NULL DEFAULT 0, methodCode TEXT NOT NULL, methodName TEXT, tendered REAL, cashSessionId TEXT, note TEXT, paidAt TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS expenses (id TEXT PRIMARY KEY, updatedAt TEXT NOT NULL, deletedAt TEXT, serverSeq INTEGER NOT NULL DEFAULT 0, dirty INTEGER NOT NULL DEFAULT 0, categoryId TEXT, name TEXT NOT NULL, amount REAL NOT NULL DEFAULT 0, note TEXT, attachmentUrl TEXT, cashSessionId TEXT, spentAt TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS activity_log (id TEXT PRIMARY KEY, updatedAt TEXT NOT NULL, deletedAt TEXT, serverSeq INTEGER NOT NULL DEFAULT 0, dirty INTEGER NOT NULL DEFAULT 0, actor TEXT, action TEXT NOT NULL, detail TEXT, amount REAL, referenceId TEXT, occurredAt TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS sync_state (key TEXT PRIMARY KEY, value TEXT);
@@ -243,6 +274,22 @@ export class PosDatabase {
     // IF NOT EXISTS, so keep this additive repair deliberately idempotent.
     for (const column of ['drawerId TEXT', 'openedByDeviceId TEXT', 'closedByDeviceId TEXT']) {
       try { this.sqlite.exec(`ALTER TABLE cash_sessions ADD COLUMN ${column}`); } catch { /* already present */ }
+    }
+    // Mobile migrations and the API deliberately allow a null methodName for
+    // legacy payments. Early desktop builds made it NOT NULL, which made one
+    // old payment abort every future pull page. SQLite cannot drop a NOT NULL
+    // constraint in place, so rebuild only databases that still carry it.
+    const paymentMethodName = (this.sqlite.prepare('PRAGMA table_info(payments)').all() as Array<{ name: string; notnull: number }>).find(column => column.name === 'methodName');
+    if (paymentMethodName?.notnull) {
+      this.sqlite.exec(`
+        BEGIN IMMEDIATE;
+        ALTER TABLE payments RENAME TO payments_not_null_legacy;
+        CREATE TABLE payments (id TEXT PRIMARY KEY, updatedAt TEXT NOT NULL, deletedAt TEXT, serverSeq INTEGER NOT NULL DEFAULT 0, dirty INTEGER NOT NULL DEFAULT 0, saleId TEXT, customerId TEXT, amount REAL NOT NULL DEFAULT 0, methodCode TEXT NOT NULL, methodName TEXT, tendered REAL, cashSessionId TEXT, note TEXT, paidAt TEXT NOT NULL);
+        INSERT INTO payments (id, updatedAt, deletedAt, serverSeq, dirty, saleId, customerId, amount, methodCode, methodName, tendered, cashSessionId, note, paidAt)
+          SELECT id, updatedAt, deletedAt, serverSeq, dirty, saleId, customerId, amount, methodCode, methodName, tendered, cashSessionId, note, paidAt FROM payments_not_null_legacy;
+        DROP TABLE payments_not_null_legacy;
+        COMMIT;
+      `);
     }
     this.sqlite.exec('CREATE INDEX IF NOT EXISTS idx_cash_sessions_drawerId ON cash_sessions(drawerId)');
     for (const table of SYNC_TABLES) {
@@ -1158,11 +1205,7 @@ export class PosDatabase {
       if (outstanding < 0) throw new Error('Payments exceed the sale total');
       if (outstanding > 0 && !draft.customerId) throw new Error('Choose a customer for the unpaid balance');
       if (draft.customerId && !this.sqlite.prepare('SELECT id FROM customers WHERE id = ? AND deletedAt IS NULL').get(draft.customerId)) throw new Error('Customer not found');
-      const openSession = this.sqlite
-        .prepare(
-          "SELECT id FROM cash_sessions WHERE status = 'open' AND deletedAt IS NULL ORDER BY openedAt DESC LIMIT 1",
-        )
-        .get() as any;
+      const openSession = this.cashSession();
       const cashSessionId = openSession?.id ?? null;
       this.writeLocal("sales", {
         id: saleId,
@@ -1244,9 +1287,10 @@ export class PosDatabase {
 
     }
 
-    const query = `SELECT s.id, s.voucherId, s.type, s.total, s.soldAt, c.name AS customerName,
+    const query = `${OUTSTANDING_SALES_CTE} SELECT s.id, s.voucherId, s.type, s.total, s.soldAt, c.name AS customerName,
+      COALESCE(u.outstanding, 0) AS outstanding,
       COALESCE((SELECT GROUP_CONCAT(DISTINCT p.methodCode) FROM payments p WHERE p.saleId = s.id AND p.deletedAt IS NULL), 'debt') AS paymentMethod
-      FROM sales s LEFT JOIN customers c ON c.id = s.customerId
+      FROM sales s LEFT JOIN customers c ON c.id = s.customerId LEFT JOIN unpaid_sales u ON u.id = s.id
       WHERE ${clauses.join(" AND ")}
       ORDER BY s.soldAt DESC, s.id DESC`;
 
@@ -1263,6 +1307,7 @@ export class PosDatabase {
         soldAt: String(row.soldAt),
         customerName: row.customerName ?? null,
         paymentMethod: String(row.paymentMethod),
+        outstanding: Math.max(0, Number(row.outstanding)),
       }));
 
     return results;
@@ -1278,11 +1323,12 @@ export class PosDatabase {
     if (input.from && input.to) { clauses.push('s.soldAt >= ?', 's.soldAt <= ?'); params.push(input.from, input.to); }
     if (input.filter === 'returns') clauses.push("s.type = 'return'");
     if (input.filter === 'sales') clauses.push("s.type != 'return'");
-    if (input.filter === 'debt') clauses.push("s.type != 'return' AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.saleId = s.id AND p.deletedAt IS NULL)");
+    if (input.filter === 'debt') clauses.push("s.type != 'return' AND COALESCE(u.outstanding, 0) > 0");
     const where = clauses.join(' AND ');
-    const total = Number((this.sqlite.prepare(`SELECT COUNT(*) AS count FROM sales s LEFT JOIN customers c ON c.id = s.customerId WHERE ${where}`).get(...params) as any).count);
-    const rows = this.sqlite.prepare(`SELECT s.id, s.voucherId, s.type, s.total, s.soldAt, c.name AS customerName, COALESCE((SELECT GROUP_CONCAT(DISTINCT p.methodCode) FROM payments p WHERE p.saleId = s.id AND p.deletedAt IS NULL), 'debt') AS paymentMethod FROM sales s LEFT JOIN customers c ON c.id = s.customerId WHERE ${where} ORDER BY s.soldAt DESC, s.id DESC LIMIT ? OFFSET ?`).all(...params, limit, offset) as any[];
-    return { total, items: rows.map(row => ({ id: String(row.id), voucherId: String(row.voucherId), type: row.type === 'return' ? 'return' : 'sale', total: Number(row.total), soldAt: String(row.soldAt), customerName: row.customerName ?? null, paymentMethod: String(row.paymentMethod) })) };
+    const joins = 'LEFT JOIN customers c ON c.id = s.customerId LEFT JOIN unpaid_sales u ON u.id = s.id';
+    const total = Number((this.sqlite.prepare(`${OUTSTANDING_SALES_CTE} SELECT COUNT(*) AS count FROM sales s ${joins} WHERE ${where}`).get(...params) as any).count);
+    const rows = this.sqlite.prepare(`${OUTSTANDING_SALES_CTE} SELECT s.id, s.voucherId, s.type, s.total, s.soldAt, c.name AS customerName, COALESCE(u.outstanding, 0) AS outstanding, COALESCE((SELECT GROUP_CONCAT(DISTINCT p.methodCode) FROM payments p WHERE p.saleId = s.id AND p.deletedAt IS NULL), 'debt') AS paymentMethod FROM sales s ${joins} WHERE ${where} ORDER BY s.soldAt DESC, s.id DESC LIMIT ? OFFSET ?`).all(...params, limit, offset) as any[];
+    return { total, items: rows.map(row => ({ id: String(row.id), voucherId: String(row.voucherId), type: row.type === 'return' ? 'return' : 'sale', total: Number(row.total), soldAt: String(row.soldAt), customerName: row.customerName ?? null, paymentMethod: String(row.paymentMethod), outstanding: Math.max(0, Number(row.outstanding)) })) };
   }
 
   salesSummary(input: { search?: string; from?: string; to?: string } = {}) {
@@ -1291,7 +1337,7 @@ export class PosDatabase {
     const params: any[] = [];
     if (search) { clauses.push("(s.voucherId LIKE ? OR COALESCE(c.name, '') LIKE ?)"); params.push(`%${search}%`, `%${search}%`); }
     if (input.from && input.to) { clauses.push('s.soldAt >= ?', 's.soldAt <= ?'); params.push(input.from, input.to); }
-    const row = this.sqlite.prepare(`SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN s.type != 'return' THEN 1 ELSE 0 END), 0) AS sales, COALESCE(SUM(CASE WHEN s.type = 'return' THEN 1 ELSE 0 END), 0) AS returns, COALESCE(SUM(CASE WHEN s.type != 'return' AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.saleId = s.id AND p.deletedAt IS NULL) THEN 1 ELSE 0 END), 0) AS debt, COALESCE(SUM(CASE WHEN s.type = 'return' THEN -s.total ELSE s.total END), 0) AS netVolume FROM sales s LEFT JOIN customers c ON c.id = s.customerId WHERE ${clauses.join(' AND ')}`).get(...params) as any;
+    const row = this.sqlite.prepare(`${OUTSTANDING_SALES_CTE} SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN s.type != 'return' THEN 1 ELSE 0 END), 0) AS sales, COALESCE(SUM(CASE WHEN s.type = 'return' THEN 1 ELSE 0 END), 0) AS returns, COALESCE(SUM(CASE WHEN s.type != 'return' AND COALESCE(u.outstanding, 0) > 0 THEN 1 ELSE 0 END), 0) AS debt, COALESCE(SUM(s.total), 0) AS netVolume FROM sales s LEFT JOIN customers c ON c.id = s.customerId LEFT JOIN unpaid_sales u ON u.id = s.id WHERE ${clauses.join(' AND ')}`).get(...params) as any;
     return { total: Number(row.total), sales: Number(row.sales), debt: Number(row.debt), returns: Number(row.returns), netVolume: Number(row.netVolume) };
   }
 
@@ -1432,11 +1478,7 @@ export class PosDatabase {
     const movementAt = this.nextMovementAt();
     const returnId = randomUUID();
     const returnVoucher = this.nextVoucher();
-    const session = this.sqlite
-      .prepare(
-        "SELECT id FROM cash_sessions WHERE status = 'open' AND deletedAt IS NULL ORDER BY openedAt DESC LIMIT 1",
-      )
-      .get() as any;
+    const session = this.cashSession();
     this.transaction(() => {
       this.writeLocal("sales", {
         id: returnId,
@@ -1763,11 +1805,7 @@ export class PosDatabase {
       .prepare("SELECT id FROM customers WHERE id = ? AND deletedAt IS NULL")
       .get(customerId);
     if (!customer) throw new Error("Customer not found");
-    const session = this.sqlite
-      .prepare(
-        "SELECT id FROM cash_sessions WHERE status = 'open' AND deletedAt IS NULL ORDER BY openedAt DESC LIMIT 1",
-      )
-      .get() as any;
+    const session = this.cashSession();
     const method = this.paymentMethod(methodCode);
     if (saleId && !this.sqlite.prepare('SELECT id FROM sales WHERE id = ? AND customerId = ? AND deletedAt IS NULL').get(saleId,customerId)) throw new Error('Sale not found for this customer');
     const paymentId = randomUUID();
@@ -1882,11 +1920,12 @@ export class PosDatabase {
   }
 
   cashSession(): any {
+    const drawerId = this.getState('cash.drawerId');
     const session = this.sqlite
       .prepare(
-        "SELECT id, status, openingFloat, expectedCash, countedCash, difference, openedAt, closedAt FROM cash_sessions WHERE status = 'open' AND deletedAt IS NULL ORDER BY openedAt DESC LIMIT 1",
+        "SELECT id, status, drawerId, openingFloat, expectedCash, countedCash, difference, openedAt, closedAt FROM cash_sessions WHERE status = 'open' AND deletedAt IS NULL AND (? IS NULL OR drawerId = ? OR drawerId IS NULL) ORDER BY CASE WHEN drawerId = ? THEN 0 ELSE 1 END, openedAt DESC LIMIT 1",
       )
-      .get() as any;
+      .get(drawerId, drawerId, drawerId) as any;
     if (!session) return null;
     const cashIn = Number(
       (
@@ -2219,6 +2258,10 @@ export class PosDatabase {
       if (skipped.reason === 'voucher_taken' && skipped.table === 'sales') {
         const sequence = this.nextVoucher();
         this.sqlite.prepare('UPDATE sales SET voucherId = ?, updatedAt = ?, dirty = 1 WHERE id = ? AND updatedAt = ?').run(sequence, now(), skipped.id, change.updatedAt);
+      }
+      if (skipped.reason === 'barcode_taken' && skipped.table === 'products') {
+        this.recordConflict(skipped.table, skipped.id, change.data);
+        this.sqlite.prepare('UPDATE products SET barcode = NULL, updatedAt = ?, dirty = 1 WHERE id = ? AND updatedAt = ?').run(now(), skipped.id, change.updatedAt);
       }
       if (skipped.reason === "stale") {
         this.recordConflict(skipped.table, skipped.id, change.data);

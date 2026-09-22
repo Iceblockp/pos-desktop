@@ -39,7 +39,7 @@ export function PlanBadge({
         <span className="text-[12px] leading-none">{locked ? "🔒" : "☁️"}</span>
         <span>
           {variant === "hero"
-            ? "Cloud Pro (ကလောက် ပရို)"
+            ? "Cloud Pro"
             : variant === "pill"
             ? "Cloud Pro"
             : "PRO"}
@@ -64,7 +64,7 @@ export function PlanBadge({
         <span className="text-[12px] leading-none">{locked ? "🔒" : "⚡"}</span>
         <span>
           {variant === "hero"
-            ? "Offline Plus (အော့ဖ်လိုင်း ပလပ်စ်)"
+            ? "Offline Plus"
             : variant === "pill"
             ? "Offline Plus"
             : "PLUS"}
@@ -88,9 +88,9 @@ export function PlanBadge({
       <span className="text-[11px] leading-none">🏪</span>
       <span>
         {variant === "hero"
-          ? "Free Offline (အခမဲ့)"
+          ? "အခမဲ့ အော့ဖ်လိုင်း"
           : variant === "pill"
-          ? "Free Offline"
+          ? "အခမဲ့"
           : "FREE"}
       </span>
     </span>

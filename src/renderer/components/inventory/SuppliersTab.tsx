@@ -75,7 +75,7 @@ export function SuppliersTab({ notify }: { notify: (s: string) => void }) {
         address: supplier.address ?? "",
       });
       void client.invalidateQueries({ queryKey: ["suppliers"] });
-      notify("Supplier profile saved successfully");
+      notify("ပေးသွင်းသူအချက်အလက် သိမ်းပြီးပါပြီ");
     },
     onError: (error: Error) => notify(error.message),
   });
@@ -86,7 +86,7 @@ export function SuppliersTab({ notify }: { notify: (s: string) => void }) {
       setOpen(false);
       setForm(empty);
       void client.invalidateQueries({ queryKey: ["suppliers"] });
-      notify("Supplier removed; past deliveries were kept.");
+      notify("ပေးသွင်းသူကို ဖယ်ရှားပြီး ယခင်ကုန်ပို့မှတ်တမ်းများကို ဆက်လက်သိမ်းထားပါသည်။");
     },
     onError: (error: Error) => notify(error.message),
   });
@@ -121,7 +121,7 @@ export function SuppliersTab({ notify }: { notify: (s: string) => void }) {
         <div className="bg-white p-3.5 rounded-xl border border-gray-200/80 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-              Total Suppliers
+              ပေးသွင်းသူစုစုပေါင်း
             </p>
             <p className="text-xl font-black text-slate-800 mt-0.5">
               {suppliers.data?.length ?? 0}
@@ -133,7 +133,7 @@ export function SuppliersTab({ notify }: { notify: (s: string) => void }) {
         <div className="bg-white p-3.5 rounded-xl border border-gray-200/80 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-              Procurement Spend ({period === "month" ? "This Month" : "All Time"})
+              ကုန်ဝယ်သုံးငွေ ({period === "month" ? "ယခုလ" : "ကာလအားလုံး"})
             </p>
             <p className="text-xl font-black text-emerald-700 mt-0.5">
               {money.format(totalSpend)}
@@ -151,7 +151,7 @@ export function SuppliersTab({ notify }: { notify: (s: string) => void }) {
               🔍
             </span>
             <input
-              placeholder="Search supplier name, contact person, or phone..."
+              placeholder="ပေးသွင်းသူ၊ ဆက်သွယ်ရန်အမည် သို့မဟုတ် ဖုန်းဖြင့်ရှာပါ…"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               className="input input-bordered input-sm w-full pl-9 text-xs bg-gray-50 focus:bg-white"
@@ -169,7 +169,7 @@ export function SuppliersTab({ notify }: { notify: (s: string) => void }) {
                   : "text-gray-500 hover:text-gray-900"
               }`}
             >
-              This Month
+              ယခုလ
             </button>
             <button
               onClick={() => setPeriod("all")}
@@ -179,12 +179,12 @@ export function SuppliersTab({ notify }: { notify: (s: string) => void }) {
                   : "text-gray-500 hover:text-gray-900"
               }`}
             >
-              All Time
+              ကာလအားလုံး
             </button>
           </div>
 
           <button onClick={add} className="btn btn-primary btn-sm">
-            + Add Supplier
+            + ပေးသွင်းသူအသစ်
           </button>
         </div>
       </div>
@@ -197,14 +197,14 @@ export function SuppliersTab({ notify }: { notify: (s: string) => void }) {
               <table className="table table-sm w-full">
                 <thead className="bg-gray-50 text-gray-600 sticky top-0 z-10 border-b border-gray-200">
                   <tr>
-                    <th className="py-3 px-4 font-semibold">Supplier Name</th>
-                    <th className="py-3 px-4 font-semibold">Contact Person</th>
-                    <th className="py-3 px-4 font-semibold">Phone Number</th>
-                    <th className="py-3 px-4 font-semibold">Address / Location</th>
+                    <th className="py-3 px-4 font-semibold">ပေးသွင်းသူအမည်</th>
+                    <th className="py-3 px-4 font-semibold">ဆက်သွယ်ရန်အမည်</th>
+                    <th className="py-3 px-4 font-semibold">ဖုန်းနံပါတ်</th>
+                    <th className="py-3 px-4 font-semibold">လိပ်စာ / နေရာ</th>
                     <th className="py-3 px-4 font-semibold text-right">
-                      Spend ({period === "month" ? "This Month" : "All Time"})
+                      ဝယ်ယူငွေ ({period === "month" ? "ယခုလ" : "ကာလအားလုံး"})
                     </th>
-                    <th className="py-3 px-4 font-semibold text-right">Actions</th>
+                    <th className="py-3 px-4 font-semibold text-right">လုပ်ဆောင်ချက်</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 text-xs">
@@ -220,17 +220,17 @@ export function SuppliersTab({ notify }: { notify: (s: string) => void }) {
                       </td>
                       <td className="py-3 px-4 text-gray-700">
                         {supplier.contactName || (
-                          <span className="text-gray-400 italic">Not set</span>
+                          <span className="text-gray-400 italic">မသတ်မှတ်ထားပါ</span>
                         )}
                       </td>
                       <td className="py-3 px-4 font-mono text-gray-600">
                         {supplier.phone || (
-                          <span className="text-gray-400 italic">Not set</span>
+                          <span className="text-gray-400 italic">မသတ်မှတ်ထားပါ</span>
                         )}
                       </td>
                       <td className="py-3 px-4 text-gray-600 max-w-xs truncate">
                         {supplier.address || (
-                          <span className="text-gray-400 italic">Not set</span>
+                          <span className="text-gray-400 italic">မသတ်မှတ်ထားပါ</span>
                         )}
                       </td>
                       <td className="py-3 px-4 text-right">
@@ -243,7 +243,7 @@ export function SuppliersTab({ notify }: { notify: (s: string) => void }) {
                           className="btn btn-xs btn-outline font-medium hover:bg-slate-800 hover:text-white"
                           onClick={() => edit(supplier)}
                         >
-                          View & Edit
+                          ကြည့်မည် / ပြင်မည်
                         </button>
                       </td>
                     </tr>
@@ -255,10 +255,10 @@ export function SuppliersTab({ notify }: { notify: (s: string) => void }) {
             <div className="flex-1 flex flex-col items-center justify-center py-16 text-center text-gray-400">
               <span className="text-4xl mb-2">🏢</span>
               <p className="text-base font-semibold text-gray-700">
-                {suppliers.isLoading ? "Loading suppliers…" : "No suppliers found"}
+                {suppliers.isLoading ? "ပေးသွင်းသူစာရင်း ဖတ်နေသည်…" : "ပေးသွင်းသူ မတွေ့ပါ"}
               </p>
               <p className="text-xs text-gray-400 mt-1 max-w-sm">
-                Add vendor contact information to track purchase invoices and supplier deliveries
+                အဝယ်ဘောင်ချာနှင့် ကုန်ပို့မှုများမှတ်တမ်းတင်ရန် ပေးသွင်းသူအချက်အလက် ထည့်ပါ
               </p>
             </div>
           )}
@@ -279,10 +279,10 @@ export function SuppliersTab({ notify }: { notify: (s: string) => void }) {
             <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
               <div>
                 <h3 className="font-bold text-slate-800 text-base">
-                  {form.id ? `Supplier: ${form.name}` : "Add New Supplier"}
+                  {form.id ? `Supplier: ${form.name}` : "ပေးသွင်းသူအသစ် ထည့်မည်"}
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Vendor details, contact person, and linked purchase orders
+                  ပေးသွင်းသူ၊ ဆက်သွယ်ရန်အမည်နှင့် ဆက်စပ်အဝယ်မှတ်တမ်း
                 </p>
               </div>
               <button
@@ -306,7 +306,7 @@ export function SuppliersTab({ notify }: { notify: (s: string) => void }) {
                       : "border-transparent text-slate-500 hover:text-slate-800"
                   }`}
                 >
-                  Contact Profile
+                  ဆက်သွယ်ရန်အချက်အလက်
                 </button>
                 <button
                   type="button"
@@ -317,7 +317,7 @@ export function SuppliersTab({ notify }: { notify: (s: string) => void }) {
                       : "border-transparent text-slate-500 hover:text-slate-800"
                   }`}
                 >
-                  <span>Purchase History</span>
+                  <span>ဝယ်ယူမှုမှတ်တမ်း</span>
                   <span className="badge badge-xs badge-neutral">
                     {purchases.data?.length ?? 0}
                   </span>
@@ -338,12 +338,12 @@ export function SuppliersTab({ notify }: { notify: (s: string) => void }) {
                   <div className="form-control">
                     <label className="label py-1">
                       <span className="label-text text-xs font-bold text-slate-700">
-                        Supplier / Business Name
+                        ပေးသွင်းသူ / လုပ်ငန်းအမည်
                       </span>
                     </label>
                     <input
                       required
-                      placeholder="e.g. City Mart Distributors"
+                      placeholder="ဥပမာ မြို့မဖြန့်ချိရေး"
                       value={form.name}
                       onChange={(e) => setForm({ ...form, name: e.target.value })}
                       className="input input-bordered input-sm"
@@ -354,11 +354,11 @@ export function SuppliersTab({ notify }: { notify: (s: string) => void }) {
                     <div className="form-control">
                       <label className="label py-1">
                         <span className="label-text text-xs font-bold text-slate-700">
-                          Contact Person
+                          ဆက်သွယ်ရန်အမည်
                         </span>
                       </label>
                       <input
-                        placeholder="e.g. Ko Aung"
+                        placeholder="ဥပမာ ကိုအောင်"
                         value={form.contactName}
                         onChange={(e) =>
                           setForm({ ...form, contactName: e.target.value })
@@ -370,7 +370,7 @@ export function SuppliersTab({ notify }: { notify: (s: string) => void }) {
                     <div className="form-control">
                       <label className="label py-1">
                         <span className="label-text text-xs font-bold text-slate-700">
-                          Phone Number
+                          ဖုန်းနံပါတ်
                         </span>
                       </label>
                       <input
@@ -387,11 +387,11 @@ export function SuppliersTab({ notify }: { notify: (s: string) => void }) {
                   <div className="form-control">
                     <label className="label py-1">
                       <span className="label-text text-xs font-bold text-slate-700">
-                        Warehouse / Office Address
+                        ဂိုဒေါင် / ရုံးလိပ်စာ
                       </span>
                     </label>
                     <textarea
-                      placeholder="e.g. Industrial Zone 1, Hlaing Tharyar"
+                      placeholder="ဥပမာ စက်မှုဇုန် ၁၊ လှိုင်သာယာ"
                       value={form.address}
                       onChange={(e) =>
                         setForm({ ...form, address: e.target.value })
@@ -408,14 +408,14 @@ export function SuppliersTab({ notify }: { notify: (s: string) => void }) {
                         onClick={() => {
                           if (
                             window.confirm(
-                              `Remove supplier ${form.name}? Prior delivery history remains safe.`,
+                              `ပေးသွင်းသူ ${form.name} ကို ဖယ်ရှားမည်လား။ ယခင်ကုန်ပို့မှတ်တမ်းများ မပျက်ပါ။`,
                             )
                           )
                             remove.mutate();
                         }}
                         disabled={remove.isPending}
                       >
-                        Delete Supplier
+                        ပေးသွင်းသူဖျက်မည်
                       </button>
                     ) : (
                       <div></div>
@@ -427,14 +427,14 @@ export function SuppliersTab({ notify }: { notify: (s: string) => void }) {
                         className="btn btn-sm btn-ghost"
                         onClick={() => setOpen(false)}
                       >
-                        Cancel
+                        မလုပ်တော့ပါ
                       </button>
                       <button
                         type="submit"
                         className="btn btn-sm btn-primary"
                         disabled={save.isPending}
                       >
-                        {save.isPending ? "Saving…" : "Save Supplier"}
+                        {save.isPending ? "သိမ်းနေသည်…" : "ပေးသွင်းသူသိမ်းမည်"}
                       </button>
                     </div>
                   </div>
@@ -443,8 +443,8 @@ export function SuppliersTab({ notify }: { notify: (s: string) => void }) {
                 /* Purchase History Tab */
                 <div className="space-y-3">
                   <div className="flex justify-between items-center text-xs text-slate-500 mb-2">
-                    <span>Deliveries & Stock-Ins</span>
-                    <span>Showing records for {period === "month" ? "This Month" : "All Time"}</span>
+                    <span>ကုန်ပို့မှုနှင့် ကုန်ဝင်မှတ်တမ်း</span>
+                    <span>မှတ်တမ်းကာလ — {period === "month" ? "ယခုလ" : "ကာလအားလုံး"}</span>
                   </div>
 
                   {purchases.data?.length ? (
@@ -471,7 +471,7 @@ export function SuppliersTab({ notify }: { notify: (s: string) => void }) {
                             </span>
                             <p className="text-[11px] text-slate-500 font-mono mt-0.5">
                               {purchase.unitCost == null
-                                ? "Cost not recorded"
+                                ? "ဝယ်ရင်းစျေး မမှတ်ထားပါ"
                                 : `${money.format(purchase.unitCost)}/unit`}
                             </p>
                           </div>
@@ -480,7 +480,7 @@ export function SuppliersTab({ notify }: { notify: (s: string) => void }) {
                     </div>
                   ) : (
                     <div className="text-center py-10 text-slate-400 text-xs bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                      No purchase deliveries linked to this supplier in this period.
+                      ဤကာလအတွင်း ပေးသွင်းသူ၏ ကုန်ပို့မှတ်တမ်းမရှိပါ။
                     </div>
                   )}
                 </div>

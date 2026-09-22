@@ -5,6 +5,7 @@ import type { Product, StockMovement, Supplier } from "../../../shared/models";
 import { StockModal } from "./StockModal";
 import type { TierDraft } from "./types";
 import { formatCurrency } from '../../../shared/currency';
+import { myanmarMessage } from '../../myanmar';
 
 const money = { format: formatCurrency };
 
@@ -158,9 +159,11 @@ export function ProductsTab({
     },
     onSuccess: (product) => {
       setModal(null);
-      void client.invalidateQueries({ queryKey: ["products"] });
+      void client.invalidateQueries({ queryKey: ["product-page"] });
+      void client.invalidateQueries({ queryKey: ["product-summary"] });
+      void client.invalidateQueries({ queryKey: ["cart-products"] });
       void client.invalidateQueries({ queryKey: ["product-tiers", product.id] });
-      notify("Product saved successfully");
+      notify("ကုန်ပစ္စည်း သိမ်းပြီးပါပြီ");
     },
     onError: (error: Error) => notify(error.message),
   });
@@ -169,8 +172,10 @@ export function ProductsTab({
     mutationFn: (id: string) => window.storePos.pos.removeProduct(id),
     onSuccess: () => {
       setModal(null);
-      void client.invalidateQueries({ queryKey: ["products"] });
-      notify("Product deleted");
+      void client.invalidateQueries({ queryKey: ["product-page"] });
+      void client.invalidateQueries({ queryKey: ["product-summary"] });
+      void client.invalidateQueries({ queryKey: ["cart-products"] });
+      notify("ကုန်ပစ္စည်း ဖျက်ပြီးပါပြီ");
     },
     onError: (e: Error) => notify(e.message),
   });
@@ -202,11 +207,13 @@ export function ProductsTab({
     },
     onSuccess: () => {
       setModal(null);
-      void client.invalidateQueries({ queryKey: ["products"] });
+      void client.invalidateQueries({ queryKey: ["product-page"] });
+      void client.invalidateQueries({ queryKey: ["product-summary"] });
+      void client.invalidateQueries({ queryKey: ["cart-products"] });
       void client.invalidateQueries({
         queryKey: ["stock-history", selectedProductId],
       });
-      notify("Stock updated");
+      notify("ကုန်လက်ကျန် ပြင်ပြီးပါပြီ");
     },
     onError: (error: Error) => notify(error.message),
   });
@@ -310,7 +317,7 @@ export function ProductsTab({
         <div className="bg-white p-3.5 rounded-xl border border-gray-200/80 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-              Total SKUs
+              ကုန်ပစ္စည်းစုစုပေါင်း
             </p>
             <p className="text-xl font-black text-gray-900 mt-0.5">
               {totalProducts}
@@ -329,7 +336,7 @@ export function ProductsTab({
         >
           <div>
             <p className="text-[11px] font-semibold text-amber-600 uppercase tracking-wider">
-              Low Stock
+              လက်ကျန်နည်း
             </p>
             <p className="text-xl font-black text-amber-700 mt-0.5">
               {lowStockCount}
@@ -348,7 +355,7 @@ export function ProductsTab({
         >
           <div>
             <p className="text-[11px] font-semibold text-rose-600 uppercase tracking-wider">
-              Out of Stock
+              ကုန်သွားပြီ
             </p>
             <p className="text-xl font-black text-rose-700 mt-0.5">
               {outOfStockCount}
@@ -360,7 +367,7 @@ export function ProductsTab({
         <div className="bg-white p-3.5 rounded-xl border border-gray-200/80 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-              Stock Retail Value
+              လက်ကျန်ရောင်းတန်ဖိုး
             </p>
             <p className="text-xl font-black text-emerald-700 mt-0.5">
               {money.format(totalInventoryValue)}
@@ -379,7 +386,7 @@ export function ProductsTab({
               🔍
             </span>
             <input
-              placeholder="Search product name or barcode..."
+              placeholder="ကုန်ပစ္စည်းအမည် သို့မဟုတ် ဘားကုဒ်ဖြင့်ရှာပါ…"
               value={search}
               onChange={(e) => { setSearch(e.target.value); setOffset(0); }}
               className="input input-bordered input-sm w-full pl-9 text-xs"
@@ -393,10 +400,10 @@ export function ProductsTab({
               onChange={(e) => { setSortBy(e.target.value as any); setOffset(0); }}
               className="select select-bordered select-sm text-xs font-medium bg-gray-50"
             >
-              <option value="name-asc">Name (A → Z)</option>
-              <option value="stock-asc">Stock (Low → High)</option>
-              <option value="price-desc">Price (High → Low)</option>
-              <option value="price-asc">Price (Low → High)</option>
+              <option value="name-asc">အမည် (က → အ)</option>
+              <option value="stock-asc">လက်ကျန် (နည်း → များ)</option>
+              <option value="price-desc">စျေးနှုန်း (များ → နည်း)</option>
+              <option value="price-asc">စျေးနှုန်း (နည်း → များ)</option>
             </select>
 
             {/* View Mode Toggle */}
@@ -406,18 +413,18 @@ export function ProductsTab({
                 className={`btn btn-xs join-item ${
                   viewMode === "table" ? "btn-primary" : "btn-ghost text-gray-600"
                 }`}
-                title="Spreadsheet Table View"
+                title="ဇယားပုံစံဖြင့်ကြည့်မည်"
               >
-                ☰ Table
+                ☰ ဇယား
               </button>
               <button
                 onClick={() => setViewMode("cards")}
                 className={`btn btn-xs join-item ${
                   viewMode === "cards" ? "btn-primary" : "btn-ghost text-gray-600"
                 }`}
-                title="Card Grid View"
+                title="ကတ်ပုံစံဖြင့်ကြည့်မည်"
               >
-                ☵ Cards
+                ☵ ကတ်
               </button>
             </div>
 
@@ -426,7 +433,7 @@ export function ProductsTab({
               className="btn btn-primary btn-sm shadow-sm"
               onClick={() => openProduct()}
             >
-              + New product
+              + ကုန်ပစ္စည်းအသစ်
             </button>
           </div>
         </div>
@@ -445,7 +452,7 @@ export function ProductsTab({
               setOffset(0);
             }}
           >
-            All Products ({totalProducts})
+            ကုန်ပစ္စည်းအားလုံး ({totalProducts})
           </button>
 
           {categories.data?.map((cat) => (
@@ -471,7 +478,7 @@ export function ProductsTab({
               onClick={onOpenCategories}
               className="btn btn-xs btn-ghost text-emerald-700 font-semibold hover:bg-emerald-50 ml-auto whitespace-nowrap"
             >
-              ⚙️ Manage Categories
+              ⚙️ အမျိုးအစား စီမံမည်
             </button>
           )}
         </div>
@@ -483,20 +490,20 @@ export function ProductsTab({
           {products.isLoading ? (
             <div className="flex flex-col items-center justify-center flex-1 py-16 text-gray-400">
               <span className="loading loading-spinner loading-lg text-emerald-600 mb-2"></span>
-              <p className="text-sm text-gray-500 font-medium">Loading products…</p>
+              <p className="text-sm text-gray-500 font-medium">ကုန်ပစ္စည်းများ ဖတ်နေသည်…</p>
             </div>
           ) : products.isError ? (
             <div className="flex flex-col items-center justify-center flex-1 py-16 text-gray-400">
               <span className="text-4xl mb-2">⚠️</span>
-              <p className="text-base font-bold text-gray-700">Failed to load products</p>
+              <p className="text-base font-bold text-gray-700">ကုန်ပစ္စည်းများ မဖတ်နိုင်ပါ</p>
               <p className="text-xs text-red-500 mt-1">
-                {(products.error as Error)?.message || "An error occurred"}
+                {products.error ? myanmarMessage((products.error as Error).message) : "ပြဿနာတစ်ခု ဖြစ်ပွားခဲ့သည်"}
               </p>
               <button
                 className="btn btn-xs btn-outline btn-primary mt-3"
                 onClick={() => products.refetch()}
               >
-                Retry
+                ထပ်စမ်းမည်
               </button>
             </div>
           ) : shown.length > 0 ? (
@@ -506,18 +513,18 @@ export function ProductsTab({
                 <table className="table table-sm w-full">
                   <thead className="bg-gray-50 text-gray-600 sticky top-0 z-10 border-b border-gray-200">
                     <tr>
-                      <th className="py-3 px-4 font-semibold">Product Name</th>
-                      <th className="py-3 px-3 font-semibold">Barcode</th>
-                      <th className="py-3 px-3 font-semibold">Category</th>
-                      <th className="py-3 px-3 font-semibold text-center">Stock Level</th>
-                      <th className="py-3 px-3 font-semibold text-right">Retail Price</th>
+                      <th className="py-3 px-4 font-semibold">ကုန်ပစ္စည်းအမည်</th>
+                      <th className="py-3 px-3 font-semibold">ဘားကုဒ်</th>
+                      <th className="py-3 px-3 font-semibold">အမျိုးအစား</th>
+                      <th className="py-3 px-3 font-semibold text-center">လက်ကျန်</th>
+                      <th className="py-3 px-3 font-semibold text-right">လက်လီစျေး</th>
                       {owner && (
-                        <th className="py-3 px-3 font-semibold text-right">Cost</th>
+                        <th className="py-3 px-3 font-semibold text-right">ဝယ်ရင်းစျေး</th>
                       )}
                       {owner && (
-                        <th className="py-3 px-3 font-semibold text-right">Margin</th>
+                        <th className="py-3 px-3 font-semibold text-right">အမြတ်ရာခိုင်နှုန်း</th>
                       )}
-                      <th className="py-3 px-4 font-semibold text-right">Actions</th>
+                      <th className="py-3 px-4 font-semibold text-right">လုပ်ဆောင်ချက်</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 text-xs">
@@ -545,7 +552,7 @@ export function ProductsTab({
                             </span>
                             {product.unit && (
                               <span className="text-[10px] text-gray-400">
-                                Unit: {product.unit}
+                                ယူနစ် — {product.unit}
                               </span>
                             )}
                           </td>
@@ -554,17 +561,17 @@ export function ProductsTab({
                           </td>
                           <td className="py-2.5 px-3">
                             <span className="badge badge-ghost badge-sm text-[10px]">
-                              {cat?.name ?? "Uncategorized"}
+                              {cat?.name ?? "အမျိုးအစားမသတ်မှတ်ရသေး"}
                             </span>
                           </td>
                           <td className="py-2.5 px-3 text-center">
                             {isOutOfStock ? (
                               <span className="badge badge-error badge-sm text-white font-semibold">
-                                Out ({product.quantity} {product.unit})
+                                ကုန် ({product.quantity} {product.unit})
                               </span>
                             ) : isLowStock ? (
                               <span className="badge badge-warning badge-sm font-semibold">
-                                Low ({product.quantity} {product.unit})
+                                နည်း ({product.quantity} {product.unit})
                               </span>
                             ) : (
                               <span className="badge badge-ghost badge-sm font-semibold bg-emerald-50 text-emerald-800 border-emerald-200">
@@ -605,19 +612,19 @@ export function ProductsTab({
                                 className="btn btn-xs btn-outline border-emerald-600 text-emerald-700 hover:bg-emerald-600 hover:text-white"
                                 onClick={() => openFor(product, "stock")}
                               >
-                                Stock
+                                လက်ကျန်
                               </button>
                               <button
                                 className="btn btn-xs btn-ghost text-gray-700"
                                 onClick={() => openFor(product, "history")}
                               >
-                                History
+                                မှတ်တမ်း
                               </button>
                               <button
                                 className="btn btn-xs btn-ghost text-gray-700"
                                 onClick={() => openProduct(product)}
                               >
-                                Edit
+                                ပြင်မည်
                               </button>
                               {owner && (
                                 <button
@@ -625,7 +632,7 @@ export function ProductsTab({
                                   onClick={() => {
                                     if (
                                       window.confirm(
-                                        `Delete product "${product.name}"? Sales history will be preserved.`,
+                                        `ကုန်ပစ္စည်း “${product.name}” ကို ဖျက်မည်လား။ ယခင်အရောင်းမှတ်တမ်းများ မပျက်ပါ။`,
                                       )
                                     ) {
                                       removeProduct.mutate(product.id);
@@ -665,15 +672,15 @@ export function ProductsTab({
                         <div>
                           <div className="flex items-start justify-between gap-1 mb-1">
                             <span className="badge badge-ghost badge-xs text-[10px]">
-                              {cat?.name ?? "Uncategorized"}
+                              {cat?.name ?? "အမျိုးအစားမသတ်မှတ်ရသေး"}
                             </span>
                             {isOutOfStock ? (
                               <span className="badge badge-error badge-xs text-white">
-                                Out
+                                ကုန်ပြီ
                               </span>
                             ) : isLowStock ? (
                               <span className="badge badge-warning badge-xs">
-                                Low
+                                နည်း
                               </span>
                             ) : null}
                           </div>
@@ -703,19 +710,19 @@ export function ProductsTab({
                               className="btn btn-xs btn-outline flex-1 border-emerald-600 text-emerald-700 hover:bg-emerald-600 hover:text-white"
                               onClick={() => openFor(product, "stock")}
                             >
-                              Stock
+                              လက်ကျန်
                             </button>
                             <button
                               className="btn btn-xs btn-ghost text-gray-600"
                               onClick={() => openFor(product, "history")}
                             >
-                              Log
+                              မှတ်တမ်း
                             </button>
                             <button
                               className="btn btn-xs btn-ghost text-gray-700"
                               onClick={() => openProduct(product)}
                             >
-                              Edit
+                              ပြင်မည်
                             </button>
                           </div>
                         </div>
@@ -729,17 +736,17 @@ export function ProductsTab({
             <div className="flex flex-col items-center justify-center flex-1 py-16 text-gray-400">
               <span className="text-4xl mb-2">🔍</span>
               <p className="text-base font-bold text-gray-700">
-                No products match these filters
+                သတ်မှတ်ချက်နှင့်ကိုက်ညီသော ကုန်ပစ္စည်းမရှိပါ
               </p>
               <p className="text-xs text-gray-500 mt-1">
-                Try searching a different keyword or resetting your filters.
+                အခြားစာလုံးဖြင့်ရှာပါ သို့မဟုတ် စစ်ထုတ်မှုကို ပြန်ရှင်းပါ။
               </p>
             </div>
           )}
           {shown.length > 0 && (
             <div className="flex items-center justify-between px-4 py-3 text-xs text-gray-500 border-t border-gray-100">
-              <span>Showing {offset + 1}-{offset + shown.length} of {products.data?.total ?? 0}</span>
-              <div className="flex gap-2"><button className="btn btn-xs" disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 100))}>Previous</button><button className="btn btn-xs" disabled={offset + shown.length >= (products.data?.total ?? 0)} onClick={() => setOffset(offset + 100)}>Next 100</button></div>
+              <span>ပြထားသည် {offset + 1}-{offset + shown.length} / {products.data?.total ?? 0}</span>
+              <div className="flex gap-2"><button className="btn btn-xs" disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 100))}>ရှေ့သို့</button><button className="btn btn-xs" disabled={offset + shown.length >= (products.data?.total ?? 0)} onClick={() => setOffset(offset + 100)}>နောက် ၁၀၀ ခု</button></div>
             </div>
           )}
         </div>
@@ -752,12 +759,12 @@ export function ProductsTab({
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <div>
                 <h3 className="font-bold text-xl text-gray-900">
-                  {form.id ? "Edit Product" : "Add New Product"}
+                  {form.id ? "ကုန်ပစ္စည်းပြင်မည်" : "ကုန်ပစ္စည်းအသစ် ထည့်မည်"}
                 </h3>
                 <p className="text-xs text-gray-500">
                   {form.id
                     ? `Updating ${form.name}`
-                    : "Add an item to your store inventory"}
+                    : "ဆိုင်ကုန်ပစ္စည်းစာရင်းထဲသို့ ပစ္စည်းအသစ်ထည့်ပါ"}
                 </p>
               </div>
               <button
@@ -780,7 +787,7 @@ export function ProductsTab({
                 }`}
                 onClick={() => setProductModalTab("general")}
               >
-                1. General Info
+                ၁။ အခြေခံအချက်အလက်
               </button>
               <button
                 type="button"
@@ -791,7 +798,7 @@ export function ProductsTab({
                 }`}
                 onClick={() => setProductModalTab("pricing")}
               >
-                2. Pricing & Margin
+                ၂။ စျေးနှုန်းနှင့် အမြတ်
               </button>
               <button
                 type="button"
@@ -802,7 +809,7 @@ export function ProductsTab({
                 }`}
                 onClick={() => setProductModalTab("stock")}
               >
-                3. Stock Alerts
+                ၃။ လက်ကျန်သတိပေးချက်
               </button>
             </div>
 
@@ -819,14 +826,14 @@ export function ProductsTab({
                   <div className="form-control">
                     <label className="label py-1">
                       <span className="label-text text-xs font-semibold">
-                        Product Name *
+                        ကုန်ပစ္စည်းအမည် *
                       </span>
                     </label>
                     <input
                       required
                       value={form.name}
                       onChange={(e) => setForm({ ...form, name: e.target.value })}
-                      placeholder="e.g. Coca-Cola 330ml Can, Royal Milk Tea"
+                      placeholder="ဥပမာ ကိုကာကိုလာ 330ml၊ လက်ဖက်ရည်"
                       className="input input-bordered input-sm w-full"
                       autoFocus
                     />
@@ -836,7 +843,7 @@ export function ProductsTab({
                     <div className="form-control">
                       <label className="label py-1">
                         <span className="label-text text-xs font-semibold">
-                          Barcode / SKU
+                          ဘားကုဒ် / SKU
                         </span>
                       </label>
                       <div className="flex gap-1.5">
@@ -845,7 +852,7 @@ export function ProductsTab({
                           onChange={(e) =>
                             setForm({ ...form, barcode: e.target.value })
                           }
-                          placeholder="Scan or type barcode..."
+                          placeholder="ဘားကုဒ်ဖတ်ပါ သို့မဟုတ် ရိုက်ထည့်ပါ…"
                           className="input input-bordered input-sm flex-1 font-mono text-xs"
                         />
                         <button
@@ -858,7 +865,7 @@ export function ProductsTab({
                             setForm({ ...form, barcode: code });
                           }}
                         >
-                          Auto
+                          အလိုအလျောက်
                         </button>
                       </div>
                     </div>
@@ -866,7 +873,7 @@ export function ProductsTab({
                     <div className="form-control">
                       <label className="label py-1">
                         <span className="label-text text-xs font-semibold">
-                          Category
+                          အမျိုးအစား
                         </span>
                       </label>
                       <select
@@ -876,7 +883,7 @@ export function ProductsTab({
                           setForm({ ...form, categoryId: e.target.value })
                         }
                       >
-                        <option value="">Uncategorized</option>
+                        <option value="">အမျိုးအစားမသတ်မှတ်ရသေး</option>
                         {categories.data?.map((category) => (
                           <option key={category.id} value={category.id}>
                             {category.name}
@@ -890,13 +897,13 @@ export function ProductsTab({
                     <div className="form-control">
                       <label className="label py-1">
                         <span className="label-text text-xs font-semibold">
-                          Unit of Measurement
+                          ရေတွက်ယူနစ်
                         </span>
                       </label>
                       <input
                         value={form.unit}
                         onChange={(e) => setForm({ ...form, unit: e.target.value })}
-                        placeholder="e.g. pcs, bottle, pack"
+                        placeholder="ဥပမာ ခု၊ ဘူး၊ ထုပ်"
                         className="input input-bordered input-sm w-full"
                       />
                       {/* Popular unit tags */}
@@ -920,7 +927,7 @@ export function ProductsTab({
                       <div className="form-control">
                         <label className="label py-1">
                           <span className="label-text text-xs font-semibold">
-                            Primary Supplier
+                            အဓိကပေးသွင်းသူ
                           </span>
                         </label>
                         <select
@@ -930,7 +937,7 @@ export function ProductsTab({
                             setForm({ ...form, supplierId: e.target.value })
                           }
                         >
-                          <option value="">No supplier</option>
+                          <option value="">ပေးသွင်းသူမရှိ</option>
                           {suppliers.data?.map((supplier) => (
                             <option key={supplier.id} value={supplier.id}>
                               {supplier.name}
@@ -950,7 +957,7 @@ export function ProductsTab({
                     <div className="form-control">
                       <label className="label py-1">
                         <span className="label-text text-xs font-semibold">
-                          Retail Selling Price *
+                          လက်လီရောင်းစျေး *
                         </span>
                       </label>
                       <input
@@ -970,7 +977,7 @@ export function ProductsTab({
                       <div className="form-control">
                         <label className="label py-1">
                           <span className="label-text text-xs font-semibold">
-                            Cost Price (Purchase)
+                            ဝယ်ရင်းစျေး
                           </span>
                         </label>
                         <input
@@ -996,13 +1003,13 @@ export function ProductsTab({
                   {owner && formPrice > 0 && formCost > 0 && (
                     <div className="p-3 rounded-lg bg-emerald-50/70 border border-emerald-200 text-xs flex items-center justify-between">
                       <div>
-                        <span className="text-gray-600">Expected Profit per unit:</span>{" "}
+                        <span className="text-gray-600">တစ်ယူနစ်ခန့်မှန်းအမြတ် —</span>{" "}
                         <strong className="text-emerald-800 text-sm">
                           {money.format(formProfit)}
                         </strong>
                       </div>
                       <div>
-                        <span className="text-gray-600">Profit Margin:</span>{" "}
+                        <span className="text-gray-600">အမြတ်ရာခိုင်နှုန်း —</span>{" "}
                         <span
                           className={`badge ${
                             formMargin > 20
@@ -1026,14 +1033,14 @@ export function ProductsTab({
                     >
                       <div className="flex items-center justify-between mb-1.5">
                         <h4 className="font-bold text-xs text-gray-800">
-                          {level.name} Pricing
+                          {level.name} စျေးနှုန်း
                         </h4>
                         <button
                           type="button"
                           className="btn btn-xs btn-outline"
                           onClick={() => addTier(level.id)}
                         >
-                          + Add price tier
+                          + အရေအတွက်လိုက်စျေး ထည့်မည်
                         </button>
                       </div>
 
@@ -1042,7 +1049,7 @@ export function ProductsTab({
                           <input
                             required
                             inputMode="decimal"
-                            placeholder="Min Quantity (e.g. 5)"
+                            placeholder="အနည်းဆုံးအရေအတွက် (ဥပမာ ၅)"
                             value={row.minQuantity}
                             onChange={(e) =>
                               editTier(level.id, row.key, {
@@ -1055,7 +1062,7 @@ export function ProductsTab({
                           <input
                             required
                             inputMode="decimal"
-                            placeholder="Tier Price"
+                            placeholder="သတ်မှတ်စျေး"
                             value={row.bulkPrice}
                             onChange={(e) =>
                               editTier(level.id, row.key, {
@@ -1084,7 +1091,7 @@ export function ProductsTab({
                   <div className="form-control">
                     <label className="label py-1">
                       <span className="label-text text-xs font-semibold">
-                        Low Stock Alert Threshold
+                        လက်ကျန်နည်း သတိပေးမည့်အရေအတွက်
                       </span>
                     </label>
                     <input
@@ -1093,20 +1100,20 @@ export function ProductsTab({
                       onChange={(e) =>
                         setForm({ ...form, minStock: e.target.value })
                       }
-                      placeholder="e.g. 5"
+                      placeholder="ဥပမာ ၅"
                       className="input input-bordered input-sm w-full"
                     />
                     <label className="label py-1">
                       <span className="label-text-alt text-gray-500 text-[11px]">
-                        The system will highlight this item as "Low Stock" when inventory drops to or below this quantity.
+                        လက်ကျန်သည် ဤအရေအတွက်နှင့်တူ သို့မဟုတ် နည်းသွားလျှင် “လက်ကျန်နည်း” ဟု သတိပေးပါမည်။
                       </span>
                     </label>
                   </div>
 
                   <div className="p-3.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-900 text-xs leading-relaxed">
-                    <p className="font-semibold mb-1">💡 Managing Inventory Quantities</p>
+                    <p className="font-semibold mb-1">💡 ကုန်လက်ကျန် စီမံခြင်း</p>
                     <p className="text-blue-800">
-                      To ensure an audit-proof stock ledger, inventory balances are adjusted using the <strong>"Stock"</strong> button on the inventory table (supporting <em>Receiving purchase orders</em>, <em>Physical stock counting</em>, and <em>Waste tracking</em>).
+                      ကုန်လက်ကျန်မှတ်တမ်း မှန်ကန်စေရန် ဇယားပေါ်ရှိ <strong>“လက်ကျန်”</strong> ခလုတ်ဖြင့်သာ ပြင်ပါ ( <em>ကုန်ဝင်လက်ခံခြင်း</em>, <em>မြေပြင်လက်ကျန်ရေတွက်ခြင်း</em>နှင့် <em>ပျက်စီးဆုံးရှုံးမှုမှတ်တမ်း</em>).
                     </p>
                   </div>
                 </div>
@@ -1118,14 +1125,14 @@ export function ProductsTab({
                   className="btn btn-sm btn-ghost"
                   onClick={() => setModal(null)}
                 >
-                  Cancel
+                  မလုပ်တော့ပါ
                 </button>
                 <button
                   type="submit"
                   className="btn btn-sm btn-primary px-5"
                   disabled={saveProduct.isPending || !form.name.trim() || !form.price}
                 >
-                  {saveProduct.isPending ? "Saving…" : "Save Product"}
+                  {saveProduct.isPending ? "သိမ်းနေသည်…" : "ကုန်ပစ္စည်းသိမ်းမည်"}
                 </button>
               </div>
             </form>
@@ -1167,10 +1174,10 @@ export function ProductsTab({
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <div>
                 <h3 className="font-bold text-lg text-gray-900">
-                  Stock History: {selectedProduct.name}
+                  လက်ကျန်မှတ်တမ်း — {selectedProduct.name}
                 </h3>
                 <p className="text-xs text-gray-500">
-                  Current on-hand:{" "}
+                  လက်ရှိလက်ကျန် —{" "}
                   <strong className="text-emerald-700">
                     {selectedProduct.quantity} {selectedProduct.unit}
                   </strong>
@@ -1190,11 +1197,11 @@ export function ProductsTab({
                 <table className="table table-xs w-full">
                   <thead>
                     <tr className="bg-gray-50 text-gray-600">
-                      <th>Date</th>
-                      <th>Type</th>
-                      <th className="text-right">Change</th>
-                      <th className="text-right">Balance</th>
-                      <th>Note / Ref</th>
+                      <th>ရက်စွဲ</th>
+                      <th>အမျိုးအစား</th>
+                      <th className="text-right">ပြန်အမ်းငွေ</th>
+                      <th className="text-right">လက်ကျန်</th>
+                      <th>မှတ်ချက် / ရည်ညွှန်းအမှတ်</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1241,7 +1248,7 @@ export function ProductsTab({
                 </table>
               ) : (
                 <p className="text-center py-12 text-gray-400">
-                  No stock movements recorded for this product yet.
+                  ဤကုန်ပစ္စည်းအတွက် လက်ကျန်အပြောင်းအလဲ မရှိသေးပါ။
                 </p>
               )}
             </div>
@@ -1251,7 +1258,7 @@ export function ProductsTab({
                 className="btn btn-sm btn-ghost"
                 onClick={() => setModal(null)}
               >
-                Close
+                ပိတ်မည်
               </button>
             </div>
           </div>

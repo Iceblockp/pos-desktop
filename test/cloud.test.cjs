@@ -11,7 +11,7 @@ function setup(t,{connected=true,initial=session(),fetcher}={}){
  global.fetch=async(url,options)=>{
   const endpoint=new URL(url).pathname.replace(/^\/api/,''),body=options.body?JSON.parse(options.body):undefined;
   calls.push({endpoint,body,options});
-  const value=await fetcher?.(endpoint,body,options) ?? (endpoint==='/auth/refresh'?initial:endpoint==='/sync/push'?{accepted:body.changes.map((c,i)=>({table:c.table,id:c.id,serverSeq:i+1})),skipped:[]}:endpoint.startsWith('/sync/pull')?{changes:[],nextSince:0,hasMore:false}:{});
+  const value=await fetcher?.(endpoint,body,options) ?? (endpoint==='/auth/refresh'?initial:endpoint==='/sync/push'?{accepted:body.changes.map((c,i)=>({table:c.table,id:c.id,serverSeq:i+1})),skipped:[]}:endpoint.startsWith('/sync/pull')?{changes:[],nextSince:0,hasMore:false}:endpoint==='/cash-drawers/active'?{drawer:{id:'drawer-main',name:'Main drawer',isDefault:true,activeSessionId:null},session:null}:{});
   return {ok:!value.httpStatus,status:value.httpStatus??200,json:async()=>value};
  };
  const {CloudService}=createLoader(root,{electron})('src/main/cloud.ts');const cloud=new CloudService(db);
@@ -33,6 +33,12 @@ test('offline plus pauses sync while preserving paid local features',async t=>{
 test('rejected rows remain pending without an endless resend loop',async t=>{
  const {cloud,db,calls}=setup(t,{fetcher:async(e,body)=>e==='/sync/push'?{accepted:[],skipped:body.changes.map(c=>({table:c.table,id:c.id,reason:'invalid'}))}:undefined});
  db.saveCustomer({name:'Pending'});const state=await cloud.syncNow();assert.equal(state.status,'error');assert.equal(state.pending,1);assert.equal(calls.filter(c=>c.endpoint==='/sync/push').length,1);
+});
+test('cloud drawer cannot close while cash activity is still unsynced',async t=>{
+ const {cloud,db,calls}=setup(t,{fetcher:async(e,body)=>e==='/sync/push'?{accepted:[],skipped:body.changes.map(c=>({table:c.table,id:c.id,reason:'invalid'}))}:undefined});
+ db.saveCustomer({name:'Pending'});
+ await assert.rejects(cloud.closeCashDrawer('drawer-main','session-main',0),/Sync all pending cash activity/);
+ assert.equal(calls.some(call=>call.endpoint==='/cash-drawers/drawer-main/close'),false);
 });
 test('server voucher floor is adopted before a local sale',t=>{
  const {db}=setup(t);assert.equal(db.nextVoucher(),'B-000021');

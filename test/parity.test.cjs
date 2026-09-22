@@ -25,6 +25,23 @@ test('split payment, credit, repayment and receipts agree',t=>{
  assert.equal(db.customerLedger(customer.id).balance,0);assert.equal(db.customerLedger(customer.id).sales[0].remaining,0);
  assert.equal(db.receiptForSale(receipt.voucherId).outstanding,0);
 });
+test('sales pages use real outstanding balances and returns reduce net volume',t=>{
+ const db=setup(t),p=product(db),customer=db.saveCustomer({name:'Customer'});
+ const first=sale(db,p,{customerId:customer.id,payments:[{methodCode:'cash',amount:40}],soldAt:'2026-09-01T08:00:00.000Z'});
+ sale(db,p,{customerId:customer.id,payments:[],soldAt:'2026-09-01T09:00:00.000Z'});
+ db.collectDebt(customer.id,30,'cash');
+ db.returnSale(first.voucherId,[{productId:p.id,quantity:1}],'cash');
+ const debt=db.salesPage({filter:'debt'}),summary=db.salesSummary();
+ assert.equal(debt.total,2);assert.deepEqual(debt.items.map(row=>row.outstanding).sort((a,b)=>a-b),[30,100]);
+ assert.equal(summary.debt,2);assert.equal(summary.netVolume,100);
+});
+test('desktop accepts legacy payments whose method name is null',t=>{
+ const db=setup(t),p=product(db),receipt=sale(db,p);
+ const payment=rows(db,'payments')[0];db.sqlite.prepare('DELETE FROM payments WHERE id = ?').run(payment.id);
+ db.applyPulled([{table:'payments',id:payment.id,updatedAt:payment.updatedAt,deletedAt:null,serverSeq:10,saleId:rows(db,'sales')[0].id,customerId:null,amount:receipt.total,methodCode:'cash',methodName:null,tendered:null,cashSessionId:null,note:null,paidAt:receipt.soldAt}],10);
+ assert.equal(rows(db,'payments')[0].methodName,null);
+ assert.equal((db.sqlite.prepare('PRAGMA table_info(payments)').all().find(column=>column.name==='methodName')).notnull,0);
+});
 test('invalid checkout rolls back sale, payments and stock',t=>{
  const db=setup(t),p=product(db);for(const extra of [{payments:[{methodCode:'cash',amount:101}]},{payments:[{methodCode:'cash',amount:90}]},{amountTendered:20},{lines:[line(p,-1)]},{paymentMethod:'debt'}]) assert.throws(()=>sale(db,p,extra));
  assert.equal(rows(db,'sales').length,0);assert.equal(rows(db,'payments').length,0);assert.equal(db.listProducts()[0].quantity,20);
@@ -51,6 +68,12 @@ test('cash sessions receive unique IDs so a reopened drawer preserves history',t
  assert.notEqual(first,other);assert.match(first,/^[0-9a-f-]{36}$/);
  a.closeCashSession(0);assert.notEqual(a.openCashSession(0).id,first);
 });
+test('a terminal attaches cash to only its assigned drawer session',t=>{
+ const db=setup(t),at=new Date().toISOString();
+ for(const [id,drawer] of [['session-main','drawer-main'],['session-two','drawer-two']]) db.sqlite.prepare('INSERT INTO cash_sessions (id,updatedAt,status,drawerId,openingFloat,openedAt) VALUES (?,?,?,?,?,?)').run(id,at,'open',drawer,0,at);
+ db.setState('cash.drawerId','drawer-two');assert.equal(db.cashSession().id,'session-two');
+ const p=product(db);sale(db,p);assert.equal(rows(db,'payments')[0].cashSessionId,'session-two');
+});
 test('payment codes cannot change on rename or use reserved credit code',t=>{
  const db=setup(t),m=db.listPaymentMethods().find(m=>m.code==='cash');db.savePaymentMethod({...m,name:'Cash renamed',code:'new-code'});assert.equal(db.listPaymentMethods().find(x=>x.id===m.id).code,'cash');
  assert.throws(()=>db.savePaymentMethod({name:'Debt',code:'debt'}));assert.throws(()=>db.savePaymentMethod({name:'Cash duplicate',code:'cash'}));
@@ -73,6 +96,11 @@ test('pull page and cursor roll back together, stock arriving before a product i
 test('voucher collisions renumber only the rejected sale and remain pending',t=>{
  const db=setup(t),p=product(db);sale(db,p);db.setState('device.code','B');const sent=db.dirtyChanges().filter(r=>r.table==='sales');db.reconcilePush(sent,{accepted:[],skipped:[{table:'sales',id:sent[0].id,reason:'voucher_taken'}]});
  assert.match(rows(db,'sales')[0].voucherId,/^B-/);assert.equal(rows(db,'sales')[0].dirty,1);
+});
+test('a barcode claimed by another device is cleared without losing the product',t=>{
+ const db=setup(t),p=db.saveProduct({name:'Rice',price:100,barcode:'12345'});const sent=db.dirtyChanges().filter(row=>row.table==='products'&&row.id===p.id);
+ db.reconcilePush(sent,{accepted:[],skipped:[{table:'products',id:p.id,reason:'barcode_taken'}]});
+ const row=rows(db,'products').find(row=>row.id===p.id);assert.equal(row.barcode,null);assert.equal(row.dirty,1);assert.equal(row.name,'Rice');
 });
 test('edits made while a push is in flight remain dirty',t=>{
  const db=setup(t),p=product(db),sent=db.dirtyChanges();db.sqlite.prepare('UPDATE products SET updatedAt = ?, name = ? WHERE id = ?').run('2099-01-01','New name',p.id);

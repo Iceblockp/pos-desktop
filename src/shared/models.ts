@@ -115,6 +115,8 @@ export interface SaleSummary {
   soldAt: string;
   customerName: string | null;
   paymentMethod: string;
+  /** Remaining credit after direct and general customer repayments. */
+  outstanding: number;
 }
 export interface PageResult<T> { items: T[]; total: number; }
 export interface ProductSummary { total: number; lowStock: number; outOfStock: number; inventoryValue: number; }

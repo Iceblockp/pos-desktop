@@ -13,9 +13,9 @@ export function InventoryPage({ notify }: { notify: (s: string) => void }) {
       {/* Header */}
       <header className="flex items-center justify-between bg-white px-5 py-3 rounded-xl border border-gray-200/80 shadow-sm">
         <div>
-          <h1 className="text-xl font-bold text-gray-900 leading-tight">📦 Inventory Management</h1>
+          <h1 className="text-xl font-bold text-gray-900 leading-tight">📦 ကုန်ပစ္စည်းနှင့် လက်ကျန် စီမံမှု</h1>
           <p className="text-xs text-gray-500">
-            Catalog products, track stock movements, categories, and suppliers
+            ကုန်ပစ္စည်း၊ လက်ကျန်အပြောင်းအလဲ၊ အမျိုးအစားနှင့် ပေးသွင်းသူများကို စီမံပါ
           </p>
         </div>
 
@@ -26,14 +26,14 @@ export function InventoryPage({ notify }: { notify: (s: string) => void }) {
             className={`tab tab-sm font-medium ${tab === "products" ? "tab-active bg-white shadow-sm font-semibold text-gray-900" : "text-gray-600"}`}
             onClick={() => setTab("products")}
           >
-            Products & Stock
+            ကုန်ပစ္စည်းနှင့် လက်ကျန်
           </button>
           <button
             role="tab"
             className={`tab tab-sm font-medium ${tab === "categories" ? "tab-active bg-white shadow-sm font-semibold text-gray-900" : "text-gray-600"}`}
             onClick={() => setTab("categories")}
           >
-            Categories
+            အမျိုးအစား
           </button>
           {owner && (
             <button
@@ -41,7 +41,7 @@ export function InventoryPage({ notify }: { notify: (s: string) => void }) {
               className={`tab tab-sm font-medium ${tab === "suppliers" ? "tab-active bg-white shadow-sm font-semibold text-gray-900" : "text-gray-600"}`}
               onClick={() => setTab("suppliers")}
             >
-              Suppliers
+              ပေးသွင်းသူ
             </button>
           )}
         </div>

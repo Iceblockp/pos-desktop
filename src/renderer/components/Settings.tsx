@@ -7,6 +7,7 @@ import { NotificationSettings } from "./NotificationSettings";
 import { PlanBadge } from "./PlanBadge";
 import { useCapabilities } from "../useCapabilities";
 import { CURRENCY_PRESETS, DEFAULT_CURRENCY, cacheCurrency, formatCurrency, parseCurrency, type CurrencyConfig } from '../../shared/currency';
+import { myanmarMessage } from '../myanmar';
 
 export function Settings({ notify }: { notify: (s: string) => void }) {
   const capabilities = useCapabilities();
@@ -27,11 +28,11 @@ export function Settings({ notify }: { notify: (s: string) => void }) {
     icon: string;
     badge?: React.ReactNode;
   }[] = [
-    { key: "store", label: "Store & Receipt", icon: "🏪" },
-    { key: "printer", label: "Printer & Hardware", icon: "🖨️" },
+    { key: "store", label: "ဆိုင်နှင့် ဘောင်ချာ", icon: "🏪" },
+    { key: "printer", label: "ပရင်တာနှင့် စက်ပစ္စည်း", icon: "🖨️" },
     {
       key: "cloud",
-      label: "Cloud & Sync",
+      label: "Cloud နှင့် Sync",
       icon: "☁️",
       badge: (
         <PlanBadge
@@ -41,10 +42,10 @@ export function Settings({ notify }: { notify: (s: string) => void }) {
         />
       ),
     },
-    { key: "payments", label: "Payment Methods", icon: "💳" },
+    { key: "payments", label: "ပေးချေမှုနည်းလမ်း", icon: "💳" },
     {
       key: "pricing",
-      label: "Price Levels & Features",
+      label: "စျေးနှုန်းနှင့် လုပ်ဆောင်ချက်",
       icon: "🏷️",
       badge: (
         <PlanBadge
@@ -54,9 +55,9 @@ export function Settings({ notify }: { notify: (s: string) => void }) {
         />
       ),
     },
-    { key: "subscription", label: "Plan & Billing", icon: "💎" },
-    { key: "diagnostics", label: "Diagnostics", icon: "🩺" },
-    { key: "data", label: "Data & Account", icon: "⚠️" },
+    { key: "subscription", label: "အစီအစဉ်နှင့် ငွေပေးချေမှု", icon: "💎" },
+    { key: "diagnostics", label: "စနစ်စစ်ဆေးမှု", icon: "🩺" },
+    { key: "data", label: "ဒေတာနှင့် အကောင့်", icon: "⚠️" },
   ];
 
   if (!capabilities.owner) {
@@ -69,10 +70,10 @@ export function Settings({ notify }: { notify: (s: string) => void }) {
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-4">
         <div>
           <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-            Settings & System
+            ဆက်တင်နှင့် စနစ်
           </h2>
           <p className="text-xs text-slate-500 mt-1">
-            Configure store details, receipts, printers, pricing levels, and cloud sync
+            ဆိုင်အချက်အလက်၊ ဘောင်ချာ၊ ပရင်တာ၊ စျေးနှုန်းနှင့် Cloud Sync ကို စီမံပါ
           </p>
         </div>
       </header>
@@ -117,14 +118,14 @@ function CashierSettings({ notify }: { notify: (s: string) => void }) {
   const client = useQueryClient();
   const [tab, setTab] = useState<'sync' | 'printer' | 'notifications' | 'diagnostics'>('sync');
   const cloud = useQuery({ queryKey: ['cashier-cloud'], queryFn: () => window.storePos.cloud.state(), refetchInterval: 5_000 });
-  const retry = useMutation({ mutationFn: () => window.storePos.cloud.syncNow(), onSuccess: () => { void client.invalidateQueries({ queryKey: ['cashier-cloud'] }); notify('Sync started'); }, onError: (e: Error) => notify(e.message) });
-  const removeStation = useMutation({ mutationFn: () => window.storePos.cloud.removeLocalData(), onSuccess: () => { void client.invalidateQueries(); notify('This terminal was disconnected and local shop data was cleared'); }, onError: (e: Error) => notify(e.message) });
-  const tabs = [{ key: 'sync' as const, icon: '☁️', label: 'Cloud sync' }, { key: 'printer' as const, icon: '🖨️', label: 'Printer' }, { key: 'notifications' as const, icon: '🔔', label: 'Notifications' }, { key: 'diagnostics' as const, icon: '🩺', label: 'Diagnostics' }];
+  const retry = useMutation({ mutationFn: () => window.storePos.cloud.syncNow(), onSuccess: () => { void client.invalidateQueries({ queryKey: ['cashier-cloud'] }); notify('Sync စတင်နေပါပြီ'); }, onError: (e: Error) => notify(e.message) });
+  const removeStation = useMutation({ mutationFn: () => window.storePos.cloud.removeLocalData(), onSuccess: () => { void client.invalidateQueries(); notify('ဤစက်ကို Cloud မှဖြုတ်ပြီး စက်တွင်းဆိုင်ဒေတာ ရှင်းပြီးပါပြီ'); }, onError: (e: Error) => notify(e.message) });
+  const tabs = [{ key: 'sync' as const, icon: '☁️', label: 'Cloud Sync' }, { key: 'printer' as const, icon: '🖨️', label: 'Printer' }, { key: 'notifications' as const, icon: '🔔', label: 'Notifications' }, { key: 'diagnostics' as const, icon: '🩺', label: 'စနစ်စစ်ဆေးမှု' }];
   return <section className="h-full space-y-5 overflow-y-auto pr-1 pb-10">
-    <header className="border-b border-slate-200 pb-4"><h2 className="text-xl font-black text-slate-800 tracking-tight">Cashier settings</h2><p className="text-xs text-slate-500 mt-1">Settings for this terminal only.</p></header>
+    <header className="border-b border-slate-200 pb-4"><h2 className="text-xl font-black text-slate-800 tracking-tight">ငွေကိုင်ဆက်တင်</h2><p className="text-xs text-slate-500 mt-1">ဤစက်အတွက် ဆက်တင်များ</p></header>
     <div className="flex flex-wrap gap-1.5 p-1 bg-slate-200/70 rounded-xl border border-slate-200/90 shadow-inner">{tabs.map((item) => <button key={item.key} type="button" onClick={() => setTab(item.key)} className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all ${tab === item.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/60'}`}><span>{item.icon}</span>{item.label}</button>)}</div>
     <div className="mt-4">
-      {tab === 'sync' ? <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-semibold text-slate-800">Cloud sync</p><p className="text-xs text-slate-500 mt-1">{cloud.data?.shopName ?? 'Not connected'} · {cloud.data?.status ?? 'unknown'} · {cloud.data?.pending ?? 0} pending</p></div><button className="btn btn-sm btn-primary" disabled={retry.isPending || cloud.data?.status === 'signed_out'} onClick={() => retry.mutate()}>{retry.isPending ? 'Syncing…' : 'Sync now'}</button></div><div className="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold text-rose-800">Remove this terminal securely</p><p className="text-[11px] text-slate-500 mt-0.5">Disconnects only this terminal and clears its local shop data. Cloud data stays safe.</p></div><button className="btn btn-sm btn-outline btn-error" disabled={removeStation.isPending || (cloud.data?.pending ?? 0) > 0} onClick={() => { if ((cloud.data?.pending ?? 0) > 0) { notify('Sync all pending changes before removing this terminal'); return; } if (window.confirm('Remove this terminal from the shop? Local shop data will be cleared. Cloud data and other terminals stay safe.')) removeStation.mutate(); }}>{removeStation.isPending ? 'Removing…' : 'Remove this terminal'}</button></div></div> : null}
+      {tab === 'sync' ? <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-semibold text-slate-800">Cloud Sync</p><p className="text-xs text-slate-500 mt-1">{cloud.data?.shopName ?? 'မချိတ်ဆက်ရသေးပါ'} · {cloud.data?.status ?? 'မသိရသေး'} · {cloud.data?.pending ?? 0} ပို့ရန်ကျန်</p></div><button className="btn btn-sm btn-primary" disabled={retry.isPending || cloud.data?.status === 'signed_out'} onClick={() => retry.mutate()}>{retry.isPending ? 'Sync လုပ်နေသည်…' : 'ယခု Sync လုပ်မည်'}</button></div><div className="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold text-rose-800">ဤစက်ကို လုံခြုံစွာ ဖြုတ်မည်</p><p className="text-[11px] text-slate-500 mt-0.5">ဤစက်ကိုသာ Cloud မှဖြုတ်ပြီး စက်တွင်းဆိုင်ဒေတာကို ရှင်းပါမည်။ Cloud ဒေတာ မပျက်ပါ။</p></div><button className="btn btn-sm btn-outline btn-error" disabled={removeStation.isPending || (cloud.data?.pending ?? 0) > 0} onClick={() => { if ((cloud.data?.pending ?? 0) > 0) { notify('ဤစက်ကို မဖြုတ်မီ ပို့ရန်ကျန်ဒေတာအားလုံးကို Sync လုပ်ပါ'); return; } if (window.confirm('ဤစက်ကို ဆိုင်မှဖြုတ်မည်လား။ စက်တွင်းဆိုင်ဒေတာကို ရှင်းမည်ဖြစ်ပြီး Cloud ဒေတာနှင့် အခြားစက်များ မပျက်ပါ။')) removeStation.mutate(); }}>{removeStation.isPending ? 'ဖြုတ်နေသည်…' : 'ဤစက်ကို ဖြုတ်မည်'}</button></div></div> : null}
       {tab === 'printer' ? <PrinterTab notify={notify} /> : null}
       {tab === 'notifications' ? <NotificationSettings notify={notify} /> : null}
       {tab === 'diagnostics' ? <DiagnosticsTab notify={notify} readOnly /> : null}
@@ -161,16 +162,16 @@ function StoreProfileTab({ notify }: { notify: (message: string) => void }) {
         profile.data?.currency &&
         profile.data.currency !== value.currency &&
         !window.confirm(
-          `Change shop currency to ${next.code}?\n\nThis will NOT convert existing product prices, sales histories, or customer debt balances. All numeric values will remain the same and only display in the new currency formatting.`,
+          `ဆိုင်သုံးငွေကြေးကို ${next.code} သို့ ပြောင်းမည်လား။\n\nယခင်ကုန်စျေး၊ အရောင်းမှတ်တမ်းနှင့် ဖောက်သည်အကြွေးများကို ငွေလဲနှုန်းဖြင့် ပြောင်းလဲမည်မဟုတ်ပါ။ ဂဏန်းတန်ဖိုးများ မပြောင်းဘဲ ငွေကြေးသင်္ကေတနှင့် ပုံစံသာ ပြောင်းပါမည်။`,
         )
       )
-        throw new Error('Currency change cancelled');
+        throw new Error('ငွေကြေးပြောင်းခြင်းကို မလုပ်တော့ပါ');
       cacheCurrency(next);
       return window.storePos.pos.saveShopProfile(value);
     },
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["shop-profile"] });
-      notify("Shop profile and receipt settings saved");
+      notify("ဆိုင်နှင့် ဘောင်ချာဆက်တင် သိမ်းပြီးပါပြီ");
     },
     onError: (e: Error) => notify(e.message),
   });
@@ -188,9 +189,9 @@ function StoreProfileTab({ notify }: { notify: (message: string) => void }) {
         >
           <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
             <div>
-              <h3 className="font-semibold text-slate-800 text-base">Store Profile & Details</h3>
+              <h3 className="font-semibold text-slate-800 text-base">ဆိုင်အချက်အလက်</h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                These details are printed at the top and bottom of thermal customer receipts
+                ဤအချက်အလက်များကို ဖောက်သည်ဘောင်ချာတွင် ထုတ်ပေးပါမည်
               </p>
             </div>
             <button
@@ -198,7 +199,7 @@ function StoreProfileTab({ notify }: { notify: (message: string) => void }) {
               className="btn btn-sm btn-primary"
               disabled={save.isPending}
             >
-              {save.isPending ? "Saving…" : "Save Changes"}
+              {save.isPending ? "သိမ်းနေသည်…" : "ပြင်ဆင်ချက်သိမ်းမည်"}
             </button>
           </div>
 
@@ -206,13 +207,13 @@ function StoreProfileTab({ notify }: { notify: (message: string) => void }) {
             <div className="form-control">
               <label className="label py-1">
                 <span className="label-text text-xs font-bold text-slate-700">
-                  Shop / Business Name
+                  ဆိုင် / လုပ်ငန်းအမည်
                 </span>
               </label>
               <input
                 className="input input-bordered input-sm"
                 required
-                placeholder="e.g. ABC Minimart"
+                placeholder="ဥပမာ ABC မီနီမတ်"
                 value={value.name}
                 onChange={(e) => setValue({ ...value, name: e.target.value })}
               />
@@ -221,12 +222,12 @@ function StoreProfileTab({ notify }: { notify: (message: string) => void }) {
             <div className="form-control">
               <label className="label py-1">
                 <span className="label-text text-xs font-bold text-slate-700">
-                  Phone Number(s)
+                  ဖုန်းနံပါတ်များ
                 </span>
               </label>
               <input
                 className="input input-bordered input-sm"
-                placeholder="e.g. 09-123456789, 09-987654321"
+                placeholder="ဥပမာ 09-123456789၊ 09-987654321"
                 value={value.phone}
                 onChange={(e) => setValue({ ...value, phone: e.target.value })}
               />
@@ -235,12 +236,12 @@ function StoreProfileTab({ notify }: { notify: (message: string) => void }) {
             <div className="form-control">
               <label className="label py-1">
                 <span className="label-text text-xs font-bold text-slate-700">
-                  Shop Physical Address
+                  ဆိုင်လိပ်စာ
                 </span>
               </label>
               <textarea
                 className="textarea textarea-bordered textarea-sm h-20"
-                placeholder="e.g. No. 12, Bogyoke Road, Bahan Township, Yangon"
+                placeholder="ဥပမာ အမှတ် ၁၂၊ ဗိုလ်ချုပ်လမ်း၊ ဗဟန်း၊ ရန်ကုန်"
                 value={value.address}
                 onChange={(e) => setValue({ ...value, address: e.target.value })}
               />
@@ -249,12 +250,12 @@ function StoreProfileTab({ notify }: { notify: (message: string) => void }) {
             <div className="form-control">
               <label className="label py-1">
                 <span className="label-text text-xs font-bold text-slate-700">
-                  Receipt Footer Message
+                  ဘောင်ချာအောက်ခြေစာသား
                 </span>
               </label>
               <input
                 className="input input-bordered input-sm"
-                placeholder="e.g. Thank you for shopping with us! No returns after 3 days."
+                placeholder="ဥပမာ အားပေးမှုအတွက် ကျေးဇူးတင်ပါသည်။ ၃ ရက်ကျော် ပစ္စည်းပြန်မလဲပါ။"
                 value={value.receiptFooter}
                 onChange={(e) =>
                   setValue({ ...value, receiptFooter: e.target.value })
@@ -262,7 +263,7 @@ function StoreProfileTab({ notify }: { notify: (message: string) => void }) {
               />
               <label className="label py-0.5">
                 <span className="label-text-alt text-slate-400">
-                  Appears at the very bottom of printed receipts
+                  ပရင့်ထုတ်သော ဘောင်ချာအောက်ဆုံးတွင် ပေါ်ပါမည်
                 </span>
               </label>
             </div>
@@ -281,7 +282,7 @@ function StoreProfileTab({ notify }: { notify: (message: string) => void }) {
               className="btn btn-sm btn-primary"
               disabled={save.isPending}
             >
-              {save.isPending ? "Saving…" : "Save Changes"}
+              {save.isPending ? "သိမ်းနေသည်…" : "ပြင်ဆင်ချက်သိမ်းမည်"}
             </button>
           </div>
         </form>
@@ -294,14 +295,14 @@ function StoreProfileTab({ notify }: { notify: (message: string) => void }) {
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-5">
           <div className="flex justify-between items-center mb-3">
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Live Receipt Preview
+              ဘောင်ချာနမူနာ
             </h4>
             <span className="badge badge-sm badge-neutral font-mono text-[10px]">
-              Thermal 80mm
+              အပူပရင်တာ 80mm
             </span>
           </div>
           <p className="text-xs text-slate-500 mb-4">
-            Changes made in the form appear live on this thermal slip mockup:
+            ပြင်ဆင်ချက်များကို ဤဘောင်ချာနမူနာတွင် ချက်ချင်းကြည့်နိုင်သည် —
           </p>
 
           {/* Thermal Receipt Paper Mockup */}
@@ -309,9 +310,9 @@ function StoreProfileTab({ notify }: { notify: (message: string) => void }) {
             {/* Header */}
             <div className="text-center space-y-1 pb-3 border-b border-dashed border-slate-300">
               <h2 className="text-base font-bold text-slate-900 uppercase tracking-wide">
-                {value.name || "YOUR SHOP NAME"}
+                {value.name || "သင့်ဆိုင်အမည်"}
               </h2>
-              {value.phone && <p className="text-[11px] text-slate-600">Tel: {value.phone}</p>}
+              {value.phone && <p className="text-[11px] text-slate-600">ဖုန်း — {value.phone}</p>}
               {value.address && (
                 <p className="text-[11px] text-slate-500 leading-tight">
                   {value.address}
@@ -321,18 +322,18 @@ function StoreProfileTab({ notify }: { notify: (message: string) => void }) {
 
             {/* Receipt Meta */}
             <div className="text-[11px] text-slate-500 flex justify-between py-1 border-b border-dashed border-slate-200">
-              <span>Receipt: #POS-10024</span>
+              <span>ဘောင်ချာ — #POS-10024</span>
               <span>{new Date().toLocaleDateString()}</span>
             </div>
 
             {/* Sample Items */}
             <div className="space-y-1.5 py-1 text-[11px]">
               <div className="flex justify-between">
-                <span>1x Sample Product A</span>
+                <span>၁ ခု  နမူနာကုန်ပစ္စည်း A</span>
                 <span className="font-semibold">3,500</span>
               </div>
               <div className="flex justify-between">
-                <span>2x Refreshment Drink</span>
+                <span>၂ ဘူး  အချိုရည်</span>
                 <span className="font-semibold">2,400</span>
               </div>
             </div>
@@ -340,22 +341,22 @@ function StoreProfileTab({ notify }: { notify: (message: string) => void }) {
             {/* Totals */}
             <div className="pt-2 border-t border-dashed border-slate-300 space-y-1 text-right">
               <div className="flex justify-between font-bold text-sm text-slate-900">
-                <span>TOTAL</span>
+                <span>စုစုပေါင်း</span>
                 <span>{formatCurrency(5900, parseCurrency(value.currency))}</span>
               </div>
               <div className="flex justify-between text-[11px] text-slate-600">
-                <span>Cash Tendered</span>
+                <span>လက်ခံငွေသား</span>
                 <span>10,000</span>
               </div>
               <div className="flex justify-between text-[11px] text-slate-600 font-semibold">
-                <span>Change Due</span>
+                <span>ပြန်အမ်းငွေ</span>
                 <span>4,100</span>
               </div>
             </div>
 
             {/* Footer */}
             <div className="pt-4 border-t border-dashed border-slate-300 text-center text-[11px] text-slate-500 italic">
-              <p>{value.receiptFooter || "Thank you! Please come again."}</p>
+              <p>{value.receiptFooter || "ကျေးဇူးတင်ပါသည်။ နောက်လည်းလာခဲ့ပါ။"}</p>
             </div>
           </div>
         </div>
@@ -387,10 +388,10 @@ function CurrencyFields({
       <div className="form-control">
         <label className="label py-1">
           <span className="label-text text-xs font-bold text-slate-700">
-            Store Currency (အသုံးပြုမည့် ငွေကြေး)
+            အသုံးပြုမည့် ငွေကြေး
           </span>
           <span className="label-text-alt font-mono font-bold text-xs text-primary">
-            Preview: {formatCurrency(12500, value)}
+            နမူနာ — {formatCurrency(12500, value)}
           </span>
         </label>
         <select
@@ -415,24 +416,24 @@ function CurrencyFields({
               {entry.code} — {entry.name} ({entry.symbol})
             </option>
           ))}
-          <option value="CUSTOM">⚙️ Custom Currency (စိတ်ကြိုက် သတ်မှတ်မည်)…</option>
+          <option value="CUSTOM">⚙️ စိတ်ကြိုက်ငွေကြေး သတ်မှတ်မည်…</option>
         </select>
         <label className="label py-0.5">
           <span className="label-text-alt text-slate-400">
             {disabled
-              ? 'Only the shop owner can change store currency.'
-              : 'Syncs across all counter stations and printed receipts.'}
+              ? 'ဆိုင်ပိုင်ရှင်သာ ဆိုင်သုံးငွေကြေးကို ပြောင်းနိုင်သည်။'
+              : 'ကောင်တာစက်အားလုံးနှင့် ဘောင်ချာများတွင် ပြောင်းလဲအသုံးပြုပါမည်။'}
           </span>
         </label>
       </div>
 
       {presetKey === 'CUSTOM' && (
         <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-2 text-xs">
-          <p className="font-bold text-slate-700">Custom Currency Settings</p>
+          <p className="font-bold text-slate-700">စိတ်ကြိုက်ငွေကြေး ဆက်တင်</p>
           <div className="grid grid-cols-3 gap-2">
             <div>
               <label className="label py-0.5">
-                <span className="label-text text-[10px] text-slate-500 font-semibold">Code</span>
+                <span className="label-text text-[10px] text-slate-500 font-semibold">ကုဒ်</span>
               </label>
               <input
                 className="input input-bordered input-xs w-full font-mono"
@@ -450,7 +451,7 @@ function CurrencyFields({
             </div>
             <div>
               <label className="label py-0.5">
-                <span className="label-text text-[10px] text-slate-500 font-semibold">Name</span>
+                <span className="label-text text-[10px] text-slate-500 font-semibold">အမည်</span>
               </label>
               <input
                 className="input input-bordered input-xs w-full"
@@ -463,7 +464,7 @@ function CurrencyFields({
             </div>
             <div>
               <label className="label py-0.5">
-                <span className="label-text text-[10px] text-slate-500 font-semibold">Symbol</span>
+                <span className="label-text text-[10px] text-slate-500 font-semibold">သင်္ကေတ</span>
               </label>
               <input
                 className="input input-bordered input-xs w-full"
@@ -478,7 +479,7 @@ function CurrencyFields({
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="label py-0.5">
-                <span className="label-text text-[10px] text-slate-500 font-semibold">Symbol Position</span>
+                <span className="label-text text-[10px] text-slate-500 font-semibold">သင်္ကေတနေရာ</span>
               </label>
               <select
                 className="select select-bordered select-xs w-full"
@@ -491,13 +492,13 @@ function CurrencyFields({
                   })
                 }
               >
-                <option value="before">Before ($100)</option>
-                <option value="after">After (100 MMK)</option>
+                <option value="before">ရှေ့တွင် ($100)</option>
+                <option value="after">နောက်တွင် (100 MMK)</option>
               </select>
             </div>
             <div>
               <label className="label py-0.5">
-                <span className="label-text text-[10px] text-slate-500 font-semibold">Decimals</span>
+                <span className="label-text text-[10px] text-slate-500 font-semibold">ဒဿမအရေအတွက်</span>
               </label>
               <select
                 className="select select-bordered select-xs w-full"
@@ -510,10 +511,10 @@ function CurrencyFields({
                   })
                 }
               >
-                <option value={0}>0 decimals</option>
-                <option value={1}>1 decimal</option>
-                <option value={2}>2 decimals</option>
-                <option value={3}>3 decimals</option>
+                <option value={0}>ဒဿမ မပါ</option>
+                <option value={1}>ဒဿမ ၁ လုံး</option>
+                <option value={2}>ဒဿမ ၂ လုံး</option>
+                <option value={3}>ဒဿမ ၃ လုံး</option>
               </select>
             </div>
           </div>
@@ -552,12 +553,12 @@ function PrinterTab({ notify }: { notify: (s: string) => void }) {
       setPrinters(found);
       setStatus(
         found.length
-          ? `Found ${found.length} printer${found.length === 1 ? "" : "s"}. Select your receipt printer from the dropdown.`
-          : "No printers detected. Verify USB cable or Bluetooth connection, then try again.",
+          ? `ပရင်တာ ${found.length} လုံး တွေ့ပါသည်။ စာရင်းမှ ဘောင်ချာပရင်တာကို ရွေးပါ။`
+          : "ပရင်တာ မတွေ့ပါ။ USB ကြိုး သို့မဟုတ် Bluetooth ချိတ်ဆက်မှုကို စစ်ပြီး ထပ်စမ်းပါ။",
       );
     } catch (error) {
       setStatus(
-        error instanceof Error ? error.message : "Could not scan for printers.",
+        error instanceof Error ? myanmarMessage(error.message) : "ပရင်တာများကို ရှာမရပါ။",
       );
     } finally {
       setFinding(false);
@@ -570,12 +571,12 @@ function PrinterTab({ notify }: { notify: (s: string) => void }) {
     try {
       await window.storePos.printer.test();
       setStatus(
-        `✓ Test receipt sent successfully to ${printer.data?.deviceName}. Check paper cut and Burmese font.`,
+        `✓ စမ်းသပ်ဘောင်ချာကို ${printer.data?.deviceName} သို့ ပို့ပြီးပါပြီ။ စာရွက်ဖြတ်မှုနှင့် မြန်မာစာကို စစ်ပါ။`,
       );
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Test print failed.";
-      setStatus(`✕ Error: ${message}`);
+        error instanceof Error ? myanmarMessage(error.message) : "စမ်းသပ်ပရင့် မအောင်မြင်ပါ။";
+      setStatus(`✕ ပြဿနာ — ${message}`);
       notify(message);
     } finally {
       setTesting(false);
@@ -600,20 +601,20 @@ function PrinterTab({ notify }: { notify: (s: string) => void }) {
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-base font-bold text-slate-800">
-                {activeDevice ? activeDevice : "No Receipt Printer Configured"}
+                {activeDevice ? activeDevice : "ဘောင်ချာပရင်တာ မသတ်မှတ်ရသေးပါ"}
               </h3>
               {activeDevice ? (
                 <span className="badge badge-success text-white badge-xs font-semibold">
-                  Active
+                  အသုံးပြုနေသည်
                 </span>
               ) : (
-                <span className="badge badge-neutral badge-xs">Not Set</span>
+                <span className="badge badge-neutral badge-xs">မသတ်မှတ်ထားပါ</span>
               )}
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
               {activeDevice
-                ? `Paper width: ${printer.data?.paperWidth ?? 80}mm · Mode: ${isRawEscPos ? "Direct ESC/POS Raw" : "System Spooler Driver"}`
-                : "Select a printer below to automatically print customer receipts upon checkout"}
+                ? `စာရွက်အကျယ် — ${printer.data?.paperWidth ?? 80}mm · ပုံစံ — ${isRawEscPos ? "တိုက်ရိုက် ESC/POS" : "စနစ်ပရင်တာ Driver"}`
+                : "ငွေရှင်းပြီးနောက် ဘောင်ချာအလိုအလျောက်ထုတ်ရန် အောက်တွင် ပရင်တာရွေးပါ"}
             </p>
           </div>
         </div>
@@ -627,7 +628,7 @@ function PrinterTab({ notify }: { notify: (s: string) => void }) {
             {finding ? (
               <span className="loading loading-spinner loading-xs"></span>
             ) : (
-              "🔍 Scan for Printers"
+              "🔍 ပရင်တာရှာမည်"
             )}
           </button>
           <button
@@ -638,7 +639,7 @@ function PrinterTab({ notify }: { notify: (s: string) => void }) {
             {testing ? (
               <span className="loading loading-spinner loading-xs"></span>
             ) : (
-              "📄 Print Test Receipt"
+              "📄 စမ်းသပ်ဘောင်ချာထုတ်မည်"
             )}
           </button>
         </div>
@@ -662,14 +663,14 @@ function PrinterTab({ notify }: { notify: (s: string) => void }) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-5">
           <h4 className="font-semibold text-slate-800 text-sm border-b pb-3">
-            Receipt Printer Preferences
+            ဘောင်ချာပရင်တာ ဆက်တင်
           </h4>
 
           {/* Printer Selector */}
           <div className="form-control">
             <label className="label py-1">
               <span className="label-text text-xs font-bold text-slate-700">
-                Selected Device
+                ရွေးထားသော ပရင်တာ
               </span>
             </label>
             <select
@@ -693,11 +694,11 @@ function PrinterTab({ notify }: { notify: (s: string) => void }) {
               }}
               className="select select-bordered select-sm w-full"
             >
-              <option value="">-- Choose a Printer --</option>
+              <option value="">-- ပရင်တာရွေးပါ --</option>
               {printer.data?.deviceName &&
                 !printers.some((item) => item.name === printer.data.deviceName) && (
                   <option value={printer.data.deviceName}>
-                    {printer.data.deviceName} (Currently Saved)
+                    {printer.data.deviceName} (လက်ရှိသိမ်းထားသည်)
                   </option>
                 )}
               {printers.map((item) => (
@@ -712,7 +713,7 @@ function PrinterTab({ notify }: { notify: (s: string) => void }) {
           <div className="form-control">
             <label className="label py-1">
               <span className="label-text text-xs font-bold text-slate-700">
-                Receipt Paper Width
+                ဘောင်ချာစာရွက်အကျယ်
               </span>
             </label>
             <div className="grid grid-cols-2 gap-3">
@@ -729,7 +730,7 @@ function PrinterTab({ notify }: { notify: (s: string) => void }) {
               >
                 <div>
                   <p className="text-sm font-semibold">58 mm</p>
-                  <p className="text-[11px] opacity-75 font-normal">Narrow mobile / compact thermal roll</p>
+                  <p className="text-[11px] opacity-75 font-normal">အသေးစား အပူပရင်တာစာရွက်</p>
                 </div>
                 {printer.data?.paperWidth === 58 && <span>✓</span>}
               </button>
@@ -747,7 +748,7 @@ function PrinterTab({ notify }: { notify: (s: string) => void }) {
               >
                 <div>
                   <p className="text-sm font-semibold">80 mm</p>
-                  <p className="text-[11px] opacity-75 font-normal">Standard desktop restaurant/POS roll</p>
+                  <p className="text-[11px] opacity-75 font-normal">ပုံမှန် POS အပူပရင်တာစာရွက်</p>
                 </div>
                 {printer.data?.paperWidth === 80 && <span>✓</span>}
               </button>
@@ -758,10 +759,10 @@ function PrinterTab({ notify }: { notify: (s: string) => void }) {
           <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-800">
-                Auto-print Receipt After Sale
+                အရောင်းပြီးလျှင် ဘောင်ချာအလိုအလျောက်ထုတ်မည်
               </p>
               <p className="text-xs text-slate-500">
-                Automatically fire print job immediately when cashier tenders a sale
+                ငွေရှင်းပြီးသည်နှင့် ဘောင်ချာကို အလိုအလျောက်ထုတ်ပါမည်
               </p>
             </div>
             <input
@@ -780,7 +781,7 @@ function PrinterTab({ notify }: { notify: (s: string) => void }) {
         {/* Quick Connection Guide */}
         <div className="bg-slate-50 rounded-xl border border-slate-200 p-5 space-y-4 text-xs text-slate-600">
           <h4 className="font-semibold text-slate-800 text-sm border-b pb-3">
-            Thermal Hardware Setup Guide
+            အပူပရင်တာ ချိတ်ဆက်နည်း
           </h4>
           <div className="space-y-3">
             <div className="flex gap-3">
@@ -788,9 +789,9 @@ function PrinterTab({ notify }: { notify: (s: string) => void }) {
                 1
               </span>
               <div>
-                <p className="font-bold text-slate-800">USB & Wi-Fi Printers</p>
+                <p className="font-bold text-slate-800">USB နှင့် Wi-Fi ပရင်တာ</p>
                 <p className="text-slate-500 mt-0.5">
-                  Plug in the USB cable and install the manufacturer driver (e.g. Xprinter, Epson, Rongta). On macOS, choose <em>USB thermal (ESC/POS)</em> to bypass PostScript rasterization.
+                  USB ကြိုးချိတ်ပြီး ထုတ်လုပ်သူ၏ driver (ဥပမာ Xprinter၊ Epson၊ Rongta) ကို ထည့်သွင်းပါ။ macOS တွင် <em>USB thermal (ESC/POS)</em> ကိုရွေးပါ။
                 </p>
               </div>
             </div>
@@ -800,9 +801,9 @@ function PrinterTab({ notify }: { notify: (s: string) => void }) {
                 2
               </span>
               <div>
-                <p className="font-bold text-slate-800">Bluetooth Mobile Printers</p>
+                <p className="font-bold text-slate-800">Bluetooth ပရင်တာ</p>
                 <p className="text-slate-500 mt-0.5">
-                  Pair your Bluetooth printer in Windows / macOS Bluetooth settings first. Once paired, click "Scan for Printers" to detect the serial port.
+                  ဦးစွာ Windows / macOS Bluetooth ဆက်တင်တွင် ပရင်တာကို ချိတ်ပါ။ ပြီးလျှင် “ပရင်တာရှာမည်” ကိုနှိပ်ပါ။
                 </p>
               </div>
             </div>
@@ -812,9 +813,9 @@ function PrinterTab({ notify }: { notify: (s: string) => void }) {
                 3
               </span>
               <div>
-                <p className="font-bold text-slate-800">Burmese Font Support</p>
+                <p className="font-bold text-slate-800">မြန်မာစာ ပံ့ပိုးမှု</p>
                 <p className="text-slate-500 mt-0.5">
-                  The test print verifies Unicode Myanmar text rendering and currency formatting.
+                  စမ်းသပ်ပရင့်ဖြင့် Unicode မြန်မာစာနှင့် ငွေကြေးပုံစံကို စစ်နိုင်သည်။
                 </p>
               </div>
             </div>
@@ -846,7 +847,7 @@ function PaymentTab({ notify }: { notify: (s: string) => void }) {
       setName("");
       setOpen(false);
       refresh();
-      notify("Payment method saved");
+      notify("ပေးချေမှုနည်းလမ်း သိမ်းပြီးပါပြီ");
     },
     onError: (e: Error) => notify(e.message),
   });
@@ -865,7 +866,7 @@ function PaymentTab({ notify }: { notify: (s: string) => void }) {
       }),
     onSuccess: () => {
       refresh();
-      notify("Payment method updated");
+      notify("ပေးချေမှုနည်းလမ်း ပြင်ပြီးပါပြီ");
     },
     onError: (e: Error) => notify(e.message),
   });
@@ -876,8 +877,8 @@ function PaymentTab({ notify }: { notify: (s: string) => void }) {
       refresh();
       notify(
         result === "deactivated"
-          ? "Method has past sales records, so it was hidden instead of deleted."
-          : "Payment method removed.",
+          ? "ယခင်အရောင်းမှတ်တမ်းရှိသောကြောင့် မဖျက်ဘဲ ကောင်တာမှ ဖျောက်ထားပါသည်။"
+          : "ပေးချေမှုနည်းလမ်း ဖယ်ရှားပြီးပါပြီ။",
       );
     },
     onError: (e: Error) => notify(e.message),
@@ -887,13 +888,13 @@ function PaymentTab({ notify }: { notify: (s: string) => void }) {
     <div className="space-y-5">
       <div className="flex flex-wrap justify-between items-center gap-3">
         <div>
-          <h3 className="text-lg font-bold text-slate-800">Checkout Payment Methods</h3>
+          <h3 className="text-lg font-bold text-slate-800">ငွေပေးချေမှုနည်းလမ်းများ</h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Manage tender options available on the counter checkout register (Cash, KBZPay, WavePay, Cards)
+            ကောင်တာတွင် အသုံးပြုမည့် ငွေသား၊ KBZPay၊ WavePay၊ ကတ် စသည်တို့ကို စီမံပါ
           </p>
         </div>
         <button className="btn btn-sm btn-primary" onClick={() => setOpen(true)}>
-          + Add Payment Method
+          + ပေးချေမှုနည်းလမ်းအသစ်
         </button>
       </div>
 
@@ -918,9 +919,9 @@ function PaymentTab({ notify }: { notify: (s: string) => void }) {
                 </div>
                 <p className="text-xs text-slate-500 mt-0.5">
                   {method.isActive ? (
-                    <span className="text-emerald-600 font-medium">● Visible at checkout</span>
+                    <span className="text-emerald-600 font-medium">● ကောင်တာတွင် ပြမည်</span>
                   ) : (
-                    <span className="text-slate-400">○ Hidden at checkout</span>
+                    <span className="text-slate-400">○ ကောင်တာတွင် မပြပါ</span>
                   )}
                 </p>
               </div>
@@ -932,7 +933,7 @@ function PaymentTab({ notify }: { notify: (s: string) => void }) {
                 onClick={() => toggle.mutate(method)}
                 disabled={toggle.isPending}
               >
-                {method.isActive ? "Hide from Register" : "Show on Register"}
+                {method.isActive ? "ကောင်တာတွင် မပြပါ" : "ကောင်တာတွင် ပြမည်"}
               </button>
               <button
                 className="btn btn-xs btn-ghost text-rose-600 hover:bg-rose-50"
@@ -946,7 +947,7 @@ function PaymentTab({ notify }: { notify: (s: string) => void }) {
                 }}
                 disabled={remove.isPending}
               >
-                Remove
+                ဖယ်ရှားမည်
               </button>
             </div>
           </div>
@@ -967,7 +968,7 @@ function PaymentTab({ notify }: { notify: (s: string) => void }) {
             }}
           >
             <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-              <h3 className="font-bold text-slate-800 text-base">Add New Payment Method</h3>
+              <h3 className="font-bold text-slate-800 text-base">ပေးချေမှုနည်းလမ်းအသစ် ထည့်မည်</h3>
               <button
                 type="button"
                 className="btn btn-ghost btn-xs btn-circle"
@@ -980,14 +981,14 @@ function PaymentTab({ notify }: { notify: (s: string) => void }) {
               <div className="form-control">
                 <label className="label py-1">
                   <span className="label-text text-xs font-bold text-slate-700">
-                    Payment Method Name
+                    ပေးချေမှုနည်းလမ်းအမည်
                   </span>
                 </label>
                 <input
                   type="text"
                   required
                   autoFocus
-                  placeholder="e.g. Wave Pay, AYA Pay, Credit Card"
+                  placeholder="ဥပမာ Wave Pay၊ AYA Pay၊ Credit Card"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="input input-bordered input-sm"
@@ -999,14 +1000,14 @@ function PaymentTab({ notify }: { notify: (s: string) => void }) {
                   className="btn btn-sm btn-ghost"
                   onClick={() => setOpen(false)}
                 >
-                  Cancel
+                  မလုပ်တော့ပါ
                 </button>
                 <button
                   type="submit"
                   className="btn btn-sm btn-primary"
                   disabled={save.isPending}
                 >
-                  {save.isPending ? "Saving…" : "Save Method"}
+                  {save.isPending ? "သိမ်းနေသည်…" : "ပေးချေမှုနည်းလမ်း သိမ်းမည်"}
                 </button>
               </div>
             </div>
@@ -1047,7 +1048,7 @@ function PricingAndFeaturesTab({ notify }: { notify: (s: string) => void }) {
       setName("");
       setOpen(false);
       refresh();
-      notify("Price level saved");
+      notify("စျေးနှုန်းအဆင့် သိမ်းပြီးပါပြီ");
     },
     onError: (error: Error) => notify(error.message),
   });
@@ -1056,7 +1057,7 @@ function PricingAndFeaturesTab({ notify }: { notify: (s: string) => void }) {
     mutationFn: (id: string) => window.storePos.pos.removePriceLevel(id),
     onSuccess: () => {
       refresh();
-      notify("Price level removed");
+      notify("စျေးနှုန်းအဆင့် ဖယ်ရှားပြီးပါပြီ");
     },
     onError: (error: Error) => notify(error.message),
   });
@@ -1088,21 +1089,21 @@ function PricingAndFeaturesTab({ notify }: { notify: (s: string) => void }) {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-5 border-b border-slate-100 flex flex-wrap justify-between items-center gap-3 bg-slate-50/50">
           <div>
-            <h3 className="font-semibold text-slate-800 text-base">Pricing Tiers & Levels</h3>
+            <h3 className="font-semibold text-slate-800 text-base">စျေးနှုန်းအဆင့်များ</h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Retail is the default price. Add Wholesale, VIP, or Bulk tiers to set custom item prices
+              လက်လီစျေးသည် မူလစျေးဖြစ်သည်။ လက်ကား၊ VIP သို့မဟုတ် အရေအတွက်လိုက်စျေး ထည့်နိုင်သည်
             </p>
           </div>
           {capabilities.effectivePlan !== "free" && (
             <button className="btn btn-sm btn-primary" onClick={() => setOpen(true)}>
-              + Add Price Level
+              + စျေးနှုန်းအဆင့်အသစ်
             </button>
           )}
         </div>
 
         {capabilities.effectivePlan === "free" ? (
           <div className="p-6 text-center text-xs text-slate-500">
-            Multi-tier pricing requires an active <strong>Offline Plus</strong> or <strong>Cloud Pro</strong> subscription.
+            စျေးနှုန်းအဆင့်များ အသုံးပြုရန် <strong>Offline Plus</strong> သို့မဟုတ် <strong>Cloud Pro</strong> အစီအစဉ် လိုအပ်သည်။
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
@@ -1121,11 +1122,11 @@ function PricingAndFeaturesTab({ notify }: { notify: (s: string) => void }) {
                             {level.name}
                           </span>
                           <span className="badge badge-neutral badge-xs font-semibold">
-                            Default Base Price
+                            မူလလက်လီစျေး
                           </span>
                         </div>
                         <p className="text-xs text-slate-500 mt-0.5">
-                          Standard retail selling price configured on products
+                          ကုန်ပစ္စည်းတွင် သတ်မှတ်ထားသော ပုံမှန်လက်လီစျေး
                         </p>
                       </div>
                     ) : (
@@ -1142,7 +1143,7 @@ function PricingAndFeaturesTab({ notify }: { notify: (s: string) => void }) {
                         <p className="text-xs text-slate-500 mt-1">
                           {level.productCount
                             ? `${level.productCount} item price${level.productCount === 1 ? "" : "s"} set`
-                            : "No products configured with this price yet"}
+                            : "ဤစျေးနှုန်းသတ်မှတ်ထားသော ကုန်ပစ္စည်းမရှိသေးပါ"}
                         </p>
                       </div>
                     )}
@@ -1154,7 +1155,7 @@ function PricingAndFeaturesTab({ notify }: { notify: (s: string) => void }) {
                         className="btn btn-xs btn-ghost btn-square"
                         disabled={index === 0 || save.isPending}
                         onClick={() => move(index, -1)}
-                        title="Move up"
+                        title="အပေါ်သို့ရွှေ့မည်"
                       >
                         ↑
                       </button>
@@ -1162,7 +1163,7 @@ function PricingAndFeaturesTab({ notify }: { notify: (s: string) => void }) {
                         className="btn btn-xs btn-ghost btn-square"
                         disabled={index === extras.length - 1 || save.isPending}
                         onClick={() => move(index, 1)}
-                        title="Move down"
+                        title="အောက်သို့ရွှေ့မည်"
                       >
                         ↓
                       </button>
@@ -1178,7 +1179,7 @@ function PricingAndFeaturesTab({ notify }: { notify: (s: string) => void }) {
                             remove.mutate(level.id);
                         }}
                       >
-                        Remove
+                        ဖယ်ရှားမည်
                       </button>
                     </div>
                   )}
@@ -1203,7 +1204,7 @@ function PricingAndFeaturesTab({ notify }: { notify: (s: string) => void }) {
             }}
           >
             <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-              <h3 className="font-bold text-slate-800 text-base">Add Price Level</h3>
+              <h3 className="font-bold text-slate-800 text-base">စျေးနှုန်းအဆင့် ထည့်မည်</h3>
               <button
                 type="button"
                 className="btn btn-ghost btn-xs btn-circle"
@@ -1215,13 +1216,13 @@ function PricingAndFeaturesTab({ notify }: { notify: (s: string) => void }) {
             <div className="p-5 space-y-4">
               <div className="form-control">
                 <label className="label py-1">
-                  <span className="label-text text-xs font-bold text-slate-700">Level Name</span>
+                  <span className="label-text text-xs font-bold text-slate-700">အဆင့်အမည်</span>
                 </label>
                 <input
                   type="text"
                   required
                   autoFocus
-                  placeholder="e.g. Wholesale, VIP Member, Bulk"
+                  placeholder="ဥပမာ လက်ကား၊ VIP၊ အရေအတွက်များ"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="input input-bordered input-sm"
@@ -1233,14 +1234,14 @@ function PricingAndFeaturesTab({ notify }: { notify: (s: string) => void }) {
                   className="btn btn-sm btn-ghost"
                   onClick={() => setOpen(false)}
                 >
-                  Cancel
+                  မလုပ်တော့ပါ
                 </button>
                 <button
                   type="submit"
                   className="btn btn-sm btn-primary"
                   disabled={save.isPending}
                 >
-                  {save.isPending ? "Saving…" : "Save Level"}
+                  {save.isPending ? "သိမ်းနေသည်…" : "စျေးနှုန်းအဆင့် သိမ်းမည်"}
                 </button>
               </div>
             </div>
@@ -1276,8 +1277,8 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
       void client.invalidateQueries();
       notify(
         result.daysAdded
-          ? `✓ ${result.daysAdded} days added to your plan!`
-          : "Plan updated successfully",
+          ? `✓ အစီအစဉ်သက်တမ်း ${result.daysAdded} ရက် တိုးပြီးပါပြီ။`
+          : "အစီအစဉ် ပြင်ပြီးပါပြီ",
       );
     },
     onError: (error: Error) => notify(error.message),
@@ -1326,14 +1327,14 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
               <PlanBadge plan={isPremium ? status.data?.tier : "free"} variant="pill" />
             </div>
             <h3 className="text-2xl font-black text-slate-800">
-              {isPremium ? "Active Subscription" : "Free Offline Edition"}
+              {isPremium ? "လက်ရှိအသုံးပြုနေသော အစီအစဉ်" : "အခမဲ့ အော့ဖ်လိုင်းအစီအစဉ်"}
             </h3>
             <p className="text-xs text-slate-500 mt-1">
               {isPremium
                 ? status.data?.tier === "cloud_pro"
-                  ? "Full access to offline multi-register features and multi-device cloud sync (up to 5 devices)"
-                  : "Full access to customer debt ledger, day-end shifts, and custom price levels on this device"
-                : "Basic offline checkout, receipt printing, and shop expenses enabled. Upgrade to unlock customer debt, day-end shifts, and cloud sync."}
+                  ? "အော့ဖ်လိုင်းလုပ်ဆောင်ချက်အားလုံးနှင့် စက် ၅ လုံးအထိ Cloud Sync အသုံးပြုနိုင်သည်"
+                  : "ဤစက်တွင် ဖောက်သည်အကြွေး၊ နေ့ကုန်အဆိုင်းနှင့် စိတ်ကြိုက်စျေးနှုန်းများ အသုံးပြုနိုင်သည်"
+                : "အခြေခံအော့ဖ်လိုင်းအရောင်း၊ ဘောင်ချာထုတ်ခြင်းနှင့် အသုံးစရိတ် မှတ်တမ်းတင်နိုင်သည်။ အကြွေး၊ နေ့ကုန်အဆိုင်းနှင့် Cloud Sync အတွက် အစီအစဉ်မြှင့်ပါ။"}
             </p>
           </div>
 
@@ -1343,7 +1344,7 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
               void client.invalidateQueries({ queryKey: ["billing-status"] })
             }
           >
-            ↻ Refresh Status
+            ↻ အခြေအနေပြန်စစ်မည်
           </button>
         </div>
 
@@ -1351,19 +1352,19 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-4 border-t border-slate-200/80">
             <div className="p-3 bg-white/80 rounded-xl border border-slate-200 shadow-2xs">
               <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                Days Remaining
+                သက်တမ်းကျန်ရက်
               </span>
               <p
                 className={`text-2xl font-black mt-1 ${
                   isExpiringSoon ? "text-amber-600" : "text-emerald-700"
                 }`}
               >
-                {days} days
+                {days} ရက်
               </p>
             </div>
             <div className="p-3 bg-white/80 rounded-xl border border-slate-200 shadow-2xs">
               <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                Valid Until
+                သက်တမ်းကုန်ရက်
               </span>
               <p className="text-base font-bold text-slate-800 mt-1">
                 {until?.toLocaleDateString()}
@@ -1374,8 +1375,8 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
       </div>
 
       <div>
-        <p className="text-sm font-bold text-slate-800">1. Choose the plan your shop needs</p>
-        <p className="text-xs text-slate-500 mt-1">Choose by the way you work, not by a long feature list.</p>
+        <p className="text-sm font-bold text-slate-800">၁။ ဆိုင်အတွက်လိုအပ်သော အစီအစဉ်ကိုရွေးပါ</p>
+        <p className="text-xs text-slate-500 mt-1">ဆိုင်အသုံးပြုပုံနှင့် ကိုက်ညီသောအစီအစဉ်ကို ရွေးပါ။</p>
       </div>
       {/* Signature Tier Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1384,34 +1385,34 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
           <div className="flex items-center justify-between">
             <PlanBadge plan="offline_plus" variant="pill" />
             <span className="badge badge-sm bg-amber-100 text-amber-800 border-amber-300 font-bold">
-              1 Device
+              စက် ၁ လုံး
             </span>
           </div>
           <div>
             <h4 className="font-bold text-slate-800 text-base">Offline Plus</h4>
             <p className="text-xs text-slate-500 mt-0.5">
-              For shops that sell on credit or use wholesale / VIP prices
+              အကြွေးရောင်းခြင်း သို့မဟုတ် လက်ကား / VIP စျေး သုံးသောဆိုင်များအတွက်
             </p>
           </div>
           <ul className="space-y-2 text-xs text-slate-700">
             <li className="flex items-center gap-2">
               <span className="text-amber-600 font-bold">✓</span>
-              <span>Customer Debt & Store Credit Ledger</span>
+              <span>ဖောက်သည်အကြွေးစာရင်း</span>
             </li>
             <li className="flex items-center gap-2">
               <span className="text-amber-600 font-bold">✓</span>
-              <span>Day-End Cash Shifts & Drawer Reconciliation</span>
+              <span>နေ့ကုန်ငွေစာရင်းပုံး ကိုက်ညှိမှု</span>
             </li>
             <li className="flex items-center gap-2">
               <span className="text-amber-600 font-bold">✓</span>
-              <span>Custom Price Levels (Retail, Wholesale, VIP)</span>
+              <span>လက်လီ၊ လက်ကား၊ VIP စျေးနှုန်းအဆင့်များ</span>
             </li>
             <li className="flex items-center gap-2">
               <span className="text-amber-600 font-bold">✓</span>
-              <span>One device · works without internet</span>
+              <span>စက်တစ်လုံး · အင်တာနက်မလို</span>
             </li>
           </ul>
-          <p className="text-lg font-black text-amber-700">8,000 Ks / month</p>
+          <p className="text-lg font-black text-amber-700">တစ်လ ၈,၀၀၀ ကျပ်</p>
         </button>
 
         {/* Cloud Pro Card */}
@@ -1419,39 +1420,39 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
           <div className="flex items-center justify-between">
             <PlanBadge plan="cloud_pro" variant="pill" />
             <span className="badge badge-sm bg-sky-100 text-sky-800 border-sky-300 font-bold">
-              Up to 5 Devices
+              စက် ၅ လုံးအထိ
             </span>
           </div>
           <div>
             <h4 className="font-bold text-slate-800 text-base">Cloud Pro</h4>
             <p className="text-xs text-slate-500 mt-0.5">
-              For shops using two or more devices and needing cloud backup
+              စက်နှစ်လုံးနှင့်အထက် သုံးပြီး Cloud backup လိုသောဆိုင်များအတွက်
             </p>
           </div>
           <ul className="space-y-2 text-xs text-slate-700">
             <li className="flex items-center gap-2">
               <span className="text-sky-600 font-bold">✓</span>
-              <span>All Offline Plus features included</span>
+              <span>Offline Plus လုပ်ဆောင်ချက်အားလုံး ပါဝင်သည်</span>
             </li>
             <li className="flex items-center gap-2">
               <span className="text-sky-600 font-bold">✓</span>
-              <span>Multi-Device Real-Time Synchronization</span>
+              <span>စက်အများအပြား အချိန်နှင့်တပြေးညီ Sync</span>
             </li>
             <li className="flex items-center gap-2">
               <span className="text-sky-600 font-bold">✓</span>
-              <span>Automatic Background Cloud Backup</span>
+              <span>နောက်ကွယ်မှ အလိုအလျောက် Cloud backup</span>
             </li>
             <li className="flex items-center gap-2">
               <span className="text-sky-600 font-bold">✓</span>
-              <span>Cross-Device Live Inventory & Sales Access</span>
+              <span>စက်တိုင်းမှ ကုန်လက်ကျန်နှင့် အရောင်းကို ကြည့်နိုင်သည်</span>
             </li>
           </ul>
-          <p className="text-lg font-black text-sky-700">15,000 Ks / month</p>
+          <p className="text-lg font-black text-sky-700">တစ်လ ၁၅,၀၀၀ ကျပ်</p>
         </button>
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
-        <div><p className="text-sm font-bold text-slate-800">2. Choose subscription length</p><p className="text-xs text-slate-500 mt-1">Yearly includes two months free.</p></div>
+        <div><p className="text-sm font-bold text-slate-800">၂။ သက်တမ်းကိုရွေးပါ</p><p className="text-xs text-slate-500 mt-1">တစ်နှစ်စာတွင် နှစ်လ အခမဲ့ပါဝင်သည်။</p></div>
         <div className="grid grid-cols-3 gap-3 max-w-xl">
           {packages[selectedTier].map((item) => <button key={item.months} type="button" onClick={() => setSelectedMonths(item.months)} className={`rounded-xl border p-3 text-center transition ${selectedMonths === item.months ? "border-sky-500 bg-sky-50 ring-1 ring-sky-200" : "border-slate-200 hover:border-slate-300"}`}>
             <p className="font-bold text-slate-800">{item.label}</p><p className="text-sm font-black text-sky-700 mt-1">{new Intl.NumberFormat("en-US").format(item.amount)} Ks</p>{"saving" in item && item.saving ? <p className="text-[11px] text-emerald-700 font-bold mt-1">{item.saving}</p> : null}
@@ -1460,42 +1461,42 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
       </div>
 
       <div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-5 flex flex-wrap items-center justify-between gap-4">
-        <div><p className="text-sm font-bold text-indigo-950">Want to ask before paying?</p><p className="text-xs text-indigo-800 mt-1">Contact us to confirm your selected plan and payment details.</p></div>
-        <div className="flex gap-2"><a className="btn btn-sm btn-outline" href="tel:09425743536">☎ Call 09425743536</a><a className="btn btn-sm bg-indigo-600 hover:bg-indigo-700 text-white border-none" href="https://viber.me/959425743536" target="_blank" rel="noreferrer">▣ Viber</a></div>
+        <div><p className="text-sm font-bold text-indigo-950">ငွေမပေးမီ မေးမြန်းလိုပါသလား။</p><p className="text-xs text-indigo-800 mt-1">ရွေးထားသောအစီအစဉ်နှင့် ပေးချေမှုအတွက် ကျွန်ုပ်တို့ကို ဆက်သွယ်နိုင်ပါသည်။</p></div>
+        <div className="flex gap-2"><a className="btn btn-sm btn-outline" href="tel:09425743536">☎ 09425743536 သို့ ဖုန်းခေါ်မည်</a><a className="btn btn-sm bg-indigo-600 hover:bg-indigo-700 text-white border-none" href="https://viber.me/959425743536" target="_blank" rel="noreferrer">▣ Viber</a></div>
       </div>
 
       {/* Detail is available, but does not get in the way of buying. */}
       <details className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <summary className="p-4 cursor-pointer font-semibold text-slate-800 text-sm bg-slate-50/50">Compare every plan feature</summary>
+        <summary className="p-4 cursor-pointer font-semibold text-slate-800 text-sm bg-slate-50/50">အစီအစဉ်အားလုံး နှိုင်းယှဉ်ကြည့်မည်</summary>
         <div className="divide-y divide-slate-100 text-xs">
           {[
             {
-              feature: "Offline POS & Thermal Receipt Printing",
+              feature: "အော့ဖ်လိုင်း POS နှင့် ဘောင်ချာထုတ်ခြင်း",
               planReq: "free",
               available: true,
             },
             {
-              feature: "Petty Cash & Shop Expenses",
+              feature: "ငွေသားနှင့် ဆိုင်အသုံးစရိတ်",
               planReq: "free",
               available: true,
             },
             {
-              feature: "Customer Debt & Store Credit Ledger",
+              feature: "ဖောက်သည်အကြွေးစာရင်း",
               planReq: "offline_plus",
               available: isPremium,
             },
             {
-              feature: "Day-End Cash Shifts & Drawer Close",
+              feature: "နေ့ကုန်ငွေစာရင်းပုံး ပိတ်ခြင်း",
               planReq: "offline_plus",
               available: isPremium,
             },
             {
-              feature: "Multi-Tier Pricing (Wholesale / VIP)",
+              feature: "လက်ကား / VIP စျေးနှုန်းအဆင့်များ",
               planReq: "offline_plus",
               available: isPremium,
             },
             {
-              feature: "Automatic Cloud Backup & Multi-Device Sync",
+              feature: "အလိုအလျောက် Cloud backup နှင့် စက်အများအပြား Sync",
               planReq: "cloud_pro",
               available: status.data?.tier === "cloud_pro",
             },
@@ -1504,7 +1505,7 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
               <div>
                 <p className="font-medium text-slate-800">{item.feature}</p>
                 <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="text-[11px] text-slate-400">Requires:</span>
+                  <span className="text-[11px] text-slate-400">လိုအပ်သောအစီအစဉ် —</span>
                   <PlanBadge plan={item.planReq} variant="micro" />
                 </div>
               </div>
@@ -1513,7 +1514,7 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
                   item.available ? "badge-success text-white" : "badge-neutral"
                 }`}
               >
-                {item.available ? "Active" : "Locked"}
+                {item.available ? "အသုံးပြုနေသည်" : "မရနိုင်သေး"}
               </span>
             </div>
           ))}
@@ -1529,9 +1530,9 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
         }}
       >
         <div>
-          <h4 className="font-semibold text-slate-800 text-sm">Redeem Prepaid Activation Code</h4>
+          <h4 className="font-semibold text-slate-800 text-sm">ကြိုတင်ဝယ်ယူထားသော ကုဒ်သုံးမည်</h4>
           <p className="text-xs text-slate-500 mt-0.5">
-            Enter the 14-character prepaid code to instantly activate or extend your plan
+            အစီအစဉ်ဖွင့်ရန် သို့မဟုတ် သက်တမ်းတိုးရန် ၁၄ လုံးပါကုဒ်ကို ထည့်ပါ
           </p>
         </div>
 
@@ -1550,7 +1551,7 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
             className="btn btn-sm btn-primary"
             disabled={redeem.isPending || code.trim().length < 12}
           >
-            {redeem.isPending ? "Redeeming…" : "Redeem Code"}
+            {redeem.isPending ? "ကုဒ်စစ်နေသည်…" : "ကုဒ်အသုံးပြုမည်"}
           </button>
         </div>
       </form>
@@ -1587,29 +1588,29 @@ function DiagnosticsTab({ notify, readOnly = false }: { notify: (message: string
     mutationFn: () => window.storePos.pos.clearCrashes(),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["crashes"] });
-      notify("Crash logs cleared");
+      notify("App ပြဿနာမှတ်တမ်း ရှင်းပြီးပါပြီ");
     },
   });
 
   const copy = async () => {
     const text = [
       `Store POS Desktop v${version.data ?? "?"}`,
-      `Sync Status: ${cloudState.data?.status ?? "unknown"}`,
+      `Sync Status: ${cloudState.data?.status ?? "မသိရသေး"}`,
       `Pending Changes: ${cloudState.data?.pending ?? 0}`,
-      `Last Synced: ${cloudState.data?.lastSyncedAt ? new Date(cloudState.data.lastSyncedAt).toLocaleString() : "Never"}`,
+      `Last Synced: ${cloudState.data?.lastSyncedAt ? new Date(cloudState.data.lastSyncedAt).toLocaleString() : "တစ်ကြိမ်မျှ မလုပ်ရသေး"}`,
       "",
       "=== CRASH LOGS ===",
       "",
       ...(crashes.data ?? []).map(
         (item) =>
-          `${new Date(item.occurredAt).toLocaleString()}\nSource: ${item.source}\nVersion: ${item.appVersion ?? "unknown"}\nMessage: ${item.message}`,
+          `${new Date(item.occurredAt).toLocaleString()}\nSource: ${item.source}\nVersion: ${item.appVersion ?? "မသိရသေး"}\nMessage: ${item.message}`,
       ),
     ].join("\n\n");
     try {
       await navigator.clipboard.writeText(text);
-      notify("Diagnostics copied to clipboard");
+      notify("စနစ်စစ်ဆေးချက်ကို ကူးယူပြီးပါပြီ");
     } catch {
-      notify("Unable to copy diagnostics");
+      notify("စနစ်စစ်ဆေးချက်ကို မကူးနိုင်ပါ");
     }
   };
 
@@ -1619,7 +1620,7 @@ function DiagnosticsTab({ notify, readOnly = false }: { notify: (message: string
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
           <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">
-            App Version
+            App ဗားရှင်း
           </span>
           <p className="text-xl font-mono font-black text-slate-800 mt-1">
             v{version.data ?? "0.1.0"}
@@ -1631,13 +1632,13 @@ function DiagnosticsTab({ notify, readOnly = false }: { notify: (message: string
             Cloud Sync
           </span>
           <p className="text-xl font-bold text-slate-800 mt-1 capitalize">
-            {cloudState.data?.status ?? "Offline"}
+            {cloudState.data?.status ?? "အော့ဖ်လိုင်း"}
           </p>
         </div>
 
         <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
           <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">
-            Negative Stock Items
+            အနုတ်ဖြစ်နေသော ကုန်လက်ကျန်
           </span>
           <p
             className={`text-xl font-black mt-1 ${
@@ -1650,7 +1651,7 @@ function DiagnosticsTab({ notify, readOnly = false }: { notify: (message: string
 
         <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
           <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">
-            Crash Logs Recorded
+            App ပြဿနာမှတ်တမ်း
           </span>
           <p className="text-xl font-black text-slate-800 mt-1">
             {crashes.data?.length ?? 0}
@@ -1663,14 +1664,14 @@ function DiagnosticsTab({ notify, readOnly = false }: { notify: (message: string
         <div className="p-5 rounded-xl bg-amber-50 border border-amber-200 shadow-sm space-y-3">
           <div className="flex items-center gap-2 text-amber-900 font-bold text-sm">
             <span>⚠️</span>
-            <span>Stock Discrepancies ({stock.data.length} items with negative inventory)</span>
+            <span>ကုန်လက်ကျန်ကွာဟမှု ({stock.data.length} ခု လက်ကျန်အနုတ်ဖြစ်နေသည်)</span>
           </div>
           <div className="divide-y divide-amber-200/60 max-h-48 overflow-y-auto">
             {stock.data.map((item) => (
               <div key={item.id} className="py-2 flex justify-between text-xs text-amber-900">
                 <span className="font-medium">{item.name}</span>
                 <span className="font-mono font-bold text-rose-600">
-                  {item.quantity} in stock
+                  {item.quantity} လက်ကျန်
                 </span>
               </div>
             ))}
@@ -1683,25 +1684,25 @@ function DiagnosticsTab({ notify, readOnly = false }: { notify: (message: string
         <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
           <div>
             <h4 className="font-semibold text-slate-800 text-sm">
-              Application Problem & Crash Logs ({crashes.data?.length ?? 0})
+              App ပြဿနာမှတ်တမ်း ({crashes.data?.length ?? 0})
             </h4>
             <p className="text-xs text-slate-500 mt-0.5">
-              Recorded errors for troubleshooting and support
+              ပြဿနာရှာဖွေရန် သိမ်းထားသော error မှတ်တမ်းများ
             </p>
           </div>
           {crashes.data && crashes.data.length > 0 && (
             <div className="flex gap-2">
               <button className="btn btn-xs btn-outline" onClick={() => void copy()}>
-                Copy Diagnostics
+                စစ်ဆေးချက်ကို ကူးမည်
               </button>
               {!readOnly ? <button
                 className="btn btn-xs btn-ghost text-rose-600"
                 disabled={clear.isPending}
                 onClick={() => {
-                  if (window.confirm("Clear all recorded crash logs?")) clear.mutate();
+                  if (window.confirm("App ပြဿနာမှတ်တမ်းအားလုံး ရှင်းမည်လား။")) clear.mutate();
                 }}
               >
-                Clear Logs
+                မှတ်တမ်းရှင်းမည်
               </button> : null}
             </div>
           )}
@@ -1717,7 +1718,7 @@ function DiagnosticsTab({ notify, readOnly = false }: { notify: (message: string
                 >
                   <p className="font-semibold text-rose-700">{item.message}</p>
                   <p className="text-slate-400 text-[11px]">
-                    {new Date(item.occurredAt).toLocaleString()} · Source: {item.source}
+                    {new Date(item.occurredAt).toLocaleString()} · ဖြစ်ပွားရာ — {item.source}
                     {item.appVersion ? ` · v${item.appVersion}` : ""}
                   </p>
                 </div>
@@ -1725,7 +1726,7 @@ function DiagnosticsTab({ notify, readOnly = false }: { notify: (message: string
             </div>
           ) : (
             <div className="py-8 text-center text-slate-400 text-xs">
-              No crashes recorded. Everything running smoothly! 🎉
+              App ပြဿနာမှတ်တမ်း မရှိပါ။ ကောင်းမွန်စွာ လည်ပတ်နေပါသည်။ 🎉
             </div>
           )}
         </div>
@@ -1755,7 +1756,7 @@ function DataAndAccountTab({ notify }: { notify: (message: string) => void }) {
     mutationFn: (fn: () => Promise<unknown>) => fn(),
     onSuccess: () => {
       void client.invalidateQueries();
-      notify("Storage operation completed successfully");
+      notify("ဒေတာလုပ်ဆောင်မှု ပြီးပါပြီ");
     },
     onError: (e: Error) => notify(e.message),
   });
@@ -1775,7 +1776,7 @@ function DataAndAccountTab({ notify }: { notify: (message: string) => void }) {
       setDeletePassword("");
       setDeleteShopName("");
       void client.invalidateQueries();
-      notify("Cloud account permanently deleted and local station reset");
+      notify("Cloud အကောင့်အပြီးဖျက်ပြီး ဤစက်ကို ပြန်လည်သတ်မှတ်ပြီးပါပြီ");
     },
     onError: (e: Error) => notify(e.message),
   });
@@ -1787,10 +1788,10 @@ function DataAndAccountTab({ notify }: { notify: (message: string) => void }) {
     <div className="max-w-4xl space-y-6">
       <header className="mb-2">
         <h3 className="text-lg font-bold text-slate-800">
-          ⚠️ Data & Account Management (ဒေတာနှင့် အကောင့် စီမံမှု)
+          ⚠️ ဒေတာနှင့် အကောင့် စီမံမှု
         </h3>
         <p className="text-xs text-slate-500 mt-0.5">
-          Local device data maintenance, emergency offline cache reset, and cloud account deletion.
+          စက်တွင်းဒေတာ ပြန်ပြင်ခြင်း၊ ရှင်းခြင်းနှင့် Cloud အကောင့်ဖျက်ခြင်း
         </p>
       </header>
 
@@ -1798,10 +1799,10 @@ function DataAndAccountTab({ notify }: { notify: (message: string) => void }) {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-4 border-b border-slate-100 bg-slate-50/50">
           <h4 className="font-semibold text-slate-800 text-sm">
-            Station Local Storage & Maintenance (စက်တွင်း ဒေတာ ထိန်းသိမ်းမှု)
+            စက်တွင်းဒေတာ ထိန်းသိမ်းမှု
           </h4>
           <p className="text-xs text-slate-500 mt-0.5">
-            Reset or rebuild offline SQLite database for this desktop machine. Cloud data remains safe.
+            ဤကွန်ပျူတာ၏ စက်တွင်းဒေတာကို ပြန်တည်ဆောက်နိုင်သည်။ Cloud ဒေတာ မပျက်ပါ။
           </p>
         </div>
 
@@ -1810,7 +1811,7 @@ function DataAndAccountTab({ notify }: { notify: (message: string) => void }) {
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-center gap-2">
               <span className="text-base">⚠️</span>
               <span>
-                Note: Local data maintenance requires 0 pending offline sync items (currently {pendingCount} pending offline records).
+                မှတ်ချက် — စက်တွင်းဒေတာပြင်ဆင်ရန် ပို့ရန်ကျန်ဒေတာ ၀ ဖြစ်ရပါမည်။ လက်ရှိ {pendingCount} ခု ကျန်နေသည်။
               </span>
             </div>
           )}
@@ -1818,10 +1819,10 @@ function DataAndAccountTab({ notify }: { notify: (message: string) => void }) {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-slate-50 rounded-lg border border-slate-200">
             <div>
               <p className="text-xs font-semibold text-slate-800">
-                Rebuild Local Copy (Cloud မှ ဒေတာ ပြန်လည်ရယူမည်)
+                Cloud မှ စက်တွင်းဒေတာ ပြန်လည်ရယူမည်
               </p>
               <p className="text-[11px] text-slate-500 mt-0.5">
-                Clears this machine's local cache and re-downloads fresh data from the cloud server.
+                ဤစက်ရှိဒေတာကို ရှင်းပြီး Cloud မှ ဒေတာအသစ် ပြန်လည်ရယူပါမည်။
               </p>
             </div>
             <button
@@ -1829,22 +1830,22 @@ function DataAndAccountTab({ notify }: { notify: (message: string) => void }) {
               className="btn btn-sm btn-outline"
               disabled={storageAction.isPending || pendingCount > 0 || cloudState.data?.status === "signed_out"}
               onClick={() => {
-                if (window.confirm("Clear this desktop copy and download the current shop data again from Cloud?")) {
+                if (window.confirm("ဤစက်ရှိဒေတာကိုရှင်းပြီး လက်ရှိဆိုင်ဒေတာကို Cloud မှ ပြန်ယူမည်လား။")) {
                   storageAction.mutate(() => window.storePos.cloud.rebuildLocalData());
                 }
               }}
             >
-              {storageAction.isPending ? "Rebuilding…" : "Rebuild Local Copy"}
+              {storageAction.isPending ? "ပြန်လည်ရယူနေသည်…" : "စက်တွင်းဒေတာ ပြန်လည်ရယူမည်"}
             </button>
           </div>
 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-rose-50/50 rounded-lg border border-rose-100">
             <div>
               <p className="text-xs font-semibold text-rose-800">
-                Wipe Station Data & Reset (ဤစက်မှ ဆိုင်ဒေတာ အားလုံး ရှင်းလင်းမည်)
+                ဤစက်မှ ဆိုင်ဒေတာအားလုံး ရှင်းမည်
               </p>
               <p className="text-[11px] text-rose-600 mt-0.5">
-                Decommissions this desktop station. Disconnects cloud account and completely clears local database.
+                ဤစက်ကို Cloud မှဖြုတ်ပြီး စက်တွင်းဆိုင်ဒေတာအားလုံးကို ရှင်းပါမည်။
               </p>
             </div>
             <button
@@ -1853,19 +1854,19 @@ function DataAndAccountTab({ notify }: { notify: (message: string) => void }) {
               disabled={storageAction.isPending || pendingCount > 0}
               onClick={() => {
                 if (pendingCount > 0) {
-                  alert("Please sync all pending changes before wiping local data.");
+                  alert("စက်တွင်းဒေတာမရှင်းမီ ပို့ရန်ကျန်ဒေတာအားလုံးကို Sync လုပ်ပါ။");
                   return;
                 }
                 if (
                   window.confirm(
-                    "WARNING: This will wipe all local shop data and disconnect this desktop computer. Your cloud data remains safe.\n\nAre you sure you want to proceed?"
+                    "သတိပေးချက် — ဤကွန်ပျူတာရှိ ဆိုင်ဒေတာအားလုံးကို ရှင်းပြီး Cloud မှ ဖြုတ်ပါမည်။ Cloud ဒေတာ မပျက်ပါ။\n\nဆက်လုပ်မည်လား။"
                   )
                 ) {
                   storageAction.mutate(() => window.storePos.cloud.removeLocalData());
                 }
               }}
             >
-              {storageAction.isPending ? "Wiping…" : "Wipe Station Data"}
+              {storageAction.isPending ? "ဒေတာရှင်းနေသည်…" : "ဤစက်ဒေတာ ရှင်းမည်"}
             </button>
           </div>
         </div>
@@ -1875,13 +1876,13 @@ function DataAndAccountTab({ notify }: { notify: (message: string) => void }) {
       {capabilities.owner && cloudState.data?.status !== "signed_out" && (
         <div className="bg-white rounded-xl border border-rose-200 shadow-sm p-5 space-y-3">
           <div className="flex items-center gap-2">
-            <span className="badge badge-error badge-sm text-white font-bold">DANGER ZONE</span>
+            <span className="badge badge-error badge-sm text-white font-bold">အန္တရာယ်ရှိသော လုပ်ဆောင်ချက်</span>
             <h4 className="font-bold text-rose-900 text-sm">
-              Delete Cloud Account (အကောင့်အပြီးဖျက်ရန်)
+              Cloud အကောင့် အပြီးဖျက်မည်
             </h4>
           </div>
           <p className="text-xs text-rose-700 leading-relaxed">
-            Permanently delete this shop's cloud database, sync records, user credentials, and disconnect all connected phones and terminals. This action cannot be undone.
+            ဤဆိုင်၏ Cloud ဒေတာ၊ Sync မှတ်တမ်းနှင့် အကောင့်ကို အပြီးဖျက်ပြီး ချိတ်ထားသောစက်အားလုံးကို ဖြုတ်ပါမည်။ ပြန်ယူ၍မရပါ။
           </p>
           <button
             type="button"
@@ -1892,7 +1893,7 @@ function DataAndAccountTab({ notify }: { notify: (message: string) => void }) {
               setShowDeleteModal(true);
             }}
           >
-            Delete Cloud Account…
+            Cloud အကောင့်ဖျက်မည်…
           </button>
         </div>
       )}
@@ -1904,7 +1905,7 @@ function DataAndAccountTab({ notify }: { notify: (message: string) => void }) {
               <div className="flex items-center gap-2">
                 <span className="text-xl">⚠️</span>
                 <h3 className="font-bold text-base text-rose-700">
-                  Permanently Delete Cloud Account
+                  Cloud အကောင့် အပြီးဖျက်မည်
                 </h3>
               </div>
               <button
@@ -1918,9 +1919,9 @@ function DataAndAccountTab({ notify }: { notify: (message: string) => void }) {
             </div>
 
             <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 space-y-1">
-              <p className="font-bold">This action is irreversible!</p>
+              <p className="font-bold">ဤလုပ်ဆောင်ချက်ကို ပြန်ပြင်၍မရပါ။</p>
               <p>
-                All products, sales transactions, customer debt ledgers, and paired terminals will be wiped from cloud servers.
+                Cloud ပေါ်ရှိ ကုန်ပစ္စည်း၊ အရောင်း၊ အကြွေးစာရင်းနှင့် ချိတ်ထားသောစက်အားလုံး ပျက်သွားပါမည်။
               </p>
             </div>
 
@@ -1928,13 +1929,13 @@ function DataAndAccountTab({ notify }: { notify: (message: string) => void }) {
               <div className="form-control">
                 <label className="label py-1">
                   <span className="label-text text-xs font-bold text-slate-700">
-                    Owner Password
+                    ဆိုင်ပိုင်ရှင် စကားဝှက်
                   </span>
                 </label>
                 <input
                   type="password"
                   className="input input-bordered input-sm"
-                  placeholder="Enter your owner password"
+                  placeholder="ဆိုင်ပိုင်ရှင် စကားဝှက်ထည့်ပါ"
                   value={deletePassword}
                   onChange={(e) => setDeletePassword(e.target.value)}
                   disabled={deleteAccount.isPending}
@@ -1944,13 +1945,13 @@ function DataAndAccountTab({ notify }: { notify: (message: string) => void }) {
               <div className="form-control">
                 <label className="label py-1">
                   <span className="label-text text-xs font-bold text-slate-700">
-                    Confirm Shop Name: <span className="font-mono text-rose-700 font-semibold">{shopDisplayName}</span>
+                    ဆိုင်အမည်ကို အတည်ပြုပါ — <span className="font-mono text-rose-700 font-semibold">{shopDisplayName}</span>
                   </span>
                 </label>
                 <input
                   type="text"
                   className="input input-bordered input-sm"
-                  placeholder={`Type "${shopDisplayName}"`}
+                  placeholder={`“${shopDisplayName}” ဟု ရိုက်ထည့်ပါ`}
                   value={deleteShopName}
                   onChange={(e) => setDeleteShopName(e.target.value)}
                   disabled={deleteAccount.isPending}
@@ -1965,7 +1966,7 @@ function DataAndAccountTab({ notify }: { notify: (message: string) => void }) {
                 disabled={deleteAccount.isPending}
                 onClick={() => setShowDeleteModal(false)}
               >
-                Cancel
+                မလုပ်တော့ပါ
               </button>
               <button
                 type="button"
@@ -1977,7 +1978,7 @@ function DataAndAccountTab({ notify }: { notify: (message: string) => void }) {
                 }
                 onClick={() => deleteAccount.mutate()}
               >
-                {deleteAccount.isPending ? "Deleting…" : "Permanently Delete Account"}
+                {deleteAccount.isPending ? "ဖျက်နေသည်…" : "အကောင့် အပြီးဖျက်မည်"}
               </button>
             </div>
           </div>
