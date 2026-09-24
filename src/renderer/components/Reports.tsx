@@ -165,7 +165,7 @@ function ReportsTab() {
           <div>
             <div className="flex items-center gap-1.5">
               <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-                အကြမ်းအမြတ်
+                အရောင်းအမြတ်
               </p>
               {grossMargin > 0 && (
                 <span className="badge badge-xs badge-success text-white font-mono font-bold">
@@ -226,12 +226,12 @@ function ReportsTab() {
               </div>
               <ReportRow label="ရောင်းကုန်ဝယ်ရင်းတန်ဖိုး" value={-(data?.cost ?? 0)} negative />
               <div className="pt-1">
-                <ReportRow label="အကြမ်းအမြတ်" value={data?.grossProfit ?? 0} bold />
+                <ReportRow label="အရောင်းအမြတ်" value={data?.grossProfit ?? 0} bold />
               </div>
             </div>
           </div>
           <div className="mt-3 pt-3 border-t border-slate-100 flex justify-between items-center text-xs">
-            <span className="text-slate-500">အကြမ်းအမြတ်ရာခိုင်နှုန်း —</span>
+            <span className="text-slate-500">အရောင်းအမြတ်ရာခိုင်နှုန်း —</span>
             <span className="font-bold text-emerald-700 font-mono">{grossMargin}%</span>
           </div>
         </div>
@@ -369,7 +369,7 @@ function ReportsTab() {
         {/* Cash Register Shifts Audit */}
         <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm p-4 flex flex-col">
           <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider pb-2 border-b border-slate-100 flex items-center gap-1.5">
-            <span>🔒</span> အဆိုင်းစာရင်းကိုက်မှု
+            <span>🔒</span> နေ့ချုပ်စာရင်းကိုက်မှု
           </h3>
           <div className="flex-1 overflow-y-auto space-y-2 mt-2 max-h-64">
             {sessions.data?.length ? (
@@ -388,7 +388,7 @@ function ReportsTab() {
                           }`}
                         />
                         <p className="font-semibold text-slate-800">
-                          {session.status === "open" ? "ဖွင့်ထားသော အဆိုင်း" : "ပိတ်ပြီးသော အဆိုင်း"}
+                          {session.status === "open" ? "ငွေတိုက် ဖွင့်ထားဆဲ" : "နေ့ချုပ် ပိတ်ပြီး"}
                         </p>
                       </div>
                       <p className="text-[11px] text-slate-400 mt-0.5">
@@ -399,7 +399,7 @@ function ReportsTab() {
                     <div className="text-right">
                       {session.difference == null ? (
                         <span className="font-mono text-slate-600">
-                          အဖွင့်ငွေ — {money.format(session.openingFloat)}
+                          အစလက်ကျန်ငွေ — {money.format(session.openingFloat)}
                         </span>
                       ) : (
                         <span

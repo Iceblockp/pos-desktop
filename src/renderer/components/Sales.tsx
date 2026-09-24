@@ -119,7 +119,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
   const handlePrint = (r: Receipt) => {
     window.storePos.printer
       .printReceipt(r)
-      .then(() => notify(`ဘောင်ချာ #${r.voucherId} ထုတ်ပြီးပါပြီ`, "success"))
+      .then(() => notify(`ဘောက်ချာ #${r.voucherId} ထုတ်ပြီးပါပြီ`, "success"))
       .catch((e) => notify(e.message, "error"));
   };
 
@@ -232,7 +232,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
       <header className="flex flex-wrap items-center justify-between gap-3 bg-white px-5 py-3 rounded-xl border border-gray-200/80 shadow-sm">
         <div>
           <h1 className="text-xl font-bold text-gray-900 leading-tight">
-            📊 အရောင်းမှတ်တမ်းနှင့် ဘောင်ချာများ
+            📊 အရောင်းမှတ်တမ်းနှင့် ဘောက်ချာများ
           </h1>
           <p className="text-xs text-gray-500">
             {periodLabel} · ပြထားသည် {offset + 1}-{offset + filteredSales.length} / {sales.data?.total ?? 0} ခု
@@ -245,10 +245,10 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
               type="button"
               onClick={() => handlePrint(debtReceipt)}
               className="btn btn-outline btn-xs font-semibold gap-1 text-emerald-700 hover:bg-emerald-50 border-emerald-300 shadow-sm"
-              title="နောက်ဆုံးအကြွေးဆပ်ဘောင်ချာကို ပြန်ထုတ်မည်"
+              title="နောက်ဆုံးအကြွေးဆပ်ဘောက်ချာကို ပြန်ထုတ်မည်"
             >
               <span>🖨️</span>
-              <span>အကြွေးဆပ်ဘောင်ချာ ပြန်ထုတ်မည် #{debtReceipt.voucherId}</span>
+              <span>အကြွေးဆပ်ဘောက်ချာ ပြန်ထုတ်မည် #{debtReceipt.voucherId}</span>
             </button>
           )}
           <PeriodFilter allowAll />
@@ -337,7 +337,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
             </span>
             <input
               type="text"
-              placeholder="ဘောင်ချာအမှတ် သို့မဟုတ် ဖောက်သည်အမည်ဖြင့်ရှာပါ…"
+              placeholder="ဘောက်ချာအမှတ် သို့မဟုတ် ဖောက်သည်အမည်ဖြင့်ရှာပါ…"
               value={search}
               onChange={(e) => { setSearch(e.target.value); setOffset(0); }}
               className="input input-bordered input-sm w-full pl-9 text-xs bg-gray-50 focus:bg-white"
@@ -414,7 +414,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
                   </button>
                 );
               })}
-              <div className="flex items-center justify-between py-3 text-xs text-gray-500"><span>လက်ရှိစာမျက်နှာ — {filteredSales.length} ခု</span><div className="flex gap-2"><button className="btn btn-xs" disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 50))}>ရှေ့သို့</button><button className="btn btn-xs" disabled={offset + filteredSales.length >= (sales.data?.total ?? 0)} onClick={() => setOffset(offset + 50)}>နောက် ၅၀ ခု</button></div></div>
+              <div className="flex items-center justify-between py-3 text-xs text-gray-500"><span>လက်ရှိစာမျက်နှာ — {filteredSales.length} ခု</span><div className="flex gap-2"><button className="btn btn-xs" disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 50))}>← ယခင်</button><button className="btn btn-xs" disabled={offset + filteredSales.length >= (sales.data?.total ?? 0)} onClick={() => setOffset(offset + 50)}>နောက်သို့ →</button></div></div>
               </>
             ) : (
               <div className="flex flex-col items-center justify-center h-48 text-gray-400">
@@ -431,7 +431,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
           {receipt.isFetching ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-400">
               <span className="loading loading-spinner loading-md text-emerald-600 mb-2"></span>
-              <p className="text-xs font-medium">ဘောင်ချာဖတ်နေသည်…</p>
+              <p className="text-xs font-medium">ဘောက်ချာဖတ်နေသည်…</p>
             </div>
           ) : receipt.data ? (
             <div className="flex-1 flex flex-col overflow-hidden">
@@ -439,7 +439,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
               <div className="px-5 py-3.5 border-b border-gray-200 bg-gray-50/70 flex items-center justify-between">
                 <div>
                   <h3 className="font-bold text-sm text-gray-800 font-mono">
-                    ဘောင်ချာအမှတ် #{receipt.data.voucherId}
+                    ဘောက်ချာအမှတ် #{receipt.data.voucherId}
                   </h3>
                   <p className="text-[11px] text-gray-500">
                     {new Date(receipt.data.soldAt).toLocaleString()}
@@ -468,7 +468,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
                   <button
                     onClick={() => handlePrint(receipt.data!)}
                     className="btn btn-primary btn-xs font-bold gap-1 shadow-sm"
-                    title="ဘောင်ချာထုတ်မည် (Ctrl+P / Cmd+P)"
+                    title="ဘောက်ချာထုတ်မည် (Ctrl+P / Cmd+P)"
                   >
                     <span>🖨️</span>
                     <span>ပရင့်ထုတ်</span>
@@ -599,7 +599,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
                 အရောင်းတစ်ခုရွေးပါ
               </p>
               <p className="text-xs text-gray-400 mt-0.5">
-                ဘောင်ချာအသေးစိတ်ကြည့်ရန် ဘယ်ဘက်စာရင်းမှ အရောင်းတစ်ခုကို ရွေးပါ။
+                ဘောက်ချာအသေးစိတ်ကြည့်ရန် ဘယ်ဘက်စာရင်းမှ အရောင်းတစ်ခုကို ရွေးပါ။
               </p>
             </div>
           )}
@@ -616,7 +616,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
                   ပစ္စည်းပြန်သွင်း / ငွေပြန်အမ်းမည်
                 </h3>
                 <p className="text-xs text-gray-500 font-mono">
-                  ဘောင်ချာအမှတ် #{voucherId}
+                  ဘောက်ချာအမှတ် #{voucherId}
                 </p>
               </div>
               <button
@@ -768,7 +768,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
                   အကြွေးဆပ်ငွေ လက်ခံမည်
                 </h3>
                 <p className="text-xs text-gray-500 font-mono">
-                  ဘောင်ချာအမှတ် #{voucherId} · {customerName || "ဖောက်သည်"}
+                  ဘောက်ချာအမှတ် #{voucherId} · {customerName || "ဖောက်သည်"}
                 </p>
               </div>
               <button
@@ -791,7 +791,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
               {/* Balance Summary Card */}
               <div className="p-3 rounded-xl bg-amber-50/80 border border-amber-200 space-y-2">
                 <div className="flex justify-between items-center text-xs">
-                  <span className="text-amber-800">ဤဘောင်ချာကျန်ငွေ —</span>
+                  <span className="text-amber-800">ဤဘောက်ချာကျန်ငွေ —</span>
                   <span className="font-mono font-bold text-amber-950 text-sm">
                     {money.format(receipt.data.outstanding ?? 0)}
                   </span>
@@ -824,7 +824,7 @@ export function Sales({ notify }: { notify: (s: string, type?: "success" | "erro
                         : "btn-outline border-gray-300"
                     }`}
                   >
-                    <span className="font-bold">ဤဘောင်ချာအတွက်သာ</span>
+                    <span className="font-bold">ဤဘောက်ချာအတွက်သာ</span>
                     <span className="text-[10px] opacity-80">
                       {money.format(receipt.data.outstanding ?? 0)}
                     </span>

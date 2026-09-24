@@ -481,10 +481,7 @@ export function Counter({
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             <span className="font-semibold flex items-center gap-1">
               <span>📷</span>
-              <span>စကင်နာ အသင့်</span>
-            </span>
-            <span className="text-emerald-600/80 text-[11px] hidden xl:inline font-mono">
-              (ချိန်၍ ဖတ်ပါ)
+              <span>ဘားကုဒ်စကင်နာ အသင့်ရှိသည်</span>
             </span>
           </div>
 
@@ -642,8 +639,8 @@ export function Counter({
               <div className="flex items-center justify-between gap-2 py-3 text-xs text-gray-500">
                 <span>ပြထားသည် {productOffset + 1}-{productOffset + filteredProducts.length} / {products.data?.total ?? 0}</span>
                 <div className="flex gap-2">
-                  <button className="btn btn-xs" disabled={productOffset === 0} onClick={() => setProductOffset(Math.max(0, productOffset - 100))}>ရှေ့သို့</button>
-                  <button className="btn btn-xs" disabled={productOffset + filteredProducts.length >= (products.data?.total ?? 0)} onClick={() => setProductOffset(productOffset + 100)}>နောက် ၁၀၀ ခု</button>
+                  <button className="btn btn-xs" disabled={productOffset === 0} onClick={() => setProductOffset(Math.max(0, productOffset - 100))}>← ယခင်</button>
+                  <button className="btn btn-xs" disabled={productOffset + filteredProducts.length >= (products.data?.total ?? 0)} onClick={() => setProductOffset(productOffset + 100)}>နောက်သို့ →</button>
                 </div>
               </div>
               </>
@@ -674,7 +671,7 @@ export function Counter({
               >
                 {orderDiscount > 0
                   ? `Disc: -${money.format(orderDiscount)}`
-                  : "+ ဘောင်ချာလျှော့စျေး"}
+                  : "+ ဘောက်ချာလျှော့စျေး"}
               </button>
             )}
           </div>
@@ -796,7 +793,7 @@ export function Counter({
                 )}
                 {orderDiscount > 0 && (
                   <div className="flex justify-between text-orange-600 font-medium">
-                    <span>ဘောင်ချာလျှော့စျေး</span>
+                    <span>ဘောက်ချာလျှော့စျေး</span>
                     <span>-{money.format(orderDiscount)}</span>
                   </div>
                 )}
@@ -844,7 +841,7 @@ export function Counter({
                     </button>
                   ) : (
                     <span className="text-[11px] text-emerald-600 font-medium">
-                      ပြန်အမ်းငွေ
+                      ဖောက်သည် ရွေးရန် +
                     </span>
                   )}
                 </div>
@@ -1004,7 +1001,7 @@ export function Counter({
                         အရောင်းမှတ်ချက်
                       </label>
                       <input
-                        placeholder="ဘောင်ချာတွင် ထည့်မည့် မှတ်ချက်…"
+                        placeholder="ဘောက်ချာတွင် ထည့်မည့် မှတ်ချက်…"
                         className="input input-bordered input-xs w-full"
                         value={note}
                         onChange={(e) => setNote(e.target.value)}
@@ -1033,7 +1030,7 @@ export function Counter({
                 {checkout.isPending ? (
                   <span className="loading loading-spinner loading-sm"></span>
                 ) : (
-                  `Checkout · ${money.format(total)}`
+                  `ငွေရှင်းမည် · ${money.format(total)}`
                 )}
               </button>
             </div>
@@ -1205,7 +1202,7 @@ export function Counter({
                 အရောင်းပြီးပါပြီ
               </h3>
               <p className="text-xs text-gray-500 font-mono">
-                ဘောင်ချာအမှတ် #{receipt.voucherId}
+                ဘောက်ချာအမှတ် #{receipt.voucherId}
               </p>
             </div>
 
@@ -1249,13 +1246,13 @@ export function Counter({
                   void window.storePos.printer
                     .printReceipt(receipt)
                     .then(() => {
-                      notify("ဘောင်ချာကို ပရင်တာသို့ ပို့ပြီးပါပြီ", "success");
+                      notify("ဘောက်ချာကို ပရင်တာသို့ ပို့ပြီးပါပြီ", "success");
                       setReceipt(null);
                     })
                     .catch((e) => notify(e.message, "error"));
                 }}
               >
-                ဘောင်ချာထုတ်မည်
+                ဘောက်ချာထုတ်မည်
               </button>
             </div>
           </div>
@@ -1267,7 +1264,7 @@ export function Counter({
         <div className="modal modal-open">
           <div className="modal-box max-w-sm">
             <h3 className="font-bold text-lg mb-3">
-              {discountModal === "line" ? "ပစ္စည်းလျှော့စျေး" : "ဘောင်ချာလျှော့စျေး"}
+              {discountModal === "line" ? "ပစ္စည်းလျှော့စျေး" : "ဘောက်ချာလျှော့စျေး"}
             </h3>
             <div className="form-control">
               <label className="label py-1">

@@ -567,11 +567,11 @@ export function ProductsTab({
                           <td className="py-2.5 px-3 text-center">
                             {isOutOfStock ? (
                               <span className="badge badge-error badge-sm text-white font-semibold">
-                                ကုန် ({product.quantity} {product.unit})
+                                ကုန်ပြီ ({product.quantity} {product.unit})
                               </span>
                             ) : isLowStock ? (
                               <span className="badge badge-warning badge-sm font-semibold">
-                                နည်း ({product.quantity} {product.unit})
+                                လက်ကျန်နည်း ({product.quantity} {product.unit})
                               </span>
                             ) : (
                               <span className="badge badge-ghost badge-sm font-semibold bg-emerald-50 text-emerald-800 border-emerald-200">
@@ -746,7 +746,7 @@ export function ProductsTab({
           {shown.length > 0 && (
             <div className="flex items-center justify-between px-4 py-3 text-xs text-gray-500 border-t border-gray-100">
               <span>ပြထားသည် {offset + 1}-{offset + shown.length} / {products.data?.total ?? 0}</span>
-              <div className="flex gap-2"><button className="btn btn-xs" disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 100))}>ရှေ့သို့</button><button className="btn btn-xs" disabled={offset + shown.length >= (products.data?.total ?? 0)} onClick={() => setOffset(offset + 100)}>နောက် ၁၀၀ ခု</button></div>
+              <div className="flex gap-2"><button className="btn btn-xs" disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 100))}>← ယခင်</button><button className="btn btn-xs" disabled={offset + shown.length >= (products.data?.total ?? 0)} onClick={() => setOffset(offset + 100)}>နောက်သို့ →</button></div>
             </div>
           )}
         </div>

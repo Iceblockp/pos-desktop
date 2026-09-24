@@ -145,7 +145,7 @@ export function StockModal({
                   <span className="label-text">ပို့ဆောင်မှုရည်ညွှန်းအမှတ်</span>
                 </label>
                 <input
-                  placeholder="အဝယ်ဘောင်ချာ သို့မဟုတ် ပို့ဆောင်မှုအမှတ်"
+                  placeholder="အဝယ်ဘောက်ချာ သို့မဟုတ် ပို့ဆောင်မှုအမှတ်"
                   value={referenceNumber}
                   onChange={(event) => setReferenceNumber(event.target.value)}
                   className="input input-bordered"

@@ -202,13 +202,13 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
               onClick={() => {
                 window.storePos.printer
                   .printReceipt(debtReceipt)
-                  .then(() => notify("အကြွေးဆပ်ဘောင်ချာကို ပရင်တာသို့ ပို့ပြီးပါပြီ", "success"))
+                  .then(() => notify("အကြွေးဆပ်ဘောက်ချာကို ပရင်တာသို့ ပို့ပြီးပါပြီ", "success"))
                   .catch((e) => notify(e.message, "error"));
               }}
               className="btn btn-outline btn-xs font-semibold gap-1 text-emerald-700 hover:bg-emerald-50"
             >
               <span>🖨️</span>
-              <span>နောက်ဆုံးအကြွေးဆပ်ဘောင်ချာ ပြန်ထုတ်မည်</span>
+              <span>နောက်ဆုံးအကြွေးဆပ်ဘောက်ချာ ပြန်ထုတ်မည်</span>
             </button>
           )}
           <button onClick={openNewCustomer} className="btn btn-primary btn-sm">
@@ -700,7 +700,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
               <div className="form-control">
                 <label className="label py-1">
                   <span className="label-text text-xs font-semibold">
-                    အကြွေးရှင်ဖောက်သည် *
+                    အကြွေးကျန်ဖောက်သည် *
                   </span>
                 </label>
                 <select
@@ -793,7 +793,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
               <div className="form-control">
                 <label className="label py-1">
                   <span className="label-text text-xs font-semibold">
-                    ငွေခွဲသတ်မှတ်မှု
+                    ဆပ်မည့် ဘောက်ချာ ရွေးရန်
                   </span>
                 </label>
                 <select
@@ -806,7 +806,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
                     .filter((s) => s.remaining > 0)
                     .map((s) => (
                       <option key={s.id} value={s.id}>
-                        ဘောင်ချာ #{s.voucherId} ({money.format(s.remaining)} ကျန်)
+                        ဘောက်ချာ #{s.voucherId} ({money.format(s.remaining)} ကျန်)
                       </option>
                     ))}
                 </select>
@@ -816,7 +816,7 @@ export function Customers({ notify }: { notify: (s: string, type?: "success" | "
               <div className="form-control">
                 <label className="label py-1">
                   <span className="label-text text-xs font-semibold">
-                    ဘောင်ချာမှတ်ချက်
+                    ဘောက်ချာမှတ်ချက်
                   </span>
                 </label>
                 <input

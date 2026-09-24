@@ -98,7 +98,7 @@ export function Money({
       setModal(null);
       setOpening("");
       refresh();
-      notify("ငွေစာရင်းပုံး ဖွင့်ပြီးပါပြီ", "success");
+      notify("ငွေတိုက် ဖွင့်ပြီးပါပြီ", "success");
     },
     onError: (e: Error) => notify(e.message, "error"),
   });
@@ -117,7 +117,7 @@ export function Money({
           : diff > 0
             ? `ပိုငွေ — +${money.format(diff)}`
             : `လိုငွေ — -${money.format(Math.abs(diff))}`;
-      notify(`ငွေစာရင်းပုံး ပိတ်ပြီးပါပြီ။ ${diffText}`, diff < 0 ? "error" : "success");
+      notify(`နေ့ချုပ် ပိတ်ပြီးပါပြီ။ ${diffText}`, diff < 0 ? "error" : "success");
     },
     onError: (e: Error) => notify(e.message, "error"),
   });
@@ -167,10 +167,10 @@ export function Money({
       <header className="flex flex-wrap items-center justify-between gap-3 bg-white px-5 py-3 rounded-xl border border-gray-200/80 shadow-sm">
         <div>
           <h1 className="text-xl font-bold text-gray-900 leading-tight">
-            💵 ငွေစာရင်းပုံးနှင့် အဆိုင်းစာရင်းကိုက်ညှိခြင်း
+            💵 ငွေစာရင်းနှင့် နေ့ချုပ်စာရင်း
           </h1>
           <p className="text-xs text-gray-500">
-            အဖွင့်ငွေ၊ လက်ရှိငွေရေတွက်မှု၊ အသုံးစရိတ်နှင့် အဆိုင်းစစ်ဆေးမှု
+            အစလက်ကျန်ငွေ၊ နေ့စဉ်အသုံးစရိတ်နှင့် နေ့ကုန်ရှင်းတမ်း စစ်ဆေးခြင်း
           </p>
         </div>
 
@@ -185,7 +185,7 @@ export function Money({
             }`}
             onClick={() => setActiveTab("register")}
           >
-            လက်ရှိငွေစာရင်း
+            လက်ရှိငွေတိုက်
           </button>
           <button
             role="tab"
@@ -207,7 +207,7 @@ export function Money({
             }`}
             onClick={() => setActiveTab("shifts")}
           >
-            ယခင်အဆိုင်းမှတ်တမ်း
+            ယခင် နေ့ချုပ်မှတ်တမ်းများ
           </button>
         </div>
       </header>
@@ -240,13 +240,13 @@ export function Money({
                         isDrawerOpen ? "text-emerald-300" : "text-gray-500"
                       }`}
                     >
-                      {isDrawerOpen ? "ငွေစာရင်းပုံး ဖွင့်ထားသည်" : "ငွေစာရင်းပုံး ပိတ်ထားသည်"}
+                      {isDrawerOpen ? "ငွေတိုက် ဖွင့်ထားသည်" : "နေ့ချုပ် ပိတ်ထားသည်"}
                     </span>
                   </div>
                   <h2 className="text-2xl font-black tracking-tight">
                     {isDrawerOpen
-                      ? "ငွေစာရင်းပုံး ဖွင့်ထားသည်"
-                      : "ဖွင့်ထားသော ငွေစာရင်းပုံး မရှိပါ"}
+                      ? "ငွေတိုက် ဖွင့်ထားဆဲဖြစ်သည်"
+                      : "ဖွင့်ထားသော ငွေတိုက်စာရင်း မရှိပါ"}
                   </h2>
                   <p
                     className={`text-xs ${
@@ -254,8 +254,8 @@ export function Money({
                     }`}
                   >
                     {isDrawerOpen
-                      ? `Shift opened on ${new Date(current!.openedAt).toLocaleString()}`
-                      : "အဖွင့်ငွေကို ရေတွက်ထည့်ပြီး ငွေကိုင်အဆိုင်း စတင်ပါ။"}
+                      ? `ဖွင့်ချိန် — ${new Date(current!.openedAt).toLocaleString()}`
+                      : "ဆိုင်ဖွင့် အစလက်ကျန်ငွေ ထည့်သွင်းပြီး စတင်ပါ။"}
                   </p>
                 </div>
 
@@ -268,7 +268,7 @@ export function Money({
                       }}
                       className="btn btn-warning btn-md font-bold shadow-md"
                     >
-                      ငွေစာရင်းပုံးပိတ်၍ စာရင်းကိုက်မည်
+                      နေ့ချုပ် ပိတ်မည်
                     </button>
                   ) : (
                     <button
@@ -278,7 +278,7 @@ export function Money({
                       }}
                       className="btn btn-primary btn-md font-bold shadow-md"
                     >
-                      + ငွေစာရင်းပုံးဖွင့်မည်
+                      + ငွေတိုက် ဖွင့်မည်
                     </button>
                   )}
                 </div>
@@ -289,7 +289,7 @@ export function Money({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-6 pt-5 border-t border-slate-700/80">
                   <div className="bg-white/10 p-4 rounded-xl backdrop-blur-sm border border-white/10">
                     <span className="text-xs text-slate-300 font-medium">
-                      အဖွင့်ငွေ (အဆိုင်းစချိန်)
+                      ဆိုင်ဖွင့် အစလက်ကျန်ငွေ
                     </span>
                     <p className="text-2xl font-black text-white mt-1">
                       {money.format(current.openingFloat)}
@@ -339,10 +339,10 @@ export function Money({
               >
                 <div>
                   <h3 className="font-bold text-sm text-gray-900">
-                    အဆိုင်းစစ်ဆေးမှုမှတ်တမ်း
+                    နေ့ချုပ် မှတ်တမ်းများ
                   </h3>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    ယခင်ပိတ်ထားသော အဆိုင်းနှင့် ငွေကွာဟမှုများကို ကြည့်ပါ
+                    ယခင်နေ့ချုပ် ရှင်းတမ်းနှင့် ငွေကွာဟမှုများကို ကြည့်ပါ
                   </p>
                 </div>
                 <button className="btn btn-sm btn-ghost text-gray-600">
@@ -475,10 +475,10 @@ export function Money({
               <div className="p-4 border-b border-gray-100 flex items-center justify-between">
                 <div>
                   <h3 className="font-bold text-sm text-gray-900">
-                    ယခင်အဆိုင်း စစ်ဆေးမှုများ
+                    ယခင် နေ့ချုပ်ရှင်းတမ်းများ
                   </h3>
                   <p className="text-xs text-gray-500">
-                    ပိတ်ထားသော ငွေစာရင်းနှင့် ရေတွက်မှုမှတ်တမ်း
+                    နေ့ချုပ် ပိတ်ထားသော စာရင်းနှင့် ရေတွက်မှု မှတ်တမ်း
                   </p>
                 </div>
               </div>
@@ -488,7 +488,7 @@ export function Money({
                   <table className="table table-sm w-full">
                     <thead className="bg-gray-50 text-gray-600 border-b border-gray-200 text-xs">
                       <tr>
-                        <th className="py-3 px-4 font-semibold">အဆိုင်းအချိန်</th>
+                        <th className="py-3 px-4 font-semibold">နေ့ချုပ် အချိန်</th>
                         <th className="py-3 px-4 font-semibold text-right">အဖွင့်ငွေ</th>
                         <th className="py-3 px-4 font-semibold text-right">ရှိရမည့်ငွေ</th>
                         <th className="py-3 px-4 font-semibold text-right">ရေတွက်ရရှိငွေ</th>
@@ -551,9 +551,9 @@ export function Money({
               ) : (
                 <div className="flex flex-col items-center justify-center py-16 text-gray-400">
                   <span className="text-4xl mb-2">📋</span>
-                  <p className="text-base font-bold text-gray-700">အဆိုင်းမှတ်တမ်း မရှိသေးပါ</p>
+                  <p className="text-base font-bold text-gray-700">နေ့ချုပ်မှတ်တမ်း မရှိသေးပါ</p>
                   <p className="text-xs text-gray-500 mt-1">
-                    ပိတ်ပြီးသော ငွေစာရင်းပုံးများ၏ ရေတွက်မှတ်တမ်းကို ဤနေရာတွင် ပြပါမည်။
+                    ပိတ်ပြီးသော နေ့ချုပ်စာရင်းနှင့် ရေတွက်မှတ်တမ်းကို ဤနေရာတွင် ပြပါမည်။
                   </p>
                 </div>
               )}
@@ -568,7 +568,7 @@ export function Money({
           <div className="modal-box max-w-sm p-6">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <h3 className="font-bold text-lg text-gray-900">
-                ငွေစာရင်းပုံးဖွင့်မည်
+                ငွေတိုက် ဖွင့်မည်
               </h3>
               <button
                 className="btn btn-sm btn-circle btn-ghost"
@@ -588,7 +588,7 @@ export function Money({
               <div className="form-control">
                 <label className="label py-1">
                   <span className="label-text text-xs font-semibold">
-                    အဖွင့်ငွေပမာဏ *
+                    ဆိုင်ဖွင့် အစလက်ကျန်ငွေ *
                   </span>
                 </label>
                 <input
@@ -608,7 +608,7 @@ export function Money({
               {/* Common Float Quick Chips */}
               <div>
                 <span className="text-[11px] text-gray-500 font-medium mb-1.5 block">
-                  အဖွင့်ငွေ အမြန်ရွေးရန် —
+                  အစလက်ကျန်ငွေ အမြန်ရွေးရန် —
                 </span>
                 <div className="grid grid-cols-2 gap-1.5">
                   {COMMON_FLOATS.map((amt) => (
@@ -652,10 +652,10 @@ export function Money({
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <div>
                 <h3 className="font-bold text-lg text-gray-900">
-                  ငွေစာရင်းပုံးပိတ်မည်
+                  နေ့ချုပ် ပိတ်မည်
                 </h3>
                 <p className="text-xs text-gray-500">
-                  လက်ရှိငွေကို ရေတွက်ပြီး စာရင်းကိုက်ပါ
+                  ဆိုင်ပိတ် လက်ကျန်ငွေကို ရေတွက်ပြီး နေ့ချုပ်စာရင်း ရှင်းတမ်းထုတ်ပါ
                 </p>
               </div>
               <button
@@ -730,8 +730,8 @@ export function Money({
                     {closingDifference === 0
                       ? "✓ စာရင်းအတိအကျကိုက်ညီသည်"
                       : closingDifference > 0
-                        ? `+${money.format(closingDifference)} (Overage)`
-                        : `-${money.format(Math.abs(closingDifference))} (Shortage)`}
+                        ? `+${money.format(closingDifference)} (ပိုငွေ)`
+                        : `-${money.format(Math.abs(closingDifference))} (လိုငွေ)`}
                   </span>
                 </div>
               )}
@@ -749,7 +749,7 @@ export function Money({
                   className="btn btn-sm btn-warning font-bold px-5"
                   disabled={closeSession.isPending || counted === ""}
                 >
-                  {closeSession.isPending ? "စာရင်းကိုက်နေသည်…" : "အတည်ပြုပြီး အဆိုင်းပိတ်မည်"}
+                  {closeSession.isPending ? "စာရင်းကိုက်နေသည်…" : "အတည်ပြုပြီး နေ့ချုပ်ပိတ်မည်"}
                 </button>
               </div>
             </form>
@@ -863,7 +863,7 @@ export function Money({
               <div className="form-control">
                 <label className="label py-1">
                   <span className="label-text text-xs font-semibold">
-                    ဘောင်ချာမှတ်ချက်
+                    ဘောက်ချာမှတ်ချက်
                   </span>
                 </label>
                 <input
@@ -871,7 +871,7 @@ export function Money({
                   onChange={(e) =>
                     setExpense({ ...expense, note: e.target.value })
                   }
-                  placeholder="ပေးသွင်းသူ သို့မဟုတ် ဘောင်ချာအချက်အလက်…"
+                  placeholder="ပေးသွင်းသူ သို့မဟုတ် ဘောက်ချာအချက်အလက်…"
                   className="input input-bordered input-sm w-full text-xs"
                 />
               </div>

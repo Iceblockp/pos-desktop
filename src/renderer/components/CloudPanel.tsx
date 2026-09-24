@@ -282,7 +282,7 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
                           <span className="capitalize">{device.role}</span>
                         </p>
                         <div className="mt-2 flex flex-wrap gap-1"><button className={`btn btn-xs ${!device.assignedCashDrawerId ? 'btn-primary' : 'btn-ghost'}`} onClick={() => drawerAction.mutate(() => window.storePos.cloud.assignCashDrawer(device.id, null, Boolean(device.canManageCashDrawer)))}>မသတ်မှတ်ရသေး</button>{drawers.data?.map((drawer: CashDrawer) => <button key={drawer.id} className={`btn btn-xs ${device.assignedCashDrawerId === drawer.id ? 'btn-primary' : 'btn-ghost'}`} onClick={() => drawerAction.mutate(() => window.storePos.cloud.assignCashDrawer(device.id, drawer.id, Boolean(device.canManageCashDrawer)))}>{drawer.name}</button>)}</div>
-                        {device.role === 'cashier' ? <label className="mt-2 flex items-center gap-2 text-xs text-slate-600"><input type="checkbox" className="toggle toggle-xs toggle-primary" checked={Boolean(device.canManageCashDrawer)} onChange={() => drawerAction.mutate(() => window.storePos.cloud.assignCashDrawer(device.id, device.assignedCashDrawerId ?? null, !device.canManageCashDrawer))} />ဤငွေစာရင်းပုံးကို ဖွင့်/ပိတ်နိုင်သည်</label> : <p className="mt-1 text-[11px] text-slate-400">ဆိုင်ပိုင်ရှင်သည် သတ်မှတ်ထားသောပုံးကို အမြဲဖွင့်/ပိတ်နိုင်သည်။</p>}
+                        {device.role === 'cashier' ? <label className="mt-2 flex items-center gap-2 text-xs text-slate-600"><input type="checkbox" className="toggle toggle-xs toggle-primary" checked={Boolean(device.canManageCashDrawer)} onChange={() => drawerAction.mutate(() => window.storePos.cloud.assignCashDrawer(device.id, device.assignedCashDrawerId ?? null, !device.canManageCashDrawer))} />ဤငွေတိုက်ကို ဖွင့်/ပိတ်နိုင်သည်</label> : <p className="mt-1 text-[11px] text-slate-400">ဆိုင်ပိုင်ရှင်သည် သတ်မှတ်ထားသော ငွေတိုက်ကို အမြဲဖွင့်/ပိတ်နိုင်သည်။</p>}
                       </div>
                     </div>
 
@@ -526,7 +526,7 @@ export function CloudPanel({ notify }: { notify: (message: string) => void }) {
               <div className="max-w-md mx-auto p-4 rounded-xl bg-blue-50 border border-blue-200 space-y-3">
                 <h4 className="font-bold text-blue-950 text-sm">ယခင်စက်တစ်လုံးကို ပြန်သုံးမည်</h4>
                 <p className="text-xs text-blue-900">
-                  ဤစက်များသည် အကောင့်မှထွက်ထားပြီးဖြစ်သည်။ ပြန်သုံးလျှင် မူလဘောင်ချာအမှတ်စဉ်ကို ဆက်သုံးပါမည်။
+                  ဤစက်များသည် အကောင့်မှထွက်ထားပြီးဖြစ်သည်။ ပြန်သုံးလျှင် မူလဘောက်ချာအမှတ်စဉ်ကို ဆက်သုံးပါမည်။
                 </p>
                 <div className="space-y-2">
                   {inactive.devices.map((device) => (

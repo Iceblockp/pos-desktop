@@ -201,7 +201,7 @@ export function App() {
     { key: "customers", label: "ဖောက်သည်", icon: "👥" },
     {
       key: "cash-drawer",
-      label: "ငွေစာရင်းပုံး",
+      label: "ငွေစာရင်း / နေ့ချုပ်",
       icon: "💵",
       badge: isDrawerOpen ? (
         <span className="badge badge-success badge-xs py-0.5 px-1.5 text-[10px] text-white">
@@ -287,11 +287,11 @@ export function App() {
           <div
             onClick={() => setPage("cash-drawer")}
             className="p-2.5 rounded-lg bg-slate-800/40 border border-slate-700/50 hover:bg-slate-800/80 transition cursor-pointer"
-            title="ငွေစာရင်းပုံးကို ကြည့်မည်"
+            title="ငွေစာရင်းနှင့် နေ့ချုပ်ကို ကြည့်မည်"
           >
             <div className="flex items-center justify-between mb-1">
               <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">
-                ငွေစာရင်းပုံး
+                ငွေစာရင်း / နေ့ချုပ်
               </span>
               <span
                 className={`w-2 h-2 rounded-full ${
@@ -301,7 +301,7 @@ export function App() {
             </div>
             <div className="flex items-center justify-between text-xs">
               <span className="font-medium text-slate-200">
-                {isDrawerOpen ? "ငွေစာရင်းပုံး ဖွင့်ထားသည်" : "ငွေစာရင်းပုံး ပိတ်ထားသည်"}
+                {isDrawerOpen ? "ငွေတိုက် ဖွင့်ထားဆဲ" : "နေ့ချုပ် ပိတ်ထားသည်"}
               </span>
               {isDrawerOpen && session.data?.openingFloat != null && (
                 <span className="text-[11px] text-emerald-400 font-mono">
@@ -338,7 +338,7 @@ export function App() {
               </div>
               <p className="text-[10px] text-slate-400 mt-0.5 truncate pl-3.5">
                 {pendingCount > 0
-                  ? `${pendingCount} pending upload`
+                  ? `ပေးပို့ရန် ${pendingCount} ခု ကျန်သည်`
                   : "အချက်အလက်အားလုံး Sync ပြီးပါပြီ"}
               </p>
             </div>

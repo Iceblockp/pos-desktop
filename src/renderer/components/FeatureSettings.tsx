@@ -39,8 +39,8 @@ export function FeatureSettings({ notify }: { notify: (message: string) => void 
     },
     {
       key: "dayEnd",
-      title: "နေ့ကုန်ငွေစာရင်းကိုက်ညှိမှု",
-      description: "အဆိုင်းအဖွင့်ငွေနှင့် နေ့ကုန်ငွေစာရင်းကိုက်ညှိမှု ပြုလုပ်နိုင်သည်",
+      title: "နေ့ချုပ်စာရင်း (Day-End)",
+      description: "ဆိုင်ဖွင့် အစလက်ကျန်ငွေ ထည့်သွင်းခြင်းနှင့် နေ့ကုန် ရှင်းတမ်းစစ်ဆေးနိုင်သည်",
       icon: "🔒",
     },
   ];
@@ -69,7 +69,7 @@ export function FeatureSettings({ notify }: { notify: (message: string) => void 
         <div className="p-4 bg-amber-50 border-b border-amber-100 flex items-center gap-3">
           <span className="text-amber-600 text-lg">💡</span>
           <p className="text-xs text-amber-800">
-            ဖောက်သည်အကြွေး၊ အသုံးစရိတ်နှင့် ငွေစာရင်းပုံးအဆိုင်းအတွက် <strong>Offline Plus</strong> သို့မဟုတ် <strong>Cloud Pro</strong> အစီအစဉ် လိုအပ်သည်။
+            ဖောက်သည်အကြွေး၊ အသုံးစရိတ်နှင့် နေ့ချုပ်စာရင်းအတွက် <strong>Offline Plus</strong> သို့မဟုတ် <strong>Cloud Pro</strong> အစီအစဉ် လိုအပ်သည်။
           </p>
         </div>
       )}

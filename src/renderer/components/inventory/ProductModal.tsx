@@ -62,16 +62,26 @@ export function ProductModal({
             <div key={field} className="form-control">
               <label className="label">
                 <span className="label-text">
-                  {field === "minStock"
-                    ? "လက်ကျန်နည်း သတိပေးမည့်အရေအတွက်"
-                    : field === "quantity"
-                      ? "အဖွင့်လက်ကျန်"
-                      : field.charAt(0).toUpperCase() + field.slice(1)}
+                  {field === "name"
+                    ? "ကုန်ပစ္စည်းအမည်"
+                    : field === "barcode"
+                      ? "ဘားကုဒ်"
+                      : field === "price"
+                        ? "ရောင်းဈေး (လက်လီ)"
+                        : field === "cost"
+                          ? "ဝယ်ရင်းဈေး"
+                          : field === "quantity"
+                            ? "အဖွင့်လက်ကျန်"
+                            : field === "minStock"
+                              ? "အနည်းဆုံး လက်ကျန်သတ်မှတ်ချက်"
+                              : field === "unit"
+                                ? "ယူနစ် (ခု၊ ထုပ်၊ ဘူး …)"
+                                : field}
                 </span>
               </label>
               <input
                 required={field === "name" || field === "price"}
-                disabled={field === "quantity" && title === "Edit product"}
+                disabled={field === "quantity" && (title === "Edit product" || title.includes("ပြင်"))}
                 value={form[field]}
                 inputMode={
                   ["price", "cost", "quantity", "minStock"].includes(field)

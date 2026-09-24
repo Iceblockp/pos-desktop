@@ -28,7 +28,7 @@ export function Settings({ notify }: { notify: (s: string) => void }) {
     icon: string;
     badge?: React.ReactNode;
   }[] = [
-    { key: "store", label: "ဆိုင်နှင့် ဘောင်ချာ", icon: "🏪" },
+    { key: "store", label: "ဆိုင်နှင့် ဘောက်ချာ", icon: "🏪" },
     { key: "printer", label: "ပရင်တာနှင့် စက်ပစ္စည်း", icon: "🖨️" },
     {
       key: "cloud",
@@ -55,7 +55,7 @@ export function Settings({ notify }: { notify: (s: string) => void }) {
         />
       ),
     },
-    { key: "subscription", label: "အစီအစဉ်နှင့် ငွေပေးချေမှု", icon: "💎" },
+    { key: "subscription", label: "ပလန်နှင့် သက်တမ်း", icon: "💎" },
     { key: "diagnostics", label: "စနစ်စစ်ဆေးမှု", icon: "🩺" },
     { key: "data", label: "ဒေတာနှင့် အကောင့်", icon: "⚠️" },
   ];
@@ -73,7 +73,7 @@ export function Settings({ notify }: { notify: (s: string) => void }) {
             ဆက်တင်နှင့် စနစ်
           </h2>
           <p className="text-xs text-slate-500 mt-1">
-            ဆိုင်အချက်အလက်၊ ဘောင်ချာ၊ ပရင်တာ၊ စျေးနှုန်းနှင့် Cloud Sync ကို စီမံပါ
+            ဆိုင်အချက်အလက်၊ ဘောက်ချာ၊ ပရင်တာ၊ စျေးနှုန်းနှင့် Cloud Sync ကို စီမံပါ
           </p>
         </div>
       </header>
@@ -171,7 +171,7 @@ function StoreProfileTab({ notify }: { notify: (message: string) => void }) {
     },
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["shop-profile"] });
-      notify("ဆိုင်နှင့် ဘောင်ချာဆက်တင် သိမ်းပြီးပါပြီ");
+      notify("ဆိုင်နှင့် ဘောက်ချာဆက်တင် သိမ်းပြီးပါပြီ");
     },
     onError: (e: Error) => notify(e.message),
   });
@@ -191,7 +191,7 @@ function StoreProfileTab({ notify }: { notify: (message: string) => void }) {
             <div>
               <h3 className="font-semibold text-slate-800 text-base">ဆိုင်အချက်အလက်</h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                ဤအချက်အလက်များကို ဖောက်သည်ဘောင်ချာတွင် ထုတ်ပေးပါမည်
+                ဤအချက်အလက်များကို ဖောက်သည်ဘောက်ချာတွင် ထုတ်ပေးပါမည်
               </p>
             </div>
             <button
@@ -250,7 +250,7 @@ function StoreProfileTab({ notify }: { notify: (message: string) => void }) {
             <div className="form-control">
               <label className="label py-1">
                 <span className="label-text text-xs font-bold text-slate-700">
-                  ဘောင်ချာအောက်ခြေစာသား
+                  ဘောက်ချာအောက်ခြေစာသား
                 </span>
               </label>
               <input
@@ -263,7 +263,7 @@ function StoreProfileTab({ notify }: { notify: (message: string) => void }) {
               />
               <label className="label py-0.5">
                 <span className="label-text-alt text-slate-400">
-                  ပရင့်ထုတ်သော ဘောင်ချာအောက်ဆုံးတွင် ပေါ်ပါမည်
+                  ပရင့်ထုတ်သော ဘောက်ချာအောက်ဆုံးတွင် ပေါ်ပါမည်
                 </span>
               </label>
             </div>
@@ -295,14 +295,14 @@ function StoreProfileTab({ notify }: { notify: (message: string) => void }) {
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-5">
           <div className="flex justify-between items-center mb-3">
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              ဘောင်ချာနမူနာ
+              ဘောက်ချာနမူနာ
             </h4>
             <span className="badge badge-sm badge-neutral font-mono text-[10px]">
               အပူပရင်တာ 80mm
             </span>
           </div>
           <p className="text-xs text-slate-500 mb-4">
-            ပြင်ဆင်ချက်များကို ဤဘောင်ချာနမူနာတွင် ချက်ချင်းကြည့်နိုင်သည် —
+            ပြင်ဆင်ချက်များကို ဤဘောက်ချာနမူနာတွင် ချက်ချင်းကြည့်နိုင်သည် —
           </p>
 
           {/* Thermal Receipt Paper Mockup */}
@@ -322,7 +322,7 @@ function StoreProfileTab({ notify }: { notify: (message: string) => void }) {
 
             {/* Receipt Meta */}
             <div className="text-[11px] text-slate-500 flex justify-between py-1 border-b border-dashed border-slate-200">
-              <span>ဘောင်ချာ — #POS-10024</span>
+              <span>ဘောက်ချာ — #POS-10024</span>
               <span>{new Date().toLocaleDateString()}</span>
             </div>
 
@@ -422,7 +422,7 @@ function CurrencyFields({
           <span className="label-text-alt text-slate-400">
             {disabled
               ? 'ဆိုင်ပိုင်ရှင်သာ ဆိုင်သုံးငွေကြေးကို ပြောင်းနိုင်သည်။'
-              : 'ကောင်တာစက်အားလုံးနှင့် ဘောင်ချာများတွင် ပြောင်းလဲအသုံးပြုပါမည်။'}
+              : 'ကောင်တာစက်အားလုံးနှင့် ဘောက်ချာများတွင် ပြောင်းလဲအသုံးပြုပါမည်။'}
           </span>
         </label>
       </div>
@@ -553,7 +553,7 @@ function PrinterTab({ notify }: { notify: (s: string) => void }) {
       setPrinters(found);
       setStatus(
         found.length
-          ? `ပရင်တာ ${found.length} လုံး တွေ့ပါသည်။ စာရင်းမှ ဘောင်ချာပရင်တာကို ရွေးပါ။`
+          ? `ပရင်တာ ${found.length} လုံး တွေ့ပါသည်။ စာရင်းမှ ဘောက်ချာပရင်တာကို ရွေးပါ။`
           : "ပရင်တာ မတွေ့ပါ။ USB ကြိုး သို့မဟုတ် Bluetooth ချိတ်ဆက်မှုကို စစ်ပြီး ထပ်စမ်းပါ။",
       );
     } catch (error) {
@@ -571,7 +571,7 @@ function PrinterTab({ notify }: { notify: (s: string) => void }) {
     try {
       await window.storePos.printer.test();
       setStatus(
-        `✓ စမ်းသပ်ဘောင်ချာကို ${printer.data?.deviceName} သို့ ပို့ပြီးပါပြီ။ စာရွက်ဖြတ်မှုနှင့် မြန်မာစာကို စစ်ပါ။`,
+        `✓ စမ်းသပ်ဘောက်ချာကို ${printer.data?.deviceName} သို့ ပို့ပြီးပါပြီ။ စာရွက်ဖြတ်မှုနှင့် မြန်မာစာကို စစ်ပါ။`,
       );
     } catch (error) {
       const message =
@@ -601,7 +601,7 @@ function PrinterTab({ notify }: { notify: (s: string) => void }) {
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-base font-bold text-slate-800">
-                {activeDevice ? activeDevice : "ဘောင်ချာပရင်တာ မသတ်မှတ်ရသေးပါ"}
+                {activeDevice ? activeDevice : "ဘောက်ချာပရင်တာ မသတ်မှတ်ရသေးပါ"}
               </h3>
               {activeDevice ? (
                 <span className="badge badge-success text-white badge-xs font-semibold">
@@ -614,7 +614,7 @@ function PrinterTab({ notify }: { notify: (s: string) => void }) {
             <p className="text-xs text-slate-500 mt-0.5">
               {activeDevice
                 ? `စာရွက်အကျယ် — ${printer.data?.paperWidth ?? 80}mm · ပုံစံ — ${isRawEscPos ? "တိုက်ရိုက် ESC/POS" : "စနစ်ပရင်တာ Driver"}`
-                : "ငွေရှင်းပြီးနောက် ဘောင်ချာအလိုအလျောက်ထုတ်ရန် အောက်တွင် ပရင်တာရွေးပါ"}
+                : "ငွေရှင်းပြီးနောက် ဘောက်ချာအလိုအလျောက်ထုတ်ရန် အောက်တွင် ပရင်တာရွေးပါ"}
             </p>
           </div>
         </div>
@@ -639,7 +639,7 @@ function PrinterTab({ notify }: { notify: (s: string) => void }) {
             {testing ? (
               <span className="loading loading-spinner loading-xs"></span>
             ) : (
-              "📄 စမ်းသပ်ဘောင်ချာထုတ်မည်"
+              "📄 စမ်းသပ်ဘောက်ချာထုတ်မည်"
             )}
           </button>
         </div>
@@ -663,7 +663,7 @@ function PrinterTab({ notify }: { notify: (s: string) => void }) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-5">
           <h4 className="font-semibold text-slate-800 text-sm border-b pb-3">
-            ဘောင်ချာပရင်တာ ဆက်တင်
+            ဘောက်ချာပရင်တာ ဆက်တင်
           </h4>
 
           {/* Printer Selector */}
@@ -713,7 +713,7 @@ function PrinterTab({ notify }: { notify: (s: string) => void }) {
           <div className="form-control">
             <label className="label py-1">
               <span className="label-text text-xs font-bold text-slate-700">
-                ဘောင်ချာစာရွက်အကျယ်
+                ဘောက်ချာစာရွက်အကျယ်
               </span>
             </label>
             <div className="grid grid-cols-2 gap-3">
@@ -759,10 +759,10 @@ function PrinterTab({ notify }: { notify: (s: string) => void }) {
           <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-800">
-                အရောင်းပြီးလျှင် ဘောင်ချာအလိုအလျောက်ထုတ်မည်
+                အရောင်းပြီးလျှင် ဘောက်ချာအလိုအလျောက်ထုတ်မည်
               </p>
               <p className="text-xs text-slate-500">
-                ငွေရှင်းပြီးသည်နှင့် ဘောင်ချာကို အလိုအလျောက်ထုတ်ပါမည်
+                ငွေရှင်းပြီးသည်နှင့် ဘောက်ချာကို အလိုအလျောက်ထုတ်ပါမည်
               </p>
             </div>
             <input
@@ -1333,8 +1333,8 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
               {isPremium
                 ? status.data?.tier === "cloud_pro"
                   ? "အော့ဖ်လိုင်းလုပ်ဆောင်ချက်အားလုံးနှင့် စက် ၅ လုံးအထိ Cloud Sync အသုံးပြုနိုင်သည်"
-                  : "ဤစက်တွင် ဖောက်သည်အကြွေး၊ နေ့ကုန်အဆိုင်းနှင့် စိတ်ကြိုက်စျေးနှုန်းများ အသုံးပြုနိုင်သည်"
-                : "အခြေခံအော့ဖ်လိုင်းအရောင်း၊ ဘောင်ချာထုတ်ခြင်းနှင့် အသုံးစရိတ် မှတ်တမ်းတင်နိုင်သည်။ အကြွေး၊ နေ့ကုန်အဆိုင်းနှင့် Cloud Sync အတွက် အစီအစဉ်မြှင့်ပါ။"}
+                  : "ဤစက်တွင် ဖောက်သည်အကြွေး၊ နေ့ချုပ်စာရင်းနှင့် စိတ်ကြိုက်စျေးနှုန်းများ အသုံးပြုနိုင်သည်"
+                : "အခြေခံအော့ဖ်လိုင်းအရောင်း၊ ဘောက်ချာထုတ်ခြင်းနှင့် အသုံးစရိတ် မှတ်တမ်းတင်နိုင်သည်။ အကြွေး၊ နေ့ချုပ်စာရင်းနှင့် Cloud Sync အတွက် အစီအစဉ်မြှင့်ပါ။"}
             </p>
           </div>
 
@@ -1401,7 +1401,7 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
             </li>
             <li className="flex items-center gap-2">
               <span className="text-amber-600 font-bold">✓</span>
-              <span>နေ့ကုန်ငွေစာရင်းပုံး ကိုက်ညှိမှု</span>
+              <span>နေ့ချုပ်စာရင်း (Day-End)</span>
             </li>
             <li className="flex items-center gap-2">
               <span className="text-amber-600 font-bold">✓</span>
@@ -1471,7 +1471,7 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
         <div className="divide-y divide-slate-100 text-xs">
           {[
             {
-              feature: "အော့ဖ်လိုင်း POS နှင့် ဘောင်ချာထုတ်ခြင်း",
+              feature: "အော့ဖ်လိုင်း POS နှင့် ဘောက်ချာထုတ်ခြင်း",
               planReq: "free",
               available: true,
             },
@@ -1486,7 +1486,7 @@ function SubscriptionTab({ notify }: { notify: (s: string) => void }) {
               available: isPremium,
             },
             {
-              feature: "နေ့ကုန်ငွေစာရင်းပုံး ပိတ်ခြင်း",
+              feature: "နေ့ချုပ်စာရင်း ပိတ်ခြင်း",
               planReq: "offline_plus",
               available: isPremium,
             },

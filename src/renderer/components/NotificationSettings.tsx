@@ -19,7 +19,7 @@ export function NotificationSettings({ notify }: { notify: (message: string) => 
         (input.dailyEnabled && !result.dailyEnabled)
       ) {
         notify(
-          "Notifications could not be enabled. Check this app’s notification permission in system settings.",
+          "သတိပေးချက် ဖွင့်မရပါ။ စက်၏ System Settings တွင် Notification ခွင့်ပြုချက် စစ်ဆေးပေးပါ။",
         );
       } else {
         notify("သတိပေးချက်ဆက်တင် ပြင်ပြီးပါပြီ");
@@ -75,9 +75,9 @@ export function NotificationSettings({ notify }: { notify: (message: string) => 
                 <div className="flex items-center gap-3">
                   <span className="text-xl p-2 bg-slate-100 rounded-lg">⏰</span>
                   <div>
-                    <h4 className="text-sm font-medium text-slate-800">နေ့စဉ်အဆိုင်းပိတ်ရန် သတိပေးချက်</h4>
+                    <h4 className="text-sm font-medium text-slate-800">နေ့စဉ်နေ့ချုပ်ပိတ်ရန် သတိပေးချက်</h4>
                     <p className="text-xs text-slate-500">
-                      ငွေစာရင်းကိုက်ပြီး နေ့စဉ်အရောင်းစစ်ရန် ငွေကိုင်ကို သတိပေးမည်
+                      နေ့ကုန်ငွေစာရင်းကိုက်ပြီး ရှင်းတမ်းစစ်ရန် သတိပေးမည်
                     </p>
                   </div>
                 </div>
