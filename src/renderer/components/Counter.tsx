@@ -64,6 +64,7 @@ export function Counter({
   const customerId = draft.customerId;
   const setCustomerId = (value: string) => updateDraft({ customerId: value });
   const [tendered, setTendered] = useState("");
+  const [paymentModal, setPaymentModal] = useState(false);
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const priceLevelId = draft.priceLevelId;
   const setPriceLevelId = (value: string) => updateDraft({ priceLevelId: value });
@@ -188,6 +189,8 @@ export function Counter({
       }),
     onSuccess: (result) => {
       setReceipt(result);
+      setPaymentModal(false);
+      setMethod("cash");
       setTendered("");
       setCustomerId("");
       setOrderDiscount(0);
@@ -201,6 +204,17 @@ export function Counter({
     },
     onError: (error: Error) => notify(error.message, "error"),
   });
+
+  const isCheckoutDisabled =
+    checkout.isPending ||
+    cartProducts.isFetching ||
+    cart.length === 0 ||
+    outstanding < 0 ||
+    (outstanding > 0 && (!customerId || !capabilities.debt)) ||
+    (!split && method === "debt" && (!customerId || !capabilities.debt)) ||
+    (!!tendered &&
+      ((!split && method === "cash" && Number(tendered) < total) ||
+        (split && Number(tendered) < Number(parts.cash || 0))));
 
   const saveCustomer = useMutation({
     mutationFn: (input: { name: string; phone?: string }) =>
@@ -396,20 +410,53 @@ export function Counter({
   }, [cart, products.data, priceLevelId]);
 
   useEffect(() => {
-    const handleEscape = (e: globalThis.KeyboardEvent) => {
+    const handleKeyShortcuts = (e: globalThis.KeyboardEvent) => {
       if (e.key === "Escape") {
         if (receipt) setReceipt(null);
         else if (customerModal) {
           setCustomerModal(false);
           setShowAddCustomer(false);
+        } else if (paymentModal) {
+          setPaymentModal(false);
+          if (method === "debt" && !customerId) {
+            setMethod("cash");
+          }
         } else if (discountModal) {
           setDiscountModal(null);
         }
+      } else if (e.key === "F4") {
+        e.preventDefault();
+        if (cart.length > 0 && !receipt && !customerModal && !discountModal) {
+          setPaymentModal((prev) => !prev);
+        }
+      } else if (e.key === "Enter" && !e.defaultPrevented) {
+        const tag = (document.activeElement?.tagName || "").toUpperCase();
+        if (paymentModal) {
+          if (tag === "TEXTAREA" || tag === "BUTTON") return;
+          if (!isCheckoutDisabled && !customerModal && !discountModal && !receipt) {
+            e.preventDefault();
+            checkout.mutate();
+          }
+        } else if (!customerModal && !discountModal && !receipt && cart.length > 0) {
+          if (tag === "INPUT" || tag === "TEXTAREA" || tag === "BUTTON") return;
+          if (!isCheckoutDisabled) {
+            e.preventDefault();
+            setMethod("cash");
+            setSplit(false);
+            checkout.mutate();
+          }
+        }
       }
     };
-    window.addEventListener("keydown", handleEscape);
-    return () => window.removeEventListener("keydown", handleEscape);
-  }, [receipt, customerModal, discountModal]);
+    window.addEventListener("keydown", handleKeyShortcuts);
+    return () => window.removeEventListener("keydown", handleKeyShortcuts);
+  }, [receipt, customerModal, paymentModal, discountModal, cart.length, isCheckoutDisabled, checkout, method, customerId]);
+
+  useEffect(() => {
+    if (cart.length === 0 && paymentModal) {
+      setPaymentModal(false);
+    }
+  }, [cart.length, paymentModal]);
 
   const handleSearchKeyDown = async (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter") {
@@ -808,22 +855,23 @@ export function Counter({
               {/* Customer Selector Card */}
               <div
                 onClick={() => setCustomerModal(true)}
-                className={`p-2.5 rounded-lg border text-xs cursor-pointer transition flex items-center justify-between ${
+                className={`px-3 py-1.5 rounded-lg border text-xs cursor-pointer transition flex items-center justify-between ${
                   selectedCustomer
-                    ? "bg-emerald-50/70 border-emerald-300 text-emerald-900"
-                    : "bg-white border-gray-200 text-gray-700 hover:border-gray-300"
+                    ? "bg-emerald-50/80 border-emerald-300 text-emerald-950"
+                    : "bg-stone-50 hover:bg-stone-100 border-stone-200 text-stone-600"
                 }`}
+                title="ဖောက်သည် ရွေးချယ်ရန် သို့မဟုတ် ပြောင်းလဲရန် နှိပ်ပါ"
               >
                 <div className="flex items-center gap-2 truncate">
                   <span className="text-sm">👤</span>
                   <div className="truncate">
-                    <p className="font-semibold truncate">
+                    <span className="font-semibold truncate">
                       {selectedCustomer ? selectedCustomer.name : "အထွေထွေဖောက်သည်"}
-                    </p>
+                    </span>
                     {selectedCustomer?.phone && (
-                      <p className="text-[10px] text-gray-500">
-                        {selectedCustomer.phone}
-                      </p>
+                      <span className="text-[10px] text-gray-500 ml-1.5 font-mono">
+                        ({selectedCustomer.phone})
+                      </span>
                     )}
                   </div>
                 </div>
@@ -836,173 +884,490 @@ export function Counter({
                         setCustomerId("");
                       }}
                       className="btn btn-ghost btn-xs btn-circle h-5 w-5 min-h-0 text-gray-400 hover:text-gray-700"
+                      title="ဖောက်သည် ပယ်ဖျက်မည်"
                     >
                       ✕
                     </button>
                   ) : (
-                    <span className="text-[11px] text-emerald-600 font-medium">
-                      ဖောက်သည် ရွေးရန် +
+                    <span className="text-[11px] text-emerald-700 font-bold hover:underline">
+                      ရွေးမည် +
                     </span>
                   )}
                 </div>
               </div>
 
-              {/* Payment Method Selector */}
-              <div>
-                <div className="flex gap-1.5 mb-2">
-                  {activeMethods.map((m) => (
-                    <button
-                      key={m.code}
-                      onClick={() => setMethod(m.code)}
-                      className={`btn btn-xs flex-1 rounded-lg font-medium transition ${
-                        method === m.code && !split
-                          ? "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700"
-                          : "btn-outline border-gray-300 bg-white hover:bg-gray-100 text-gray-700"
-                      }`}
-                    >
-                      {m.name}
-                    </button>
-                  ))}
-                  {capabilities.debt && (
-                    <button
-                      onClick={() => setMethod("debt")}
-                      className={`btn btn-xs rounded-lg font-medium transition ${
-                        method === "debt" && !split
-                          ? "bg-amber-600 text-white border-amber-600 hover:bg-amber-700"
-                          : "btn-outline border-gray-300 bg-white hover:bg-gray-100 text-gray-700"
-                      }`}
-                    >
-                      အကြွေး
-                    </button>
-                  )}
-                </div>
-
-                {/* Cash Tender & Quick Chips */}
-                {((!split && method === "cash") ||
-                  (split && Number(parts.cash) > 0)) && (
-                  <div className="space-y-2 p-2.5 rounded-lg bg-white border border-gray-200">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-medium text-gray-600">
-                        လက်ခံငွေ —
-                      </span>
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        value={tendered}
-                        onChange={(e) => setTendered(e.target.value)}
-                        placeholder="မဖြည့်လည်းရပါသည်"
-                        className="input input-xs input-bordered w-32 text-right font-bold text-xs"
-                      />
-                    </div>
-
-                    {/* Quick Tender Chips */}
-                    <div className="flex gap-1">
-                      {suggestedCash.map((amt) => (
+              {/* Express Cash Banknote Chips */}
+              <div className="space-y-1.5 pt-0.5">
+                <div className="flex items-center justify-between gap-1 flex-wrap">
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {suggestedCash.map((amt) => {
+                      const isExact = amt === total;
+                      const isSelected = (!tendered && isExact) || tendered === String(amt);
+                      return (
                         <button
                           key={amt}
-                          onClick={() => setTendered(String(amt))}
-                          className={`btn btn-xs flex-1 px-1 text-[10px] font-medium ${
-                            tendered === String(amt)
-                              ? "btn-primary"
-                              : "btn-ghost bg-gray-100 hover:bg-gray-200"
+                          type="button"
+                          onClick={(e) => {
+                            (e.currentTarget as HTMLElement).blur();
+                            setMethod("cash");
+                            setSplit(false);
+                            setTendered(isExact ? "" : String(amt));
+                          }}
+                          className={`btn btn-xs h-6 min-h-0 text-[10px] rounded-md px-2 font-bold transition ${
+                            isSelected
+                              ? "btn-primary shadow-2xs"
+                              : "bg-stone-100 hover:bg-stone-200 text-stone-700 border-0"
                           }`}
                         >
-                          {amt === effectiveCashAmount
-                            ? "အတိအကျ"
-                            : money.format(amt)}
+                          {isExact ? "အတိအကျ" : money.format(amt)}
                         </button>
-                      ))}
+                      );
+                    })}
+                    {tendered && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          (e.currentTarget as HTMLElement).blur();
+                          setTendered("");
+                        }}
+                        className="btn btn-ghost btn-xs h-6 min-h-0 text-[10px] text-stone-400 hover:text-stone-700 px-1"
+                        title="အတိအကျ ပြန်ထားမည်"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Live Change Feedback (Shown if customer gave larger banknote) */}
+                {tenderedNum > total && (
+                  <div className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium text-xs shadow-xs animate-in fade-in duration-150">
+                    <div className="flex items-center gap-1.5">
+                      <span>💰</span>
+                      <span>ပြန်အမ်းငွေ (Change):</span>
+                    </div>
+                    <span className="text-base font-black font-mono">
+                      {money.format(cashChange)}
+                    </span>
+                  </div>
+                )}
+
+                {/* Primary 1-Click Express Cash Checkout Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMethod("cash");
+                    setSplit(false);
+                    checkout.mutate();
+                  }}
+                  disabled={isCheckoutDisabled}
+                  className="btn btn-primary btn-block text-sm font-bold shadow-md shadow-emerald-700/25 py-3 h-auto flex items-center justify-between px-3.5 transition active:scale-[0.99]"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">⚡</span>
+                    <span>
+                      {tenderedNum > total
+                        ? "အရောင်းအတည်ပြုမည်"
+                        : "ငွေသား အတိအကျရှင်းမည်"}
+                    </span>
+                    <kbd className="kbd kbd-xs bg-emerald-700 text-emerald-100 border-emerald-600 font-mono text-[9px] font-bold px-1">
+                      Enter
+                    </kbd>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-sm font-black font-mono">
+                      {tenderedNum > total
+                        ? `အမ်းငွေ ${money.format(cashChange)}`
+                        : money.format(total)}
+                    </span>
+                  </div>
+                </button>
+
+                {/* Secondary Button: Non-Cash & Advanced Methods (F4) */}
+                <button
+                  type="button"
+                  onClick={() => setPaymentModal(true)}
+                  className="btn btn-outline btn-xs btn-block py-2 h-auto text-xs font-semibold text-stone-600 hover:text-stone-900 hover:bg-stone-100 border-stone-300 flex items-center justify-center gap-2"
+                >
+                  <span>💳</span>
+                  <span>အခြားနည်းလမ်းများ (KPay · Wave · အကြွေး)</span>
+                  <kbd className="kbd kbd-xs bg-stone-100 text-stone-500 border-stone-300 font-mono text-[9px] px-1">
+                    F4
+                  </kbd>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Dedicated Payment Modal (Spacious Desktop Frame with Compact Zero-Scroll Content) */}
+      {paymentModal && (
+        <div className="modal modal-open z-40">
+          <div className="modal-box max-w-2xl w-full p-0 overflow-hidden bg-white shadow-2xl rounded-2xl border border-gray-100 flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="px-6 py-3 border-b border-gray-100 flex items-center justify-between bg-stone-50/70">
+              <div className="flex items-center gap-2">
+                <span className="text-base">💳</span>
+                <div>
+                  <h3 className="font-bold text-sm text-gray-900 leading-tight">ငွေပေးချေမှု</h3>
+                  <p className="text-[11px] text-gray-500 leading-none">
+                    ပေးချေမှုနည်းလမ်း ရွေးချယ်ပြီး အရောင်းအတည်ပြုပါ
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setPaymentModal(false);
+                  if (method === "debt" && !customerId) setMethod("cash");
+                }}
+                className="btn btn-xs btn-ghost btn-circle text-gray-400 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="px-6 py-4 space-y-3 flex-1 overflow-y-auto">
+              {/* Hero Total & Customer Bar (Compact One-Row) */}
+              <div className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-50 via-teal-50/40 to-emerald-50/20 border border-emerald-200/90 flex items-center justify-between gap-3 shadow-2xs">
+                <div>
+                  <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">
+                    ပေးချေရမည့် ကျသင့်ငွေ
+                  </span>
+                  <div className="text-2xl font-black text-emerald-700 tracking-tight font-mono leading-none mt-0.5">
+                    {money.format(total)}
+                  </div>
+                </div>
+
+                {/* Customer Status / Selector Pill */}
+                <div
+                  onClick={() => setCustomerModal(true)}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-emerald-200/80 text-xs cursor-pointer hover:border-emerald-400 transition shadow-2xs"
+                  title="ဖောက်သည် ပြောင်းလဲရန် နှိပ်ပါ"
+                >
+                  <span className="text-sm">👤</span>
+                  <div className="text-right">
+                    <p className="font-bold text-gray-800 text-xs leading-tight truncate max-w-[160px]">
+                      {selectedCustomer ? selectedCustomer.name : "အထွေထွေဖောက်သည်"}
+                    </p>
+                    {selectedCustomer?.phone ? (
+                      <p className="text-[10px] text-gray-500 font-mono leading-none mt-0.5">
+                        {selectedCustomer.phone}
+                      </p>
+                    ) : (
+                      <p className="text-[10px] text-emerald-600 font-semibold leading-none mt-0.5">
+                        ရွေးမည် ▾
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment Method Pills (Compact Horizontal Row) */}
+              <div className="flex flex-wrap gap-2">
+                {activeMethods.map((m) => {
+                  const isSelected = method === m.code && !split;
+                  return (
+                    <button
+                      key={m.code}
+                      type="button"
+                      onClick={() => {
+                        setSplit(false);
+                        setMethod(m.code);
+                      }}
+                      className={`flex-1 min-w-[100px] py-2 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                        isSelected
+                          ? "border-emerald-600 bg-emerald-600 text-white shadow-xs"
+                          : "border-gray-200 bg-white hover:bg-gray-50 text-gray-700"
+                      }`}
+                    >
+                      <span className="text-sm">{m.code === "cash" ? "💵" : "📱"}</span>
+                      <span>{m.name}</span>
+                    </button>
+                  );
+                })}
+
+                {capabilities.debt && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSplit(false);
+                      setMethod("debt");
+                    }}
+                    className={`flex-1 min-w-[100px] py-2 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                      method === "debt" && !split
+                        ? "border-amber-600 bg-amber-600 text-white shadow-xs"
+                        : "border-gray-200 bg-white hover:bg-gray-50 text-gray-700"
+                    }`}
+                  >
+                    <span className="text-sm">👥</span>
+                    <span>အကြွေး</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setSplit(true)}
+                  className={`flex-1 min-w-[100px] py-2 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                    split
+                      ? "border-indigo-600 bg-indigo-600 text-white shadow-xs"
+                      : "border-gray-200 bg-white hover:bg-gray-50 text-gray-700"
+                  }`}
+                >
+                  <span className="text-sm">🔀</span>
+                  <span>ခွဲပေးချေ</span>
+                </button>
+              </div>
+
+              {/* Selected Method Detail Container */}
+              <div>
+                {/* Method A: Cash Mode (Side-by-Side Zero-Layout-Shift Cards) */}
+                {!split && method === "cash" && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-stretch">
+                    {/* Left Column: Tendered Input & Quick Chips */}
+                    <div className="flex flex-col justify-between p-3 rounded-xl bg-white border border-gray-200/90 shadow-2xs">
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <label className="text-xs font-bold text-gray-700 whitespace-nowrap">
+                          လက်ခံငွေ (Tendered)
+                        </label>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          autoFocus
+                          value={tendered}
+                          onChange={(e) => setTendered(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !isCheckoutDisabled) {
+                              e.preventDefault();
+                              checkout.mutate();
+                            }
+                          }}
+                          placeholder={String(total)}
+                          className="input input-bordered input-sm w-32 text-right font-black text-base bg-white border-gray-300 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-500 font-mono"
+                        />
+                      </div>
+
+                      {/* Quick Chips */}
+                      <div className="flex items-center gap-1 flex-wrap">
+                        {suggestedCash.map((amt) => {
+                          const isExact = amt === total;
+                          const isSelected = tendered === String(amt);
+                          return (
+                            <button
+                              key={amt}
+                              type="button"
+                              onClick={() => setTendered(String(amt))}
+                              className={`btn btn-xs h-6 min-h-0 text-[10px] rounded px-2 font-semibold transition ${
+                                isSelected
+                                  ? "btn-primary"
+                                  : "bg-gray-100 hover:bg-gray-200 text-gray-700 border-0"
+                              }`}
+                            >
+                              {isExact ? "အတိအကျ" : money.format(amt)}
+                            </button>
+                          );
+                        })}
+                        {tendered && (
+                          <button
+                            type="button"
+                            onClick={() => setTendered("")}
+                            className="btn btn-ghost btn-xs h-6 min-h-0 text-[10px] text-gray-400 hover:text-gray-700 px-1.5"
+                            title="ပယ်ဖျက်မည်"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
                     </div>
 
-                    {/* Live Change Box */}
-                    {hasCashChange && (
-                      <div className="flex items-center justify-between p-2 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-900">
-                        <span className="text-xs font-medium">ပြန်အမ်းရန် —</span>
-                        <span className="text-sm font-black text-emerald-700">
-                          {money.format(cashChange)}
+                    {/* Right Column: Permanent Live Change Slot */}
+                    <div
+                      className={`flex flex-col justify-between p-3 rounded-xl border transition-all duration-150 ${
+                        hasCashChange
+                          ? "bg-emerald-600 text-white border-emerald-500 shadow-sm"
+                          : tenderedNum > 0 && tenderedNum < total
+                            ? "bg-amber-500 text-white border-amber-600 shadow-sm"
+                            : "bg-gray-50/80 border-gray-200 text-gray-700"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span
+                          className={`text-[10px] font-bold uppercase tracking-wider ${
+                            hasCashChange || (tenderedNum > 0 && tenderedNum < total)
+                              ? "text-white/90"
+                              : "text-gray-500"
+                          }`}
+                        >
+                          {hasCashChange
+                            ? "ဝယ်သူသို့ ပြန်အမ်းငွေ (Change)"
+                            : tenderedNum > 0 && tenderedNum < total
+                              ? "ပေးငွေ မလုံလောက်ပါ"
+                              : "ပြန်အမ်းငွေ (Change)"}
                         </span>
+                        <span
+                          className={`badge badge-xs font-bold border-0 text-[9px] py-0.5 px-2 ${
+                            hasCashChange
+                              ? "bg-white text-emerald-800"
+                              : tenderedNum > 0 && tenderedNum < total
+                                ? "bg-white text-amber-900"
+                                : "bg-white text-gray-500 border border-gray-200"
+                          }`}
+                        >
+                          {hasCashChange
+                            ? "ပြန်အမ်းရန်"
+                            : tenderedNum > 0 && tenderedNum < total
+                              ? "မပြည့်သေးပါ"
+                              : "အတိအကျ"}
+                        </span>
+                      </div>
+
+                      <div className="flex items-baseline justify-between mt-1">
+                        <span className="text-xl">
+                          {hasCashChange
+                            ? "💰"
+                            : tenderedNum > 0 && tenderedNum < total
+                              ? "⚠️"
+                              : "💵"}
+                        </span>
+                        <span
+                          className={`text-2xl font-black font-mono leading-none ${
+                            hasCashChange || (tenderedNum > 0 && tenderedNum < total)
+                              ? "text-white"
+                              : "text-gray-800"
+                          }`}
+                        >
+                          {hasCashChange
+                            ? money.format(cashChange)
+                            : tenderedNum > 0 && tenderedNum < total
+                              ? `လိုငွေ ${money.format(total - tenderedNum)}`
+                              : money.format(0)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Method B: Digital Wallets (Compact) */}
+                {!split && method !== "cash" && method !== "debt" && (
+                  <div className="p-3.5 bg-white rounded-xl border border-gray-200 flex items-center justify-between gap-3 shadow-2xs">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 text-xl flex items-center justify-center">
+                        📱
+                      </div>
+                      <div className="text-left">
+                        <p className="text-xs font-bold text-gray-800">
+                          {activeMethods.find((m) => m.code === method)?.name || method} ဖြင့် လက်ခံမည်
+                        </p>
+                        <p className="text-[11px] text-gray-500">
+                          ကျသင့်ငွေ {money.format(total)} လက်ခံရရှိပါက အတည်ပြုပါ
+                        </p>
+                      </div>
+                    </div>
+                    <span className="badge badge-success badge-sm text-white font-bold">
+                      အသင့်ရှိသည်
+                    </span>
+                  </div>
+                )}
+
+                {/* Method C: Debt Mode (Compact) */}
+                {!split && method === "debt" && (
+                  <div className="p-3.5 bg-white rounded-xl border border-amber-200 shadow-2xs">
+                    {!customerId ? (
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-bold text-amber-900">
+                          ⚠️ အကြွေးရောင်းရန် ဖောက်သည် ရွေးပေးပါ
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setCustomerModal(true)}
+                          className="btn btn-warning btn-xs font-bold"
+                        >
+                          👤 ဖောက်သည် ရွေးမည်
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <span className="text-[10px] text-gray-400 uppercase tracking-wider block">ရွေးချယ်ထားသော ဖောက်သည်</span>
+                          <p className="text-xs font-bold text-gray-900">
+                            {selectedCustomer?.name} {selectedCustomer?.phone ? `(${selectedCustomer.phone})` : ""}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] text-amber-800 uppercase tracking-wider block">အကြွေးတင်ငွေ</span>
+                          <span className="text-base font-black text-amber-700 font-mono">{money.format(total)}</span>
+                        </div>
                       </div>
                     )}
                   </div>
                 )}
+
+                {/* Method D: Split Payment Mode (Compact) */}
+                {split && (
+                  <div className="p-3 bg-white rounded-xl border border-gray-200 space-y-2 shadow-2xs">
+                    <div className="grid grid-cols-2 gap-2">
+                      {activeMethods.map((m) => (
+                        <div key={m.code} className="flex items-center justify-between gap-2 p-2 bg-gray-50 rounded-lg border border-gray-200 text-xs">
+                          <span className="font-medium truncate text-[11px]">{m.name}</span>
+                          <input
+                            aria-label={m.name + " amount"}
+                            className="input input-bordered input-xs w-28 text-right font-bold font-mono"
+                            type="number"
+                            min="0"
+                            step="0.001"
+                            value={parts[m.code] ?? ""}
+                            onChange={(e) => setParts({ ...parts, [m.code]: e.target.value })}
+                            placeholder="0"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="pt-1.5 border-t border-gray-100 flex items-center justify-between text-xs">
+                      <span>ပေးချေပြီး: <strong className="text-emerald-700 font-mono">{money.format(paid)}</strong></span>
+                      {outstanding > 0 ? (
+                        <span className="text-amber-700 font-bold font-mono text-[11px]">
+                          ကျန်အကြွေး — {money.format(outstanding)}
+                        </span>
+                      ) : outstanding < 0 ? (
+                        <span className="text-rose-700 font-semibold text-[11px]">
+                          ပိုနေငွေ: {money.format(Math.abs(outstanding))}
+                        </span>
+                      ) : (
+                        <span className="text-emerald-700 font-bold text-[11px]">✓ အတိအကျ ပြည့်မီပါသည်</span>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Collapsible Advanced Options (Split Payment, Note, SoldAt) */}
+              {/* Collapsible Note & Date (Compact) */}
               <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
                 <button
                   type="button"
                   onClick={() => setShowAdvanced(!showAdvanced)}
-                  className="w-full px-3 py-2 text-xs font-medium text-gray-600 flex items-center justify-between hover:bg-gray-50 transition"
+                  className="w-full px-3.5 py-1.5 text-xs font-semibold text-gray-600 flex items-center justify-between hover:bg-gray-50 transition"
                 >
-                  <span>
-                    {showAdvanced ? "▾ အခြားရွေးချယ်မှုများ ပိတ်မည်" : "▸ မှတ်ချက်၊ ရက်စွဲနှင့် ခွဲပေးချေမှု"}
-                  </span>
-                  {note || soldAt || split ? (
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                  ) : null}
+                  <span>{showAdvanced ? "▾ မှတ်ချက်နှင့် ရက်စွဲ ပိတ်မည်" : "▸ မှတ်ချက် (Note) နှင့် ရက်စွဲ ထည့်ရန်"}</span>
+                  {note || soldAt ? <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> : null}
                 </button>
-
                 {showAdvanced && (
-                  <div className="p-3 border-t border-gray-100 space-y-2.5 bg-gray-50/50">
-                    <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={split}
-                        onChange={(e) => setSplit(e.target.checked)}
-                        className="checkbox checkbox-xs checkbox-primary"
-                      />
-                      <span>ငွေပေးချေမှုနည်းလမ်း အမျိုးမျိုးဖြင့် ခွဲပေးမည်</span>
-                    </label>
-
-                    {split && (
-                      <div className="space-y-1.5 pl-5">
-                        {activeMethods.map((m) => (
-                          <div
-                            key={m.code}
-                            className="flex items-center justify-between gap-2 text-xs"
-                          >
-                            <span>{m.name}</span>
-                            <input
-                              aria-label={m.name + " amount"}
-                              className="input input-bordered input-xs w-28 text-right font-medium"
-                              type="number"
-                              min="0"
-                              step="0.001"
-                              value={parts[m.code] ?? ""}
-                              onChange={(e) =>
-                                setParts({ ...parts, [m.code]: e.target.value })
-                              }
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {outstanding > 0 && (
-                      <p className="text-xs text-amber-700 bg-amber-50 p-2 rounded border border-amber-200">
-                        ကျန်အကြွေး — <strong>{money.format(outstanding)}</strong>
-                      </p>
-                    )}
-
+                  <div className="p-3 border-t border-gray-100 space-y-2 bg-gray-50/50">
                     <div className="space-y-1">
-                      <label className="text-[11px] font-medium text-gray-500">
-                        အရောင်းရက် သတ်မှတ်မည် (မဖြည့်လည်းရ)
-                      </label>
+                      <label className="text-[10px] font-medium text-gray-500">အရောင်းရက် သတ်မှတ်မည်</label>
                       <input
                         type="datetime-local"
-                        className="input input-bordered input-xs w-full"
+                        className="input input-bordered input-xs w-full bg-white text-xs"
                         value={soldAt}
                         onChange={(e) => setSoldAt(e.target.value)}
                       />
                     </div>
-
                     <div className="space-y-1">
-                      <label className="text-[11px] font-medium text-gray-500">
-                        အရောင်းမှတ်ချက်
-                      </label>
+                      <label className="text-[10px] font-medium text-gray-500">အရောင်းမှတ်ချက်</label>
                       <input
                         placeholder="ဘောက်ချာတွင် ထည့်မည့် မှတ်ချက်…"
-                        className="input input-bordered input-xs w-full"
+                        className="input input-bordered input-xs w-full bg-white text-xs"
                         value={note}
                         onChange={(e) => setNote(e.target.value)}
                       />
@@ -1010,37 +1375,41 @@ export function Counter({
                   </div>
                 )}
               </div>
+            </div>
 
-              {/* Primary Checkout Button */}
+            {/* Modal Action Buttons Footer */}
+            <div className="px-6 py-3 border-t border-gray-100 bg-stone-50 flex items-center justify-between gap-3">
               <button
-                className="btn btn-primary btn-block text-base font-bold shadow-md shadow-emerald-700/20 py-3 h-auto"
+                type="button"
+                onClick={() => {
+                  setPaymentModal(false);
+                  if (method === "debt" && !customerId) setMethod("cash");
+                }}
+                className="btn btn-ghost btn-sm text-gray-600 hover:text-gray-900"
+              >
+                ပယ်ဖျက်မည် (Esc)
+              </button>
+
+              <button
+                type="button"
                 onClick={() => checkout.mutate()}
-                disabled={
-                  checkout.isPending ||
-                  cartProducts.isFetching ||
-                  outstanding < 0 ||
-                  (outstanding > 0 && (!customerId || !capabilities.debt)) ||
-                  (!!tendered &&
-                    ((!split &&
-                      method === "cash" &&
-                      Number(tendered) < total) ||
-                      (split && Number(tendered) < Number(parts.cash || 0))))
-                }
+                disabled={isCheckoutDisabled}
+                className="btn btn-primary btn-md px-6 text-sm font-bold shadow-md shadow-emerald-700/20"
               >
                 {checkout.isPending ? (
-                  <span className="loading loading-spinner loading-sm"></span>
+                  <span className="loading loading-spinner loading-xs"></span>
                 ) : (
-                  `ငွေရှင်းမည် · ${money.format(total)}`
+                  `✓ အရောင်းအတည်ပြုမည် (Enter) · ${money.format(total)}`
                 )}
               </button>
             </div>
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Customer Selection Modal */}
       {customerModal && (
-        <div className="modal modal-open">
+        <div className="modal modal-open z-50">
           <div className="modal-box max-w-md p-5">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <h3 className="font-bold text-lg text-gray-900">
@@ -1194,7 +1563,7 @@ export function Counter({
 
       {/* Receipt Modal */}
       {receipt && (
-        <div className="modal modal-open">
+        <div className="modal modal-open z-50">
           <div className="modal-box max-w-md p-6">
             <div className="text-center pb-4 border-b border-gray-100">
               <span className="text-4xl">🧾</span>
@@ -1261,7 +1630,7 @@ export function Counter({
 
       {/* Discount Modal */}
       {discountModal && (
-        <div className="modal modal-open">
+        <div className="modal modal-open z-50">
           <div className="modal-box max-w-sm">
             <h3 className="font-bold text-lg mb-3">
               {discountModal === "line" ? "ပစ္စည်းလျှော့စျေး" : "ဘောက်ချာလျှော့စျေး"}
