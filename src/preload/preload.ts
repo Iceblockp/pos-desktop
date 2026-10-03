@@ -112,6 +112,9 @@ const api: DesktopApi = {
     saveSettings: (settings) => ipcRenderer.invoke('printer:save-settings', settings),
     printReceipt: (receipt) => ipcRenderer.invoke('printer:print-receipt', receipt),
     test: () => ipcRenderer.invoke('printer:test'),
+    barcodeSettings: () => ipcRenderer.invoke('printer:barcode-settings'),
+    saveBarcodeSettings: (settings) => ipcRenderer.invoke('printer:save-barcode-settings', settings),
+    printBarcodes: (payload) => ipcRenderer.invoke('printer:print-barcodes', payload),
   },
 };
 

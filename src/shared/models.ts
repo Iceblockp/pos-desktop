@@ -343,5 +343,15 @@ export interface DesktopApi {
     saveSettings: (settings: PrinterSettings) => Promise<PrinterSettings>;
     printReceipt: (receipt: Receipt) => Promise<void>;
     test: () => Promise<void>;
+    barcodeSettings: () => Promise<import('./barcode').BarcodeLabelConfig>;
+    saveBarcodeSettings: (settings: import('./barcode').BarcodeLabelConfig) => Promise<import('./barcode').BarcodeLabelConfig>;
+    printBarcodes: (payload: {
+      items: import('./barcode').BarcodePrintItem[];
+      format?: import('./barcode').BarcodeLabelFormat;
+      printerName?: string;
+      options?: { includeShopName?: boolean; includeProductName?: boolean; includePrice?: boolean };
+    }) => Promise<{ count: number }>;
   };
 }
+
+export type { BarcodeLabelConfig, BarcodeLabelFormat, BarcodePrintItem } from './barcode';

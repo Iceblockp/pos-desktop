@@ -1,3 +1,5 @@
+import { generateInternalBarcode } from "../../../shared/barcode";
+
 interface ProductForm {
   name: string;
   barcode: string;
@@ -79,20 +81,35 @@ export function ProductModal({
                                 : field}
                 </span>
               </label>
-              <input
-                required={field === "name" || field === "price"}
-                disabled={field === "quantity" && (title === "Edit product" || title.includes("ပြင်"))}
-                value={form[field]}
-                inputMode={
-                  ["price", "cost", "quantity", "minStock"].includes(field)
-                    ? "decimal"
-                    : undefined
-                }
-                onChange={(event) =>
-                  setForm({ ...form, [field]: event.target.value })
-                }
-                className="input input-bordered"
-              />
+              <div className="flex gap-2">
+                <input
+                  required={field === "name" || field === "price"}
+                  disabled={field === "quantity" && (title === "Edit product" || title.includes("ပြင်"))}
+                  value={form[field]}
+                  inputMode={
+                    ["price", "cost", "quantity", "minStock"].includes(field)
+                      ? "decimal"
+                      : undefined
+                  }
+                  onChange={(event) =>
+                    setForm({ ...form, [field]: event.target.value })
+                  }
+                  className="input input-bordered flex-1"
+                />
+                {field === "barcode" && (
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-secondary whitespace-nowrap"
+                    title="စနစ်တွင်းသုံး 13-ဂဏန်း EAN ဘားကုဒ် အသစ်ထုတ်မည်"
+                    onClick={() => {
+                      const code = generateInternalBarcode();
+                      setForm({ ...form, barcode: code });
+                    }}
+                  >
+                    ⚡ ကုဒ်ထုတ်မည်
+                  </button>
+                )}
+              </div>
             </div>
           ))}
 

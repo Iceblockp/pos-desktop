@@ -97,3 +97,216 @@ function receiptHtml(db: PosDatabase, receipt: Receipt, width: 58 | 80, raster =
   const balance = receipt.outstanding ? '<p>Balance: '+money(receipt.outstanding)+'</p>' : '';
   return `<!doctype html><html><head><meta charset="utf-8"><style>@page{size:${width}mm auto;margin:3mm}body{font-family:Arial,'Myanmar Text',sans-serif;font-size:11px;width:${width - 6}mm}h1,p{text-align:center;margin:3px 0}table{width:100%;border-collapse:collapse}td:last-child{text-align:right}tfoot td{border-top:1px dashed #000;padding-top:4px}.total{font-size:14px;font-weight:bold}small{color:#444}${raster ? `html{margin:0;padding:0;background:white}body{box-sizing:border-box;margin:0;padding:12px;width:${width === 58 ? 384 : 576}px;font-family:'Myanmar Sangam MN','Myanmar MN','Myanmar Text',Arial,sans-serif;font-size:22px;color:#000;background:#fff;overflow-wrap:anywhere}h1{font-size:30px}.total{font-size:28px}small{color:#000}table{table-layout:fixed}td{vertical-align:top}td:last-child{width:145px;white-space:nowrap}` : ''}</style></head><body><h1>${esc(receipt.shopName)}</h1>${db.getShopSetting('shop.address') ? `<p>${esc(db.getShopSetting('shop.address'))}</p>` : ''}${receipt.shopPhone ? `<p>${esc(receipt.shopPhone)}</p>` : ''}<p>${esc(receipt.voucherId)}<br>${esc(new Date(receipt.soldAt).toLocaleString())}</p><table><tbody>${rows}</tbody><tfoot><tr><td>Subtotal</td><td>${money(receipt.subtotal)}</td></tr><tr><td>Discount</td><td>${money(receipt.discount)}</td></tr><tr class="total"><td>Total</td><td>${money(receipt.total)}</td></tr>${receipt.change != null ? `<tr><td>Change</td><td>${money(receipt.change)}</td></tr>` : ''}</tfoot></table>${payments}${balance}<p>${esc(db.getShopSetting('shop.receiptFooter') || 'Thank you')}</p></body></html>`;
 }
+
+export function getBarcodeSettings(db: PosDatabase): import('../shared/models').BarcodeLabelConfig {
+  return {
+    printerName: db.getState('barcode.printerName') || undefined,
+    format: (db.getState('barcode.format') as import('../shared/models').BarcodeLabelFormat) || 'thermal-40x30',
+    includeShopName: db.getState('barcode.includeShopName') !== '0',
+    includeProductName: db.getState('barcode.includeProductName') !== '0',
+    includePrice: db.getState('barcode.includePrice') !== '0',
+  };
+}
+
+export function saveBarcodeSettings(
+  db: PosDatabase,
+  settings: import('../shared/models').BarcodeLabelConfig
+): import('../shared/models').BarcodeLabelConfig {
+  if (settings.printerName !== undefined) db.setState('barcode.printerName', settings.printerName || '');
+  if (settings.format) db.setState('barcode.format', settings.format);
+  db.setState('barcode.includeShopName', settings.includeShopName ? '1' : '0');
+  db.setState('barcode.includeProductName', settings.includeProductName ? '1' : '0');
+  db.setState('barcode.includePrice', settings.includePrice ? '1' : '0');
+  return settings;
+}
+
+export async function printBarcodes(
+  db: PosDatabase,
+  payload: {
+    items: import('../shared/models').BarcodePrintItem[];
+    format?: import('../shared/models').BarcodeLabelFormat;
+    printerName?: string;
+    options?: { includeShopName?: boolean; includeProductName?: boolean; includePrice?: boolean };
+  }
+): Promise<{ count: number }> {
+  const config = getBarcodeSettings(db);
+  const format = payload.format || config.format || 'thermal-40x30';
+  const printerName = payload.printerName || config.printerName;
+  const options = {
+    includeShopName: payload.options?.includeShopName ?? config.includeShopName,
+    includeProductName: payload.options?.includeProductName ?? config.includeProductName,
+    includePrice: payload.options?.includePrice ?? config.includePrice,
+  };
+
+  const { generateBarcodeSvg } = await import('../shared/barcode');
+  const shopName = db.getShopSetting('shop.name') || 'Store POS';
+  const currency = parseCurrency(db.getShopSetting('shop.currency'));
+  const money = (val: number) => formatCurrency(val, currency);
+  const esc = (val: unknown) => String(val ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[char]!);
+
+  const expanded: import('../shared/models').BarcodePrintItem[] = [];
+  for (const item of payload.items) {
+    const qty = Math.max(1, Math.min(1000, Number(item.quantity) || 1));
+    for (let i = 0; i < qty; i++) {
+      expanded.push(item);
+    }
+  }
+
+  let pageCss = '';
+  let stickerCss = '';
+  let containerClass = '';
+
+  if (format === 'thermal-40x30') {
+    pageCss = '@page { size: 40mm 30mm; margin: 0; }';
+    stickerCss = 'width: 40mm; height: 30mm; max-height: 30mm; page-break-after: always;';
+  } else if (format === 'thermal-50x30') {
+    pageCss = '@page { size: 50mm 30mm; margin: 0; }';
+    stickerCss = 'width: 50mm; height: 30mm; max-height: 30mm; page-break-after: always;';
+  } else if (format === 'thermal-30x20') {
+    pageCss = '@page { size: 30mm 20mm; margin: 0; }';
+    stickerCss = 'width: 30mm; height: 20mm; max-height: 20mm; page-break-after: always; font-size: 8px;';
+  } else if (format === 'receipt-58') {
+    pageCss = '@page { size: 58mm auto; margin: 2mm; }';
+    stickerCss = 'width: 54mm; margin-bottom: 4mm; border-bottom: 1px dashed #ccc; padding-bottom: 2mm;';
+  } else if (format === 'receipt-80') {
+    pageCss = '@page { size: 80mm auto; margin: 2mm; }';
+    stickerCss = 'width: 76mm; margin-bottom: 4mm; border-bottom: 1px dashed #ccc; padding-bottom: 2mm;';
+  } else if (format === 'a4-24') {
+    pageCss = '@page { size: A4 portrait; margin: 8mm; }';
+    containerClass = 'grid-3x8';
+    stickerCss = 'width: 63mm; height: 34mm; border: 1px dashed #e0e0e0;';
+  } else if (format === 'a4-30') {
+    pageCss = '@page { size: A4 portrait; margin: 8mm; }';
+    containerClass = 'grid-3x10';
+    stickerCss = 'width: 63mm; height: 27mm; border: 1px dashed #e0e0e0;';
+  } else if (format === 'a4-40') {
+    pageCss = '@page { size: A4 portrait; margin: 6mm; }';
+    containerClass = 'grid-4x10';
+    stickerCss = 'width: 48mm; height: 27mm; border: 1px dashed #e0e0e0; font-size: 8px;';
+  }
+
+  const stickersHtml = expanded.map((item) => {
+    const barcodeSvg = generateBarcodeSvg(item.barcode, {
+      height: format === 'thermal-30x20' || format === 'a4-40' ? 26 : 38,
+      showText: true,
+      fontSize: 10,
+    });
+
+    return `
+      <div class="sticker">
+        ${options.includeShopName ? `<div class="shop-name">${esc(shopName)}</div>` : ''}
+        ${options.includeProductName ? `<div class="product-name">${esc(item.name)}</div>` : ''}
+        <div class="barcode-svg">${barcodeSvg}</div>
+        ${options.includePrice ? `<div class="price">${money(item.price)}</div>` : ''}
+      </div>
+    `;
+  }).join('\n');
+
+  const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    ${pageCss}
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Arial, 'Myanmar Text', sans-serif;
+      font-size: 9px;
+      color: #000;
+      background: #fff;
+      -webkit-print-color-adjust: exact;
+    }
+    .grid-3x8 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2mm; }
+    .grid-3x10 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5mm; }
+    .grid-4x10 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5mm; }
+    .sticker {
+      ${stickerCss}
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 1.5mm;
+      overflow: hidden;
+    }
+    .shop-name {
+      font-size: 8px;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 95%;
+      margin-bottom: 1px;
+    }
+    .product-name {
+      font-weight: bold;
+      font-size: 10px;
+      line-height: 1.15;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 95%;
+      margin-bottom: 2px;
+    }
+    .barcode-svg {
+      width: 92%;
+      max-height: 16mm;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .barcode-svg svg {
+      width: 100%;
+      height: 100%;
+    }
+    .price {
+      font-weight: 900;
+      font-size: 11px;
+      margin-top: 1px;
+      letter-spacing: 0.2px;
+    }
+  </style>
+</head>
+<body>
+  <div class="${containerClass}">
+    ${stickersHtml}
+  </div>
+</body>
+</html>`;
+
+  const window = new BrowserWindow({
+    show: false,
+    width: 800,
+    height: 900,
+    webPreferences: {
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  try {
+    await window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+    await window.webContents.executeJavaScript('new Promise(resolve => requestAnimationFrame(resolve))');
+
+    if (printerName) {
+      await window.webContents.print({
+        silent: true,
+        deviceName: printerName,
+        margins: { marginType: 'none' },
+      });
+    } else {
+      await window.webContents.print({
+        silent: false,
+        margins: { marginType: 'none' },
+      });
+    }
+
+    return { count: expanded.length };
+  } finally {
+    window.destroy();
+  }
+}
+

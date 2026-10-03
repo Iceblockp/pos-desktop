@@ -6,6 +6,11 @@ import { StockModal } from "./StockModal";
 import type { TierDraft } from "./types";
 import { formatCurrency } from '../../../shared/currency';
 import { myanmarMessage } from '../../myanmar';
+import {
+  generateBarcodeSvg,
+  generateInternalBarcode,
+  type BarcodeLabelFormat,
+} from '../../../shared/barcode';
 
 const money = { format: formatCurrency };
 
@@ -32,7 +37,15 @@ export function ProductsTab({
   };
 
   const [form, setForm] = useState(emptyForm);
-  const [modal, setModal] = useState<"product" | "stock" | "history" | null>(null);
+  const [modal, setModal] = useState<"product" | "stock" | "history" | "barcode" | null>(null);
+  const [barcodeTarget, setBarcodeTarget] = useState<Product | null>(null);
+  const [barcodeQty, setBarcodeQty] = useState(1);
+  const [barcodePrinter, setBarcodePrinter] = useState("");
+  const [barcodeFormat, setBarcodeFormat] = useState<BarcodeLabelFormat>("thermal-40x30");
+  const [barcodeIncludeShop, setBarcodeIncludeShop] = useState(true);
+  const [barcodeIncludeName, setBarcodeIncludeName] = useState(true);
+  const [barcodeIncludePrice, setBarcodeIncludePrice] = useState(true);
+  const [isPrintingBarcode, setIsPrintingBarcode] = useState(false);
   const [productModalTab, setProductModalTab] = useState<"general" | "pricing" | "stock">("general");
   const [hasPastMovements, setHasPastMovements] = useState(false);
 
@@ -88,6 +101,80 @@ export function ProductsTab({
     queryFn: () => window.storePos.pos.stockHistory(selectedProductId),
     enabled: Boolean(selectedProductId) && modal === "history",
   });
+
+  const printers = useQuery({
+    queryKey: ["printers-list"],
+    queryFn: () => window.storePos.printer.list(),
+  });
+
+  const barcodeSettings = useQuery({
+    queryKey: ["barcode-settings"],
+    queryFn: () => window.storePos.printer.barcodeSettings(),
+  });
+
+  const shopProfile = useQuery({
+    queryKey: ["shop-profile"],
+    queryFn: () => window.storePos.pos.shopProfile(),
+  });
+
+  const openBarcodeModal = (product: Product) => {
+    setBarcodeTarget(product);
+    setBarcodeQty(Math.max(1, product.quantity > 0 ? product.quantity : 1));
+    if (barcodeSettings.data) {
+      setBarcodeFormat(barcodeSettings.data.format || "thermal-40x30");
+      setBarcodePrinter(barcodeSettings.data.printerName || "");
+      setBarcodeIncludeShop(barcodeSettings.data.includeShopName);
+      setBarcodeIncludeName(barcodeSettings.data.includeProductName);
+      setBarcodeIncludePrice(barcodeSettings.data.includePrice);
+    }
+    setModal("barcode");
+  };
+
+  const handlePrintSingleBarcode = async () => {
+    if (!barcodeTarget || !barcodeTarget.barcode?.trim()) return;
+    setIsPrintingBarcode(true);
+    try {
+      await window.storePos.printer.printBarcodes({
+        items: [
+          {
+            name: barcodeTarget.name,
+            barcode: barcodeTarget.barcode.trim(),
+            price: barcodeTarget.price,
+            quantity: barcodeQty,
+          },
+        ],
+        format: barcodeFormat,
+        printerName: barcodePrinter || undefined,
+        options: {
+          includeShopName: barcodeIncludeShop,
+          includeProductName: barcodeIncludeName,
+          includePrice: barcodeIncludePrice,
+        },
+      });
+      notify(`စတစ်ကာ (${barcodeQty}) ခု အောင်မြင်စွာ ရိုက်ထုတ်ပြီးပါပြီ`);
+      setModal(null);
+    } catch (e: any) {
+      notify("ဘားကုဒ် ရိုက်ထုတ်ရာတွင် အမှားဖြစ်ပေါ်ပါသည်: " + e.message);
+    } finally {
+      setIsPrintingBarcode(false);
+    }
+  };
+
+  const handleGenerateBarcodeForTarget = async () => {
+    if (!barcodeTarget) return;
+    try {
+      const code = generateInternalBarcode();
+      const updated = await window.storePos.pos.saveProduct({
+        ...barcodeTarget,
+        barcode: code,
+      });
+      setBarcodeTarget(updated);
+      void client.invalidateQueries({ queryKey: ["product-page"] });
+      notify(`“${updated.name}” အတွက် ဘားကုဒ် (${code}) ထုတ်ပေးပြီးပါပြီ`);
+    } catch (e: any) {
+      notify("ဘားကုဒ် ထုတ်ပေးရာတွင် အမှားဖြစ်ပေါ်ပါသည်: " + e.message);
+    }
+  };
 
   const selectedProduct = products.data?.items.find(
     (product) => product.id === selectedProductId,
@@ -621,6 +708,13 @@ export function ProductsTab({
                                 မှတ်တမ်း
                               </button>
                               <button
+                                className="btn btn-xs btn-outline border-slate-300 text-slate-700 hover:bg-slate-100"
+                                title="ဘားကုဒ် စတစ်ကာ ရိုက်ထုတ်မည်"
+                                onClick={() => openBarcodeModal(product)}
+                              >
+                                🏷️
+                              </button>
+                              <button
                                 className="btn btn-xs btn-ghost text-gray-700"
                                 onClick={() => openProduct(product)}
                               >
@@ -717,6 +811,13 @@ export function ProductsTab({
                               onClick={() => openFor(product, "history")}
                             >
                               မှတ်တမ်း
+                            </button>
+                            <button
+                              className="btn btn-xs btn-outline border-slate-300 text-slate-700 hover:bg-slate-100"
+                              title="ဘားကုဒ် စတစ်ကာ ရိုက်ထုတ်မည်"
+                              onClick={() => openBarcodeModal(product)}
+                            >
+                              🏷️
                             </button>
                             <button
                               className="btn btn-xs btn-ghost text-gray-700"
@@ -1259,6 +1360,200 @@ export function ProductsTab({
                 onClick={() => setModal(null)}
               >
                 ပိတ်မည်
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Barcode Print Dialog */}
+      {modal === "barcode" && barcodeTarget && (
+        <div className="modal modal-open">
+          <div className="modal-box max-w-lg">
+            <h3 className="font-bold text-base text-gray-900 flex items-center justify-between pb-3 border-b border-gray-100">
+              <span className="flex items-center gap-2">
+                <span>🏷️</span>
+                <span>ဘားကုဒ် စတစ်ကာ ရိုက်ထုတ်ရန်</span>
+              </span>
+              <button
+                type="button"
+                className="btn btn-sm btn-circle btn-ghost"
+                onClick={() => setModal(null)}
+              >
+                ✕
+              </button>
+            </h3>
+
+            <div className="space-y-4 py-3">
+              {/* Product Info */}
+              <div className="bg-slate-50 p-3 rounded-lg flex items-center justify-between">
+                <div>
+                  <h4 className="font-bold text-sm text-gray-900">{barcodeTarget.name}</h4>
+                  <div className="text-xs text-gray-500 mt-0.5">
+                    စျေးနှုန်း: <span className="font-semibold text-emerald-700">{money.format(barcodeTarget.price)}</span> | လက်ကျန်: <span className="font-semibold">{barcodeTarget.quantity} {barcodeTarget.unit}</span>
+                  </div>
+                </div>
+                <div>
+                  {barcodeTarget.barcode ? (
+                    <span className="font-mono text-xs bg-white px-2 py-1 rounded border border-gray-200">
+                      {barcodeTarget.barcode}
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn-xs btn-outline btn-warning"
+                      onClick={handleGenerateBarcodeForTarget}
+                    >
+                      ⚡ ကုဒ် အသစ်ထုတ်မည်
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Warning if no barcode */}
+              {!barcodeTarget.barcode && (
+                <div className="alert alert-warning text-xs py-2">
+                  <span>ဤကုန်ပစ္စည်းတွင် ဘားကုဒ် မရှိသေးပါ။ <strong>“⚡ ကုဒ် အသစ်ထုတ်မည်”</strong> ခလုတ်ကို နှိပ်၍ အရင်ထုတ်ပေးပါရန်။</span>
+                </div>
+              )}
+
+              {/* Quantity */}
+              <div className="form-control">
+                <label className="label py-1">
+                  <span className="label-text text-xs font-semibold">ရိုက်မည့် စတစ်ကာအရေအတွက်:</span>
+                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-square btn-outline"
+                    disabled={barcodeQty <= 1}
+                    onClick={() => setBarcodeQty((q) => Math.max(1, q - 1))}
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    min="1"
+                    max="999"
+                    value={barcodeQty}
+                    onChange={(e) => setBarcodeQty(Math.max(1, Math.min(999, parseInt(e.target.value) || 1)))}
+                    className="input input-bordered input-sm w-24 text-center font-bold"
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-square btn-outline"
+                    onClick={() => setBarcodeQty((q) => q + 1)}
+                  >
+                    +
+                  </button>
+                  {barcodeTarget.quantity > 0 && (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-ghost text-xs text-slate-600"
+                      onClick={() => setBarcodeQty(barcodeTarget.quantity)}
+                    >
+                      လက်ကျန်အတိုင်း ({barcodeTarget.quantity})
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Format & Printer */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="form-control">
+                  <label className="label py-1">
+                    <span className="label-text text-xs font-semibold">စတစ်ကာ ပုံစံ:</span>
+                  </label>
+                  <select
+                    className="select select-bordered select-sm w-full text-xs"
+                    value={barcodeFormat}
+                    onChange={(e) => setBarcodeFormat(e.target.value as BarcodeLabelFormat)}
+                  >
+                    <option value="thermal-40x30">Thermal 40x30mm</option>
+                    <option value="thermal-50x30">Thermal 50x30mm</option>
+                    <option value="thermal-30x20">Thermal 30x20mm</option>
+                    <option value="receipt-58">Receipt 58mm</option>
+                    <option value="receipt-80">Receipt 80mm</option>
+                    <option value="a4-24">A4 (24 labels)</option>
+                    <option value="a4-30">A4 (30 labels)</option>
+                    <option value="a4-40">A4 (40 labels)</option>
+                  </select>
+                </div>
+
+                <div className="form-control">
+                  <label className="label py-1">
+                    <span className="label-text text-xs font-semibold">ပရင်တာ:</span>
+                  </label>
+                  <select
+                    className="select select-bordered select-sm w-full text-xs"
+                    value={barcodePrinter}
+                    onChange={(e) => setBarcodePrinter(e.target.value)}
+                  >
+                    <option value="">(စနစ် ပုံမှန် ပရင်တာ)</option>
+                    {printers.data?.map((p) => (
+                      <option key={p.name} value={p.name}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Live Preview Box */}
+              {barcodeTarget.barcode && (
+                <div className="p-3 bg-slate-100 rounded-lg flex flex-col items-center justify-center">
+                  <div className="text-[10px] text-gray-500 font-semibold mb-2">စတစ်ကာ နမူနာပုံ</div>
+                  <div
+                    className="bg-white rounded border border-gray-300 p-2 flex flex-col items-center justify-between text-center shadow-sm"
+                    style={{ width: "170px", minHeight: "105px" }}
+                  >
+                    {barcodeIncludeShop && (
+                      <div className="text-[9px] font-semibold text-slate-500 uppercase truncate max-w-full">
+                        {shopProfile.data?.name || "Store POS"}
+                      </div>
+                    )}
+                    {barcodeIncludeName && (
+                      <div className="text-[11px] font-bold text-slate-900 truncate max-w-full px-1">
+                        {barcodeTarget.name}
+                      </div>
+                    )}
+                    <div
+                      className="w-full flex items-center justify-center my-1"
+                      style={{ height: "38px" }}
+                      dangerouslySetInnerHTML={{
+                        __html: generateBarcodeSvg(barcodeTarget.barcode, {
+                          height: 34,
+                          showText: true,
+                          fontSize: 10,
+                        }),
+                      }}
+                    />
+                    {barcodeIncludePrice && (
+                      <div className="text-xs font-black text-slate-900">
+                        {money.format(barcodeTarget.price)}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="modal-action pt-3 border-t border-gray-100 flex justify-between items-center">
+              <button
+                type="button"
+                className="btn btn-sm btn-ghost"
+                onClick={() => setModal(null)}
+              >
+                မလုပ်တော့ပါ
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm btn-primary px-5"
+                disabled={!barcodeTarget.barcode || isPrintingBarcode}
+                onClick={handlePrintSingleBarcode}
+              >
+                <span>🖨️</span>
+                <span>{isPrintingBarcode ? "ရိုက်နေသည်..." : `စတစ်ကာ (${barcodeQty}) ခု ရိုက်မည်`}</span>
               </button>
             </div>
           </div>

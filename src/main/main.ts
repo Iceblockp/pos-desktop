@@ -10,6 +10,9 @@ import {
   printReceipt,
   printTestReceipt,
   savePrinterSettings,
+  getBarcodeSettings,
+  saveBarcodeSettings,
+  printBarcodes,
 } from "./printer";
 
 function loadEnv(): void {
@@ -550,6 +553,18 @@ function registerIpc(): void {
   ipcMain.handle("printer:test", async (event) => {
     assertTrustedSender(event);
     return printTestReceipt(database);
+  });
+  ipcMain.handle("printer:barcode-settings", (event) => {
+    assertTrustedSender(event);
+    return getBarcodeSettings(database);
+  });
+  ipcMain.handle("printer:save-barcode-settings", (event, settings: unknown) => {
+    assertTrustedSender(event);
+    return saveBarcodeSettings(database, settings as any);
+  });
+  ipcMain.handle("printer:print-barcodes", async (event, payload: unknown) => {
+    assertTrustedSender(event);
+    return printBarcodes(database, payload as any);
   });
 }
 

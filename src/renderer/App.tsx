@@ -13,6 +13,7 @@ import { Money as MoneyPage } from "./components/Money";
 import { Counter } from "./components/Counter";
 import { Sales } from "./components/Sales";
 import { Inventory } from "./components/Inventory";
+import { BarcodePage } from "./components/barcode/BarcodePage";
 import { Customers } from "./components/Customers";
 import { Reports } from "./components/Reports";
 import { Settings } from "./components/Settings";
@@ -25,6 +26,7 @@ type Page =
   | "counter"
   | "sales"
   | "inventory"
+  | "barcodes"
   | "customers"
   | "cash-drawer"
   | "reports"
@@ -199,6 +201,7 @@ export function App() {
     { key: "counter", label: "အရောင်းကောင်တာ", icon: "🛒" },
     { key: "sales", label: "အရောင်းမှတ်တမ်း", icon: "📊" },
     { key: "inventory", label: "ကုန်ပစ္စည်း", icon: "📦" },
+    { key: "barcodes", label: "ဘားကုဒ်", icon: "🏷️" },
     { key: "customers", label: "ဖောက်သည်", icon: "👥" },
     {
       key: "cash-drawer",
@@ -416,6 +419,7 @@ export function App() {
         )}
         {page === "sales" && <Sales notify={showToast} />}
         {page === "inventory" && <Inventory notify={showToast} />}
+        {page === "barcodes" && <BarcodePage notify={showToast} />}
         {page === "customers" && <Customers notify={showToast} />}
         {page === "cash-drawer" && (
           <MoneyPage dashboard={dashboard.data} notify={showToast} />
