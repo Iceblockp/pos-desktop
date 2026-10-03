@@ -63,6 +63,7 @@ App အတွင်းရှိ စာမျက်နှာတိုင်းသ
 2. **Empty State စံနှုန်း:** စာရင်းတွင် ဒေတာမရှိပါက (Empty State) စာကြောင်းတစ်ကြောင်းတည်းဖြင့် မပြဘဲ သတ်မှတ်ထားသော Standard `EmptyState` Component ကို သုံးရမည် (အရောင်ပါသော Icon Circle, ရှင်းလင်းသော Bold Title, အကြောင်းအရာရှင်းပြချက် Subtitle နှင့် တိုက်ရိုက်လုပ်ဆောင်နိုင်သော Primary Action Button ပါဝင်ရမည်)။
 3. **Infinite Scroll & Virtualization:** အချက်အလက်များပြားပါက အဆုံးမရှိ Scroll ဆွဲနိုင်သော Virtualized List သို့မဟုတ် Pagination ကို သုံးရမည်။
 4. **Clean Row Hierarchy:** Row တစ်ခုချင်းစီသည် ရှင်းလင်းသော Card ဖြစ်ရမည်။ ညာဘက်အခြမ်းတွင် ပင်မတန်ဖိုး (Price / Amount) နှင့် Status Badge ကို အမြဲတမ်း ညီညာစွာ ထားရှိရမည်။
+5. **Settings & Directory Modal Creation Flow:** ငွေပေးချေမှုနည်းလမ်းများ (Payment Methods)၊ ဈေးအဆင့်များ (Price Levels)၊ အမျိုးအစားများ (Categories) စသည့် ဆက်တင်/အညွှန်းစာရင်းများတွင် အသစ်ထည့်သွင်းခြင်း (Create) ပြုလုပ်ရန် စခရင်၏ ထိပ်ပိုင်း/အောက်ပိုင်းတွင် input card များ အမြဲဖွင့်မထားရပါ။ Header-Right ရှိ `[+ အသစ်]` (သို့မဟုတ် EmptyState ရှိ `[+ အသစ်ထည့်မည်]`) ကို နှိပ်ပါက auto-focused input နှင့် cancel/confirm ပါဝင်သော **Popup Modal Sheet** ဖြင့်သာ သန့်ရှင်းစွာ အသစ်ထည့်သွင်းစေရမည်။
 
 ---
 
