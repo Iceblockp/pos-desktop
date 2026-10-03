@@ -189,10 +189,15 @@ function StoreProfileTab({ notify }: { notify: (message: string) => void }) {
         >
           <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
             <div>
-              <h3 className="font-semibold text-slate-800 text-base">ဆိုင်အချက်အလက်</h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                ဤအချက်အလက်များကို ဖောက်သည်ဘောက်ချာတွင် ထုတ်ပေးပါမည်
-              </p>
+              <h3 className="font-semibold text-slate-800 text-base flex items-center gap-1.5">
+                ဆိုင်အချက်အလက်
+                <span
+                  className="tooltip tooltip-right cursor-pointer text-slate-400 hover:text-slate-600 text-xs font-normal"
+                  data-tip="ဤအချက်အလက်များကို ဖောက်သည်ဘောက်ချာတွင် ထုတ်ပေးပါမည်"
+                >
+                  ℹ️
+                </span>
+              </h3>
             </div>
             <button
               type="submit"
@@ -249,8 +254,14 @@ function StoreProfileTab({ notify }: { notify: (message: string) => void }) {
 
             <div className="form-control">
               <label className="label py-1">
-                <span className="label-text text-xs font-bold text-slate-700">
+                <span className="label-text text-xs font-bold text-slate-700 flex items-center gap-1.5">
                   ဘောက်ချာအောက်ခြေစာသား
+                  <span
+                    className="tooltip tooltip-right cursor-pointer text-slate-400 hover:text-slate-600 font-normal"
+                    data-tip="ပရင့်ထုတ်သော ဘောက်ချာအောက်ဆုံးတွင် ပေါ်ပါမည်"
+                  >
+                    ℹ️
+                  </span>
                 </span>
               </label>
               <input
@@ -261,11 +272,6 @@ function StoreProfileTab({ notify }: { notify: (message: string) => void }) {
                   setValue({ ...value, receiptFooter: e.target.value })
                 }
               />
-              <label className="label py-0.5">
-                <span className="label-text-alt text-slate-400">
-                  ပရင့်ထုတ်သော ဘောက်ချာအောက်ဆုံးတွင် ပေါ်ပါမည်
-                </span>
-              </label>
             </div>
 
             <CurrencyFields
@@ -387,8 +393,18 @@ function CurrencyFields({
     <div className="pt-3 border-t border-slate-100 space-y-3">
       <div className="form-control">
         <label className="label py-1">
-          <span className="label-text text-xs font-bold text-slate-700">
+          <span className="label-text text-xs font-bold text-slate-700 flex items-center gap-1.5">
             အသုံးပြုမည့် ငွေကြေး
+            <span
+              className="tooltip tooltip-right cursor-pointer text-slate-400 hover:text-slate-600 font-normal"
+              data-tip={
+                disabled
+                  ? "ဆိုင်ပိုင်ရှင်သာ ဆိုင်သုံးငွေကြေးကို ပြောင်းနိုင်သည်။"
+                  : "ကောင်တာစက်အားလုံးနှင့် ဘောက်ချာများတွင် ပြောင်းလဲအသုံးပြုပါမည်။"
+              }
+            >
+              ℹ️
+            </span>
           </span>
           <span className="label-text-alt font-mono font-bold text-xs text-primary">
             နမူနာ — {formatCurrency(12500, value)}
@@ -418,13 +434,6 @@ function CurrencyFields({
           ))}
           <option value="CUSTOM">⚙️ စိတ်ကြိုက်ငွေကြေး သတ်မှတ်မည်…</option>
         </select>
-        <label className="label py-0.5">
-          <span className="label-text-alt text-slate-400">
-            {disabled
-              ? 'ဆိုင်ပိုင်ရှင်သာ ဆိုင်သုံးငွေကြေးကို ပြောင်းနိုင်သည်။'
-              : 'ကောင်တာစက်အားလုံးနှင့် ဘောက်ချာများတွင် ပြောင်းလဲအသုံးပြုပါမည်။'}
-          </span>
-        </label>
       </div>
 
       {presetKey === 'CUSTOM' && (
@@ -756,15 +765,16 @@ function PrinterTab({ notify }: { notify: (s: string) => void }) {
           </div>
 
           {/* Auto-Print Toggle */}
-          <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-800">
-                အရောင်းပြီးလျှင် ဘောက်ချာအလိုအလျောက်ထုတ်မည်
-              </p>
-              <p className="text-xs text-slate-500">
-                ငွေရှင်းပြီးသည်နှင့် ဘောက်ချာကို အလိုအလျောက်ထုတ်ပါမည်
-              </p>
-            </div>
+          <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+            <span className="text-sm font-medium text-slate-800 flex items-center gap-1.5">
+              အရောင်းပြီးလျှင် ဘောက်ချာအလိုအလျောက်ထုတ်မည်
+              <span
+                className="tooltip tooltip-right cursor-pointer text-slate-400 hover:text-slate-600 text-xs font-normal"
+                data-tip="ငွေရှင်းပြီးသည်နှင့် ဘောက်ချာကို ပရင်တာသို့ အလိုအလျောက် ပို့ပါမည်"
+              >
+                ℹ️
+              </span>
+            </span>
             <input
               type="checkbox"
               className="toggle toggle-primary toggle-sm"
@@ -1089,10 +1099,15 @@ function PricingAndFeaturesTab({ notify }: { notify: (s: string) => void }) {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-5 border-b border-slate-100 flex flex-wrap justify-between items-center gap-3 bg-slate-50/50">
           <div>
-            <h3 className="font-semibold text-slate-800 text-base">စျေးနှုန်းအဆင့်များ</h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              လက်လီစျေးသည် မူလစျေးဖြစ်သည်။ လက်ကား၊ VIP သို့မဟုတ် အရေအတွက်လိုက်စျေး ထည့်နိုင်သည်
-            </p>
+            <h3 className="font-semibold text-slate-800 text-base flex items-center gap-1.5">
+              စျေးနှုန်းအဆင့်များ
+              <span
+                className="tooltip tooltip-right cursor-pointer text-slate-400 hover:text-slate-600 text-xs font-normal"
+                data-tip="လက်လီစျေးသည် မူလစျေးဖြစ်သည်။ လက်ကား၊ VIP သို့မဟုတ် အရေအတွက်လိုက်စျေး ထည့်နိုင်သည်"
+              >
+                ℹ️
+              </span>
+            </h3>
           </div>
           {capabilities.effectivePlan !== "free" && (
             <button className="btn btn-sm btn-primary" onClick={() => setOpen(true)}>

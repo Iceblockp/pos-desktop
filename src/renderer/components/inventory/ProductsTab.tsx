@@ -1077,8 +1077,16 @@ export function ProductsTab({
                     {owner && (
                       <div className="form-control">
                         <label className="label py-1">
-                          <span className="label-text text-xs font-semibold">
+                          <span className="label-text text-xs font-semibold flex items-center gap-1.5">
                             ဝယ်ရင်းစျေး
+                            {form.id && hasPastMovements ? (
+                              <span
+                                className="tooltip tooltip-right cursor-pointer text-slate-400 hover:text-slate-600 font-normal"
+                                data-tip="အရောင်း/ကုန်ဝင် မှတ်တမ်းများ ရှိနေသဖြင့် ပျမ်းမျှဝယ်ဈေးကို အလိုအလျောက် တွက်ချက်ပါသည်"
+                              >
+                                ℹ️
+                              </span>
+                            ) : null}
                           </span>
                         </label>
                         <input
@@ -1091,11 +1099,6 @@ export function ProductsTab({
                           placeholder="0.00"
                           className="input input-bordered input-sm text-sm font-mono disabled:bg-gray-100 disabled:text-gray-500"
                         />
-                        {form.id && hasPastMovements ? (
-                          <span className="text-[11px] text-gray-500 mt-1">
-                            အရောင်း/ကုန်ဝင် မှတ်တမ်းများ ရှိနေသဖြင့် ပျမ်းမျှဝယ်ဈေးကို အလိုအလျောက် တွက်ချက်သည်
-                          </span>
-                        ) : null}
                       </div>
                     )}
                   </div>
@@ -1191,8 +1194,14 @@ export function ProductsTab({
                 <div className="space-y-4">
                   <div className="form-control">
                     <label className="label py-1">
-                      <span className="label-text text-xs font-semibold">
+                      <span className="label-text text-xs font-semibold flex items-center gap-1.5">
                         လက်ကျန်နည်း သတိပေးမည့်အရေအတွက်
+                        <span
+                          className="tooltip tooltip-right cursor-pointer text-slate-400 hover:text-slate-600 font-normal"
+                          data-tip="လက်ကျန်သည် ဤအရေအတွက်နှင့်တူ သို့မဟုတ် နည်းသွားလျှင် “လက်ကျန်နည်း” ဟု သတိပေးပါမည်"
+                        >
+                          ℹ️
+                        </span>
                       </span>
                     </label>
                     <input
@@ -1204,18 +1213,6 @@ export function ProductsTab({
                       placeholder="ဥပမာ ၅"
                       className="input input-bordered input-sm w-full"
                     />
-                    <label className="label py-1">
-                      <span className="label-text-alt text-gray-500 text-[11px]">
-                        လက်ကျန်သည် ဤအရေအတွက်နှင့်တူ သို့မဟုတ် နည်းသွားလျှင် “လက်ကျန်နည်း” ဟု သတိပေးပါမည်။
-                      </span>
-                    </label>
-                  </div>
-
-                  <div className="p-3.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-900 text-xs leading-relaxed">
-                    <p className="font-semibold mb-1">💡 ကုန်လက်ကျန် စီမံခြင်း</p>
-                    <p className="text-blue-800">
-                      ကုန်လက်ကျန်မှတ်တမ်း မှန်ကန်စေရန် ဇယားပေါ်ရှိ <strong>“လက်ကျန်”</strong> ခလုတ်ဖြင့်သာ ပြင်ပါ ( <em>ကုန်ဝင်လက်ခံခြင်း</em>, <em>မြေပြင်လက်ကျန်ရေတွက်ခြင်း</em>နှင့် <em>ပျက်စီးဆုံးရှုံးမှုမှတ်တမ်း</em>).
-                    </p>
                   </div>
                 </div>
               )}

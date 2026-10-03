@@ -51,10 +51,15 @@ export function FeatureSettings({ notify }: { notify: (message: string) => void 
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
       <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
         <div>
-          <h3 className="font-semibold text-slate-800 text-base">ဆိုင်လုပ်ဆောင်ချက်များ</h3>
-          <p className="text-xs text-slate-500 mt-0.5">
-            ဆိုင်အသုံးပြုပုံအလိုက် လုပ်ဆောင်ချက်များကို ဖွင့်/ပိတ်နိုင်သည်
-          </p>
+          <h3 className="font-semibold text-slate-800 text-base flex items-center gap-1.5">
+            ဆိုင်လုပ်ဆောင်ချက်များ
+            <span
+              className="tooltip tooltip-right cursor-pointer text-slate-400 hover:text-slate-600 text-xs font-normal"
+              data-tip="ဆိုင်အသုံးပြုပုံအလိုက် လုပ်ဆောင်ချက်များကို ဖွင့်/ပိတ်နိုင်သည်"
+            >
+              ℹ️
+            </span>
+          </h3>
         </div>
         <span
           className={`badge badge-sm font-semibold capitalize ${
@@ -84,9 +89,14 @@ export function FeatureSettings({ notify }: { notify: (message: string) => void 
             >
               <div className="flex items-center gap-3.5">
                 <span className="text-2xl p-2 bg-slate-100 rounded-lg">{feature.icon}</span>
-                <div>
+                <div className="flex items-center gap-1.5">
                   <h4 className="text-sm font-medium text-slate-800">{feature.title}</h4>
-                  <p className="text-xs text-slate-500">{feature.description}</p>
+                  <span
+                    className="tooltip tooltip-right cursor-pointer text-slate-400 hover:text-slate-600 text-xs font-normal"
+                    data-tip={feature.description}
+                  >
+                    ℹ️
+                  </span>
                 </div>
               </div>
               <input

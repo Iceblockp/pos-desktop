@@ -266,11 +266,14 @@ export function BarcodePage({ notify }: { notify: (msg: string, type?: "success"
         <div>
           <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
             <span>🏷️</span>
-            <span>ဘားကုဒ် စတစ်ကာ စင်တာ (Barcode Label Center)</span>
+            <span>ဘားကုဒ် စတစ်ကာ စင်တာ</span>
+            <span
+              className="tooltip tooltip-right cursor-pointer text-slate-400 hover:text-slate-600 text-xs font-normal"
+              data-tip="Thermal စတစ်ကာလိပ်၊ ဘေလ်စလစ် သို့မဟုတ် A4 စတစ်ကာစာရွက်များဖြင့် ကုန်ပစ္စည်းဘားကုဒ်များ စိတ်ကြိုက်ရိုက်ထုတ်နိုင်ပါသည်"
+            >
+              ℹ️
+            </span>
           </h2>
-          <p className="text-xs text-slate-500 mt-1">
-            Thermal စတစ်ကာလိပ်၊ ဘေလ်စလစ် သို့မဟုတ် A4 စတစ်ကာစာရွက်များဖြင့် ကုန်ပစ္စည်းဘားကုဒ်များ စိတ်ကြိုက်ရိုက်ထုတ်နိုင်ပါသည်။
-          </p>
         </div>
 
         {/* Global Action */}
