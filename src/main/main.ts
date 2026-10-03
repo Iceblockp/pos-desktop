@@ -65,12 +65,23 @@ function assertTrustedSender(event: Electron.IpcMainInvokeEvent): void {
 }
 
 function createWindow(): void {
+  const iconPath = existsSync(join(__dirname, '../../build/icon.png'))
+    ? join(__dirname, '../../build/icon.png')
+    : join(process.cwd(), 'build/icon.png');
+
+  if (process.platform === 'darwin' && existsSync(iconPath)) {
+    try {
+      app.dock?.setIcon(iconPath);
+    } catch {}
+  }
+
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 920,
     minWidth: 1080,
     minHeight: 700,
     backgroundColor: "#f6f5f1",
+    icon: existsSync(iconPath) ? iconPath : undefined,
     webPreferences: {
       preload: join(__dirname, "../preload/preload.js"),
       contextIsolation: true,

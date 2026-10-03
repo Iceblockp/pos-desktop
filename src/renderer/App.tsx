@@ -19,6 +19,7 @@ import { Settings } from "./components/Settings";
 import { PlanBadge } from "./components/PlanBadge";
 import { cacheCurrency, formatCurrency, parseCurrency } from '../shared/currency';
 import { myanmarMessage } from './myanmar';
+import appLogo from './assets/logo.png';
 
 type Page =
   | "counter"
@@ -233,9 +234,11 @@ export function App() {
         {/* Brand & Shop Profile Header */}
         <div className="px-2 pb-5 border-b border-slate-800/80">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-black text-lg shadow-inner">
-              P
-            </div>
+            <img
+              src={appLogo}
+              alt="Store POS Logo"
+              className="w-9 h-9 rounded-lg object-contain shadow-md shadow-emerald-950/40 border border-emerald-500/30"
+            />
             <div>
               <h1 className="text-xl font-bold tracking-tight leading-tight text-white">
                 Store <span className="text-emerald-400 font-extrabold">POS</span>

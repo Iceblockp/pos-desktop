@@ -28,11 +28,13 @@
     "asar": true,
     "npmRebuild": true,
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "build/icon.ico"
     },
     "mac": {
       "target": "dmg",
-      "category": "public.app-category.business"
+      "category": "public.app-category.business",
+      "icon": "build/icon.icns"
     }
   },
   "dependencies": {
