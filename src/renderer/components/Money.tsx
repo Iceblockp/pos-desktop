@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CashSessionSummary } from "../../shared/models";
 import { formatCurrency } from '../../shared/currency';
+import { OptionPicker } from "./OptionPicker";
+import { EmptyState } from "./EmptyState";
 
 const money = { format: formatCurrency };
 
@@ -455,13 +457,17 @@ export function Money({
                     </table>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-                    <span className="text-4xl mb-2">🧾</span>
-                    <p className="text-base font-bold text-gray-700">အသုံးစရိတ်မှတ်တမ်း မရှိပါ</p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      ဆိုင်အသုံးစရိတ်မှတ်ရန် အပေါ်မှ “အသုံးစရိတ်မှတ်မည်” ကိုနှိပ်ပါ။
-                    </p>
-                  </div>
+                  <EmptyState
+                    icon="🧾"
+                    tone="rose"
+                    title="အသုံးစရိတ်မှတ်တမ်း မရှိသေးပါ"
+                    description="ဤကာလအတွင်း မှတ်တမ်းတင်ထားသော အသုံးစရိတ်မရှိသေးပါ။ အောက်ပါခလုတ်ဖြင့် စတင်ထည့်သွင်းနိုင်ပါသည်။"
+                    actionLabel="+ အသုံးစရိတ်မှတ်မည်"
+                    onAction={() => {
+                      setExpense(emptyExpense);
+                      setModal("expense");
+                    }}
+                  />
                 )}
               </div>
             </div>
@@ -827,20 +833,19 @@ export function Money({
                       အမျိုးအစား
                     </span>
                   </label>
-                  <select
-                    className="select select-bordered select-sm w-full text-xs"
-                    value={expense.categoryId}
-                    onChange={(e) =>
-                      setExpense({ ...expense, categoryId: e.target.value })
-                    }
-                  >
-                    <option value="">အမျိုးအစားမသတ်မှတ်ရသေး</option>
-                    {categories.data?.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+                  <OptionPicker
+                    value={expense.categoryId || null}
+                    placeholder="အမျိုးအစား ရွေးချယ်ပါ"
+                    options={[
+                      { label: "အမျိုးအစားမသတ်မှတ်ရသေး", value: "" },
+                      ...(categories.data ?? []).map((c) => ({
+                        label: c.name,
+                        value: c.id,
+                        icon: "🏷️",
+                      })),
+                    ]}
+                    onSelect={(val) => setExpense({ ...expense, categoryId: val })}
+                  />
                 </div>
 
                 <div className="form-control">
