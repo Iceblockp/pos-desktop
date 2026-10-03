@@ -11,6 +11,7 @@ import {
   generateInternalBarcode,
   type BarcodeLabelFormat,
 } from '../../../shared/barcode';
+import { OptionPicker } from '../OptionPicker';
 
 const money = { format: formatCurrency };
 
@@ -971,27 +972,22 @@ export function ProductsTab({
                       </div>
                     </div>
 
-                    <div className="form-control">
-                      <label className="label py-1">
-                        <span className="label-text text-xs font-semibold">
-                          အမျိုးအစား
-                        </span>
-                      </label>
-                      <select
-                        className="select select-bordered select-sm w-full"
-                        value={form.categoryId}
-                        onChange={(e) =>
-                          setForm({ ...form, categoryId: e.target.value })
-                        }
-                      >
-                        <option value="">အမျိုးအစားမသတ်မှတ်ရသေး</option>
-                        {categories.data?.map((category) => (
-                          <option key={category.id} value={category.id}>
-                            {category.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    <OptionPicker
+                      label="အမျိုးအစား"
+                      value={form.categoryId || ""}
+                      options={[
+                        { label: "အမျိုးအစား မသတ်မှတ်ရသေး", value: "" },
+                        ...(categories.data?.map((category) => ({
+                          label: category.name,
+                          value: category.id,
+                        })) ?? []),
+                      ]}
+                      onSelect={(val) => setForm({ ...form, categoryId: val })}
+                      placeholder="အမျိုးအစား ရွေးချယ်ပါ"
+                      searchPlaceholder="အမျိုးအစား ရှာရန်..."
+                      onAddNew={onOpenCategories}
+                      addNewLabel="အမျိုးအစား စီမံရန်..."
+                    />
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1025,27 +1021,22 @@ export function ProductsTab({
                     </div>
 
                     {owner && (
-                      <div className="form-control">
-                        <label className="label py-1">
-                          <span className="label-text text-xs font-semibold">
-                            အဓိကပေးသွင်းသူ
-                          </span>
-                        </label>
-                        <select
-                          className="select select-bordered select-sm w-full"
-                          value={form.supplierId}
-                          onChange={(e) =>
-                            setForm({ ...form, supplierId: e.target.value })
-                          }
-                        >
-                          <option value="">ပေးသွင်းသူမရှိ</option>
-                          {suppliers.data?.map((supplier) => (
-                            <option key={supplier.id} value={supplier.id}>
-                              {supplier.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      <OptionPicker
+                        label="အဓိကပေးသွင်းသူ"
+                        value={form.supplierId || ""}
+                        options={[
+                          { label: "ပေးသွင်းသူ မရှိ", value: "" },
+                          ...(suppliers.data?.map((supplier) => ({
+                            label: supplier.name,
+                            value: supplier.id,
+                          })) ?? []),
+                        ]}
+                        onSelect={(val) =>
+                          setForm({ ...form, supplierId: val })
+                        }
+                        placeholder="ပေးသွင်းသူ ရွေးချယ်ပါ"
+                        searchPlaceholder="ပေးသွင်းသူ ရှာရန်..."
+                      />
                     )}
                   </div>
                 </div>
