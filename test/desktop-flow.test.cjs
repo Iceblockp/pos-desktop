@@ -56,3 +56,51 @@ test('editing product cost updates initial stock movement and recomputes average
   assert.ok(log);
   assert.equal(log.amount, 650);
 });
+
+test('product image URLs survive desktop reads and ordinary edits', async t => {
+  const db = new PosDatabase(':memory:'); t.after(() => db.sqlite.close());
+  const imageUrl = 'https://pub-example.r2.dev/shops/shop/products/product.webp?v=1';
+  const created = db.saveProduct({ name: 'Tea', price: 500, imageUrl });
+  assert.equal(created.imageUrl, imageUrl);
+  assert.equal(db.listProducts()[0].imageUrl, imageUrl);
+  assert.equal(db.productPage().items[0].imageUrl, imageUrl);
+
+  const renamed = db.saveProduct({ id: created.id, name: 'Green Tea', price: 500 });
+  assert.equal(renamed.imageUrl, imageUrl);
+
+  const removed = db.saveProduct({ id: created.id, name: 'Green Tea', price: 500, imageUrl: null });
+  assert.equal(removed.imageUrl, null);
+});
+
+test('a new product may reserve its image ID without weakening strict edits', async t => {
+  const db = new PosDatabase(':memory:'); t.after(() => db.sqlite.close());
+  await assert.rejects(
+    Promise.resolve().then(() => db.saveProduct({ id: 'missing-product', name: 'Missing', price: 100 })),
+    /Product not found/,
+  );
+  const created = db.saveProduct({
+    id: 'image-product',
+    createIfMissing: true,
+    name: 'Created with image ID',
+    price: 100,
+    imageUrl: 'https://cdn.test/image-product.webp',
+  });
+  assert.equal(created.id, 'image-product');
+  assert.equal(created.imageUrl, 'https://cdn.test/image-product.webp');
+});
+
+test('desktop local-data removal forwards explicit discard confirmation through IPC', async t => {
+  const db = new PosDatabase(':memory:'); t.after(() => db.sqlite.close());
+  let receivedForce;
+  const { api } = desktopHarness(root, db, {
+    cloud: {
+      removeLocalData: async force => {
+        receivedForce = force;
+        return { status: 'signed_out', pending: 0 };
+      },
+    },
+  });
+
+  await api.cloud.removeLocalData(true);
+  assert.equal(receivedForce, true);
+});

@@ -651,6 +651,14 @@ export function Counter({
                       }`}
                     >
                       <div>
+                        {product.imageUrl ? (
+                          <img
+                            src={product.imageUrl}
+                            alt=""
+                            loading="lazy"
+                            className="mb-2 aspect-square w-full rounded-lg border border-gray-100 object-cover"
+                          />
+                        ) : null}
                         <h3 className="font-semibold text-xs text-gray-900 line-clamp-2 leading-snug">
                           {product.name}
                         </h3>

@@ -275,6 +275,7 @@ export class PosDatabase {
     for (const column of ['drawerId TEXT', 'openedByDeviceId TEXT', 'closedByDeviceId TEXT']) {
       try { this.sqlite.exec(`ALTER TABLE cash_sessions ADD COLUMN ${column}`); } catch { /* already present */ }
     }
+    try { this.sqlite.exec('ALTER TABLE products ADD COLUMN imageUrl TEXT'); } catch { /* already present */ }
     // Mobile migrations and the API deliberately allow a null methodName for
     // legacy payments. Early desktop builds made it NOT NULL, which made one
     // old payment abort every future pull page. SQLite cannot drop a NOT NULL
@@ -360,7 +361,7 @@ export class PosDatabase {
     const pattern = `%${search.trim()}%`;
     const rows = this.sqlite
       .prepare(
-        `SELECT id, name, barcode, categoryId, supplierId, price, cost, quantity, minStock, unit, isActive FROM products WHERE deletedAt IS NULL AND isActive = 1 AND (name LIKE ? OR barcode LIKE ?) ORDER BY name COLLATE NOCASE`,
+        `SELECT id, name, barcode, categoryId, supplierId, price, cost, quantity, minStock, unit, imageUrl, isActive FROM products WHERE deletedAt IS NULL AND isActive = 1 AND (name LIKE ? OR barcode LIKE ?) ORDER BY name COLLATE NOCASE`,
       )
       .all(pattern, pattern) as any[];
     const ids = rows.map((row) => String(row.id));
@@ -402,7 +403,7 @@ export class PosDatabase {
     const totalRow = this.sqlite.prepare(`SELECT COUNT(*) AS count FROM products WHERE ${where}`).get(...params) as { count?: number } | undefined;
     const total = Number(totalRow?.count ?? 0);
     const rows = this.sqlite.prepare(
-      `SELECT id, name, barcode, categoryId, supplierId, price, cost, quantity, minStock, unit, isActive FROM products WHERE ${where} ORDER BY ${order} LIMIT ? OFFSET ?`
+      `SELECT id, name, barcode, categoryId, supplierId, price, cost, quantity, minStock, unit, imageUrl, isActive FROM products WHERE ${where} ORDER BY ${order} LIMIT ? OFFSET ?`
     ).all(...params, limit, offset) as any[];
 
     const ids = rows.map((row) => String(row.id));
@@ -443,14 +444,14 @@ export class PosDatabase {
   findBarcode(code: string): Product | null {
     const row = this.sqlite
       .prepare(
-        "SELECT id, name, barcode, categoryId, supplierId, price, cost, quantity, minStock, unit, isActive FROM products WHERE barcode = ? AND deletedAt IS NULL AND isActive = 1",
+        "SELECT id, name, barcode, categoryId, supplierId, price, cost, quantity, minStock, unit, imageUrl, isActive FROM products WHERE barcode = ? AND deletedAt IS NULL AND isActive = 1",
       )
       .get(code);
     return row ? { ...toProduct(row), tiers: this.pricingTiers(String(row.id)) } : null;
   }
 
   saveProduct(
-    input: Partial<Product> & Pick<Product, "name" | "price">,
+    input: Partial<Product> & Pick<Product, "name" | "price"> & { createIfMissing?: boolean },
   ): Product {
     const id = input.id || randomUUID();
     const old = input.id
@@ -469,11 +470,14 @@ export class PosDatabase {
       quantity: Number(old?.quantity ?? 0),
       minStock: Number(input.minStock ?? old?.minStock ?? 0),
       unit: input.unit?.trim() || String(old?.unit ?? "pcs"),
+      imageUrl: input.imageUrl === undefined
+        ? (old?.imageUrl == null ? null : String(old.imageUrl))
+        : input.imageUrl,
       isActive: input.isActive === false ? 0 : 1,
     };
     if (!row.name || !Number.isFinite(row.price) || row.price < 0)
       throw new Error("Product name and a non-negative price are required");
-    if (input.id && !old) throw new Error('Product not found');
+    if (input.id && !old && !input.createIfMissing) throw new Error('Product not found');
     if (row.barcode && this.sqlite.prepare('SELECT id FROM products WHERE barcode = ? AND id != ? AND deletedAt IS NULL').get(row.barcode,id)) throw new Error('That barcode already belongs to a product');
     if (![row.cost,row.minStock,Number(input.quantity ?? 0)].every(Number.isFinite) || row.cost < 0 || row.minStock < 0) throw new Error('Enter valid cost, minimum stock and quantity');
     return this.transaction(() => {
@@ -547,7 +551,7 @@ export class PosDatabase {
   private findProduct(id: string): Product | null {
     const row = this.sqlite
       .prepare(
-        "SELECT id, name, barcode, categoryId, supplierId, price, cost, quantity, minStock, unit, isActive FROM products WHERE id = ?",
+        "SELECT id, name, barcode, categoryId, supplierId, price, cost, quantity, minStock, unit, imageUrl, isActive FROM products WHERE id = ?",
       )
       .get(id);
     return row ? toProduct(row) : null;
@@ -2443,6 +2447,7 @@ function toProduct(row: any): Product {
     quantity: Number(row.quantity || 0),
     minStock: Number(row.minStock || 0),
     unit: String(row.unit || "pcs"),
+    imageUrl: row.imageUrl ? String(row.imageUrl) : null,
     isActive: Boolean(row.isActive),
   };
 }

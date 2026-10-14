@@ -29,6 +29,7 @@ export interface Product {
   quantity: number;
   minStock: number;
   unit: string;
+  imageUrl: string | null;
   isActive: boolean;
   tiers?: ProductTier[];
 }
@@ -256,7 +257,9 @@ export interface DesktopApi {
     productSummary: () => Promise<ProductSummary>;
     categoryProductCounts: () => Promise<{ byCategory: Record<string, number>; uncategorized: number }>;
     findByBarcode: (code: string) => Promise<Product | null>;
-    saveProduct: (input: Partial<Product> & Pick<Product, 'name' | 'price'>) => Promise<Product>;
+    saveProduct: (input: Partial<Product> & Pick<Product, 'name' | 'price'> & { createIfMissing?: boolean }) => Promise<Product>;
+    uploadProductImage: (productId: string, image: ArrayBuffer) => Promise<string>;
+    deleteProductImage: (productId: string) => Promise<void>;
     removeProduct: (id: string) => Promise<void>;
     categories: () => Promise<Category[]>;
     saveCategory: (input: Partial<Category> & Pick<Category, 'name'>) => Promise<Category>;
@@ -327,7 +330,7 @@ export interface DesktopApi {
     syncNow: () => Promise<CloudState>;
     signOut: () => Promise<CloudState>;
     rebuildLocalData: () => Promise<CloudState>;
-    removeLocalData: () => Promise<CloudState>;
+    removeLocalData: (force?: boolean) => Promise<CloudState>;
     deleteCloudAccount: (input: { password: string; shopName: string }) => Promise<CloudState>;
     devices: () => Promise<PairedDevice[]>;
     revokeDevice: (id: string) => Promise<void>;

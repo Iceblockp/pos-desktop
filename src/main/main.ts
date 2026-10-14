@@ -115,7 +115,7 @@ function registerIpc(): void {
   handle('pos:set-feature',(name,enabled) => { database.setFeature(name,enabled); void cloud.syncNow(); });
   handle('cloud:complete-login',input => cloud.completeLogin(input));
   handle('cloud:rebuild-local-data',() => cloud.rebuildLocalData());
-  handle('cloud:remove-local-data',() => cloud.removeLocalData());
+  handle('cloud:remove-local-data',(force) => cloud.removeLocalData(force === true));
   handle('cloud:delete-account',input => cloud.deleteCloudAccount(input as { password: string; shopName: string }));
   handle('cloud:join',input => cloud.join(input));
   handle('cloud:pairing-code',() => cloud.createPairingCode());
@@ -247,9 +247,29 @@ function registerIpc(): void {
     void cloud.syncNow();
     return result;
   });
+  ipcMain.handle("pos:upload-product-image", async (event, productId: unknown, image: unknown) => {
+    assertTrustedSender(event);
+    if (typeof productId !== 'string' || !productId || productId.length > 100) throw new Error('Invalid product');
+    const bytes = image instanceof ArrayBuffer
+      ? new Uint8Array(image)
+      : ArrayBuffer.isView(image)
+        ? new Uint8Array(image.buffer, image.byteOffset, image.byteLength)
+        : null;
+    if (!bytes || bytes.length < 12) throw new Error('Invalid product photo');
+    const webp = String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF'
+      && String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP';
+    if (!webp) throw new Error('Product photo must be WebP');
+    return cloud.uploadProductImage(productId, bytes);
+  });
+  ipcMain.handle("pos:delete-product-image", async (event, productId: unknown) => {
+    assertTrustedSender(event);
+    if (typeof productId !== 'string' || !productId || productId.length > 100) throw new Error('Invalid product');
+    await cloud.deleteProductImage(productId);
+  });
   ipcMain.handle("pos:remove-product", (event, id: unknown) => {
     assertTrustedSender(event);
     database.removeProduct(String(id));
+    void cloud.deleteProductImage(String(id)).catch(() => {});
     void cloud.syncNow();
   });
   ipcMain.handle("pos:categories", (event) => {

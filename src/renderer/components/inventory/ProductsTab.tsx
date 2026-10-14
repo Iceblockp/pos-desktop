@@ -1,5 +1,5 @@
 import { useCapabilities } from '../../useCapabilities';
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Product, StockMovement, Supplier } from "../../../shared/models";
 import { StockModal } from "./StockModal";
@@ -17,6 +17,52 @@ const money = { format: formatCurrency };
 
 const POPULAR_UNITS = ["pcs", "pack", "box", "bottle", "can", "kg", "liter", "set"];
 
+interface ProductFormState {
+  id: string;
+  name: string;
+  barcode: string;
+  price: string;
+  cost: string;
+  minStock: string;
+  unit: string;
+  categoryId: string;
+  supplierId: string;
+  imageUrl: string | null;
+}
+
+class ProductImageError extends Error {}
+
+async function prepareProductImage(file: File): Promise<Blob> {
+  if (!file.type.startsWith("image/")) throw new Error("ဓာတ်ပုံဖိုင်ကိုသာ ရွေးပါ");
+  const source = await createImageBitmap(file);
+  try {
+    const side = Math.min(source.width, source.height);
+    const canvas = document.createElement("canvas");
+    canvas.width = 640;
+    canvas.height = 640;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("ဓာတ်ပုံကို ပြင်ဆင်၍ မရပါ");
+    context.drawImage(
+      source,
+      (source.width - side) / 2,
+      (source.height - side) / 2,
+      side,
+      side,
+      0,
+      0,
+      640,
+      640,
+    );
+    const output = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/webp", 0.78),
+    );
+    if (!output) throw new Error("ဓာတ်ပုံကို WebP အဖြစ် ပြောင်း၍ မရပါ");
+    return output;
+  } finally {
+    source.close();
+  }
+}
+
 export function ProductsTab({
   notify,
   onOpenCategories,
@@ -25,7 +71,7 @@ export function ProductsTab({
   onOpenCategories?: () => void;
 }) {
   const { owner, effectivePlan } = useCapabilities();
-  const emptyForm = {
+  const emptyForm: ProductFormState = {
     id: "",
     name: "",
     barcode: "",
@@ -35,6 +81,7 @@ export function ProductsTab({
     unit: "pcs",
     categoryId: "",
     supplierId: "",
+    imageUrl: null,
   };
 
   const [form, setForm] = useState(emptyForm);
@@ -49,6 +96,11 @@ export function ProductsTab({
   const [isPrintingBarcode, setIsPrintingBarcode] = useState(false);
   const [productModalTab, setProductModalTab] = useState<"general" | "pricing" | "stock">("general");
   const [hasPastMovements, setHasPastMovements] = useState(false);
+  const [pendingImage, setPendingImage] = useState<ArrayBuffer | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const [imageRemoved, setImageRemoved] = useState(false);
+  const [imageDialog, setImageDialog] = useState<{ title: string; message: string } | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   const [viewMode, setViewMode] = useState<"table" | "cards">("table");
   const [selectedProductId, setSelectedProductId] = useState("");
@@ -181,6 +233,29 @@ export function ProductsTab({
     (product) => product.id === selectedProductId,
   );
 
+  const showImageCloudRequired = () => {
+    setImageDialog({
+      title: "Cloud အကောင့် လိုအပ်ပါသည်",
+      message: "ပစ္စည်းဓာတ်ပုံများကို cloud တွင် သိမ်းဆည်းပါသည်။ Settings > Cloud မှ ဤကွန်ပျူတာကို cloud အကောင့်နှင့် ချိတ်ဆက်ပြီး ထပ်စမ်းပါ။",
+    });
+  };
+
+  const openImagePicker = async () => {
+    try {
+      const cloudState = await window.storePos.cloud.state();
+      if (!cloudState.deviceId || cloudState.status === "signed_out") {
+        showImageCloudRequired();
+        return;
+      }
+      imageInputRef.current?.click();
+    } catch (error) {
+      setImageDialog({
+        title: "Cloud ချိတ်ဆက်မှု စစ်ဆေး၍ မရပါ",
+        message: error instanceof Error ? error.message : "ခဏစောင့်ပြီး ထပ်စမ်းပါ။",
+      });
+    }
+  };
+
   const extraLevels =
     effectivePlan !== "free"
       ? levels.data?.filter((level) => !level.isDefault) ?? []
@@ -206,8 +281,33 @@ export function ProductsTab({
 
   const saveProduct = useMutation({
     mutationFn: async () => {
+      const targetId = form.id || crypto.randomUUID();
+      let nextImageUrl = imageRemoved ? null : form.imageUrl;
+      if (pendingImage) {
+        try {
+          nextImageUrl = await window.storePos.pos.uploadProductImage(targetId, pendingImage);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "ပစ္စည်းဓာတ်ပုံ တင်၍ မရပါ";
+          const cloudRequired = message.includes("Connect this desktop first");
+          const connectionFailed = message.includes("Product image upload connection failed")
+            || message.includes("fetch failed")
+            || message.includes("ECONNRESET");
+          setImageDialog({
+            title: cloudRequired
+              ? "Cloud အကောင့် လိုအပ်ပါသည်"
+              : "ဓာတ်ပုံတင်ခြင်း မအောင်မြင်ပါ",
+            message: cloudRequired
+              ? "ပစ္စည်းဓာတ်ပုံများကို cloud တွင် သိမ်းဆည်းပါသည်။ Settings > Cloud မှ ဤကွန်ပျူတာကို cloud အကောင့်နှင့် ချိတ်ဆက်ပြီး ထပ်စမ်းပါ။"
+              : connectionFailed
+                ? "Cloud သို့ ဓာတ်ပုံတင်နေစဉ် အင်တာနက်ချိတ်ဆက်မှု ပြတ်တောက်သွားပါသည်။ ချိတ်ဆက်မှုကို စစ်ဆေးပြီး ထပ်စမ်းပါ။"
+                : message,
+          });
+          throw new ProductImageError(message);
+        }
+      }
       const product = await window.storePos.pos.saveProduct({
-        id: form.id || undefined,
+        id: targetId,
+        createIfMissing: !form.id,
         name: form.name.trim(),
         barcode: form.barcode.trim() || null,
         price: Number(form.price),
@@ -216,8 +316,13 @@ export function ProductsTab({
         unit: form.unit.trim() || "pcs",
         categoryId: form.categoryId || null,
         supplierId: form.supplierId || null,
+        imageUrl: nextImageUrl,
         isActive: true,
       });
+
+      if (imageRemoved && form.id && form.imageUrl) {
+        void window.storePos.pos.deleteProductImage(product.id).catch(() => {});
+      }
 
       const existing = form.id
         ? await window.storePos.pos.productTiers(product.id)
@@ -246,6 +351,10 @@ export function ProductsTab({
       return product;
     },
     onSuccess: (product) => {
+      if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+      setImagePreviewUrl(null);
+      setPendingImage(null);
+      setImageRemoved(false);
       setModal(null);
       void client.invalidateQueries({ queryKey: ["product-page"] });
       void client.invalidateQueries({ queryKey: ["product-summary"] });
@@ -253,7 +362,9 @@ export function ProductsTab({
       void client.invalidateQueries({ queryKey: ["product-tiers", product.id] });
       notify("ကုန်ပစ္စည်း သိမ်းပြီးပါပြီ");
     },
-    onError: (error: Error) => notify(error.message),
+    onError: (error: Error) => {
+      if (!(error instanceof ProductImageError)) notify(error.message);
+    },
   });
 
   const removeProduct = useMutation({
@@ -326,9 +437,14 @@ export function ProductsTab({
             unit: product.unit,
             categoryId: product.categoryId ?? "",
             supplierId: product.supplierId ?? "",
+            imageUrl: product.imageUrl,
           }
         : emptyForm,
     );
+    if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+    setImagePreviewUrl(null);
+    setPendingImage(null);
+    setImageRemoved(false);
     if (product?.id) {
       window.storePos.pos
         .stockHistory(product.id)
@@ -635,14 +751,28 @@ export function ProductsTab({
                           className="hover:bg-gray-50/80 transition group"
                         >
                           <td className="py-2.5 px-4">
-                            <span className="font-bold text-sm text-gray-900 block leading-tight">
-                              {product.name}
-                            </span>
-                            {product.unit && (
-                              <span className="text-[10px] text-gray-400">
-                                ယူနစ် — {product.unit}
-                              </span>
-                            )}
+                            <div className="flex items-center gap-2.5">
+                              {product.imageUrl ? (
+                                <img
+                                  src={product.imageUrl}
+                                  alt=""
+                                  loading="lazy"
+                                  className="h-10 w-10 shrink-0 rounded-lg border border-gray-200 object-cover"
+                                />
+                              ) : (
+                                <div className="h-10 w-10 shrink-0 rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center text-gray-300">▧</div>
+                              )}
+                              <div className="min-w-0">
+                                <span className="font-bold text-sm text-gray-900 block leading-tight">
+                                  {product.name}
+                                </span>
+                                {product.unit && (
+                                  <span className="text-[10px] text-gray-400">
+                                    ယူနစ် — {product.unit}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
                           </td>
                           <td className="py-2.5 px-3 font-mono text-[11px] text-gray-500">
                             {product.barcode || "—"}
@@ -765,6 +895,16 @@ export function ProductsTab({
                         className="p-3.5 rounded-xl border border-gray-200 bg-white shadow-sm hover:shadow-md transition flex flex-col justify-between"
                       >
                         <div>
+                          {product.imageUrl ? (
+                            <img
+                              src={product.imageUrl}
+                              alt=""
+                              loading="lazy"
+                              className="mb-2.5 aspect-square w-full rounded-lg border border-gray-100 object-cover"
+                            />
+                          ) : (
+                            <div className="mb-2.5 aspect-square w-full rounded-lg border border-gray-100 bg-gray-50 flex items-center justify-center text-3xl text-gray-300">▧</div>
+                          )}
                           <div className="flex items-start justify-between gap-1 mb-1">
                             <span className="badge badge-ghost badge-xs text-[10px]">
                               {cat?.name ?? "အမျိုးအစားမသတ်မှတ်ရသေး"}
@@ -925,6 +1065,85 @@ export function ProductsTab({
               {/* Tab 1: General Info */}
               {productModalTab === "general" && (
                 <div className="space-y-3">
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                    <div className="flex items-center gap-4">
+                      <div className="h-24 w-24 shrink-0 overflow-hidden rounded-xl border border-gray-200 bg-white flex items-center justify-center">
+                        {imagePreviewUrl || (!imageRemoved && form.imageUrl) ? (
+                          <img
+                            src={imagePreviewUrl ?? form.imageUrl!}
+                            alt="ပစ္စည်းဓာတ်ပုံ"
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-3xl text-gray-300">▧</span>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold text-gray-800">ပစ္စည်းဓာတ်ပုံ</p>
+                        <p className="mt-1 text-[11px] leading-relaxed text-gray-500">
+                          640 × 640 WebP အဖြစ် အလိုအလျောက် ဖြတ်တောက်ချုံ့ပြီး cloud သို့ တင်ပါမည်။
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            className="btn btn-xs btn-outline btn-primary"
+                            onClick={() => void openImagePicker()}
+                          >
+                            {imagePreviewUrl || (!imageRemoved && form.imageUrl)
+                              ? "ဓာတ်ပုံ ပြောင်းမည်"
+                              : "ဓာတ်ပုံ ရွေးမည်"}
+                          </button>
+                          <input
+                            ref={imageInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={async (event) => {
+                              const input = event.currentTarget;
+                              const file = input.files?.[0];
+                              input.value = "";
+                              if (!file) return;
+
+                              // The picker is gated before opening. Recheck here in case the
+                              // device was disconnected while the native picker was visible.
+                              const cloudState = await window.storePos.cloud.state();
+                              if (!cloudState.deviceId || cloudState.status === "signed_out") {
+                                showImageCloudRequired();
+                                return;
+                              }
+                              try {
+                                const blob = await prepareProductImage(file);
+                                if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+                                setImagePreviewUrl(URL.createObjectURL(blob));
+                                setPendingImage(await blob.arrayBuffer());
+                                setImageRemoved(false);
+                              } catch (error) {
+                                setImageDialog({
+                                  title: "ဓာတ်ပုံ ပြင်ဆင်၍ မရပါ",
+                                  message: error instanceof Error ? error.message : "အခြားဓာတ်ပုံတစ်ပုံဖြင့် ထပ်စမ်းပါ။",
+                                });
+                              }
+                            }}
+                          />
+                          {imagePreviewUrl || (!imageRemoved && form.imageUrl) ? (
+                            <button
+                              type="button"
+                              className="btn btn-xs btn-ghost text-rose-600"
+                              onClick={() => {
+                                if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+                                setImagePreviewUrl(null);
+                                setPendingImage(null);
+                                setImageRemoved(true);
+                              }}
+                            >
+                              ဓာတ်ပုံ ဖယ်မည်
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="form-control">
                     <label className="label py-1">
                       <span className="label-text text-xs font-semibold">
@@ -1226,6 +1445,30 @@ export function ProductsTab({
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {imageDialog && (
+        <div
+          className="modal modal-open"
+          style={{ zIndex: 2000 }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="product-image-dialog-title"
+        >
+          <div className="modal-box max-w-sm text-center">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-amber-50 text-2xl">
+              ☁️
+            </div>
+            <h3 id="product-image-dialog-title" className="text-lg font-bold text-gray-900">{imageDialog.title}</h3>
+            <p className="mt-2 text-sm leading-relaxed text-gray-600">{imageDialog.message}</p>
+            <div className="modal-action justify-center">
+              <button className="btn btn-sm btn-primary px-6" onClick={() => setImageDialog(null)}>
+                နားလည်ပါပြီ
+              </button>
+            </div>
+          </div>
+          <button className="modal-backdrop" onClick={() => setImageDialog(null)}>close</button>
         </div>
       )}
 

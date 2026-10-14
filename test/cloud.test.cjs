@@ -9,7 +9,7 @@ function setup(t,{connected=true,initial=session(),fetcher}={}){
  const electron={app:{getPath:()=>dir,getVersion:()=> 'test'},safeStorage:{isEncryptionAvailable:()=>true,encryptString:s=>Buffer.from(s),decryptString:b=>b.toString()}};
  const old=global.fetch,calls=[];
  global.fetch=async(url,options)=>{
-  const endpoint=new URL(url).pathname.replace(/^\/api/,''),body=options.body?JSON.parse(options.body):undefined;
+  const endpoint=new URL(url).pathname.replace(/^\/api/,''),contentType=options.headers?.['Content-Type']??options.headers?.['content-type'],body=options.body&&contentType==='application/json'?JSON.parse(options.body):options.body;
   calls.push({endpoint,body,options});
   const value=await fetcher?.(endpoint,body,options) ?? (endpoint==='/auth/refresh'?initial:endpoint==='/sync/push'?{accepted:body.changes.map((c,i)=>({table:c.table,id:c.id,serverSeq:i+1})),skipped:[]}:endpoint.startsWith('/sync/pull')?{changes:[],nextSince:0,hasMore:false}:endpoint==='/cash-drawers/active'?{drawer:{id:'drawer-main',name:'Main drawer',isDefault:true,activeSessionId:null},session:null}:{});
   return {ok:!value.httpStatus,status:value.httpStatus??200,json:async()=>value};
@@ -59,6 +59,13 @@ test('shop switch waits for a fully synced previous shop before replacing local 
 test('offline disconnect clears credentials but preserves the shop and previous device identity',async t=>{
  const {cloud,db,dir}=setup(t,{fetcher:async()=>{throw new TypeError('offline');}});db.saveCustomer({name:'Kept'});await cloud.signOut();assert.equal(cloud.state().status,'signed_out');assert.equal(db.listCustomers().length,1);assert.equal(db.getState('device.previousId'),'device-a');assert.equal(db.getState('data.shopId'),'shop-a');assert.equal(fs.existsSync(path.join(dir,'cloud-session.bin')),false);
 });
+test('offline-only local data requires an explicit forced wipe',async t=>{
+ const {cloud,db}=setup(t,{connected:false});db.saveCustomer({name:'Offline customer'});
+ await assert.rejects(cloud.removeLocalData(),/Sync all pending changes/);
+ assert.equal(db.listCustomers().length,1);
+ const state=await cloud.removeLocalData(true);
+ assert.equal(state.status,'signed_out');assert.equal(state.pending,0);assert.equal(db.listCustomers().length,0);
+});
 test('cashier pairing includes previousDeviceId and caches the role',async t=>{
  const next=session({device:{id:'cashier',name:'Cashier',deviceCode:'C',role:'cashier'}});
  const {cloud,db,calls}=setup(t,{connected:false,fetcher:async e=>['/auth/devices/join','/auth/refresh'].includes(e)?next:undefined});db.setState('device.previousId','old');await cloud.join({pairingCode:'ABC123',deviceName:'Counter'});assert.equal(calls[0].body.previousDeviceId,'old');assert.equal(db.capabilities().owner,false);
@@ -70,4 +77,15 @@ test('billing refreshes cached features and payment slips keep API shapes',async
 });
 test('cancelled shop switch never replaces local rows',async t=>{
  const {cloud,db}=setup(t,{connected:false,fetcher:async e=>e==='/auth/login'?session({shop:{id:'other',name:'Other',tier:'free',premiumUntil:null}}):undefined});db.setState('data.shopId','shop-a');db.saveCustomer({name:'Kept'});await cloud.login({phone:'09',password:'test',deviceName:'Desktop'});await cloud.cancelSwitch();assert.equal(db.listCustomers()[0].name,'Kept');assert.equal(cloud.state().deviceId,null);
+});
+test('product image upload retries one transient R2 connection reset',async t=>{
+ let puts=0;
+ const {cloud}=setup(t,{fetcher:async e=>{
+  if(e==='/media/product-images/upload-url')return {uploadUrl:'https://r2.test/product.webp',imageUrl:'https://cdn.test/product.webp'};
+  if(e==='/product.webp'&&++puts===1)throw new TypeError('fetch failed');
+  return {};
+ }});
+ const image=new Uint8Array(16);image.set(Buffer.from('RIFF'),0);image.set(Buffer.from('WEBP'),8);
+ assert.equal(await cloud.uploadProductImage('product-a',image),'https://cdn.test/product.webp');
+ assert.equal(puts,2);
 });

@@ -117,19 +117,65 @@ export function Settings({ notify }: { notify: (s: string) => void }) {
 function CashierSettings({ notify }: { notify: (s: string) => void }) {
   const client = useQueryClient();
   const [tab, setTab] = useState<'sync' | 'printer' | 'notifications' | 'diagnostics'>('sync');
+  const [showWipeModal, setShowWipeModal] = useState(false);
+  const [wipeConfirmText, setWipeConfirmText] = useState('');
   const cloud = useQuery({ queryKey: ['cashier-cloud'], queryFn: () => window.storePos.cloud.state(), refetchInterval: 5_000 });
   const retry = useMutation({ mutationFn: () => window.storePos.cloud.syncNow(), onSuccess: () => { void client.invalidateQueries({ queryKey: ['cashier-cloud'] }); notify('Sync စတင်နေပါပြီ'); }, onError: (e: Error) => notify(e.message) });
-  const removeStation = useMutation({ mutationFn: () => window.storePos.cloud.removeLocalData(), onSuccess: () => { void client.invalidateQueries(); notify('ဤစက်ကို Cloud မှဖြုတ်ပြီး စက်တွင်းဆိုင်ဒေတာ ရှင်းပြီးပါပြီ'); }, onError: (e: Error) => notify(e.message) });
+  const removeStation = useMutation({
+    mutationFn: () => window.storePos.cloud.removeLocalData(true),
+    onSuccess: () => {
+      setShowWipeModal(false);
+      setWipeConfirmText('');
+      void client.invalidateQueries();
+      notify('ဤစက်ရှိ ဆိုင်ဒေတာအားလုံးကို ရှင်းပြီးပါပြီ');
+      setTimeout(() => window.location.reload(), 500);
+    },
+    onError: (e: Error) => notify(e.message),
+  });
   const tabs = [{ key: 'sync' as const, icon: '☁️', label: 'Cloud Sync' }, { key: 'printer' as const, icon: '🖨️', label: 'Printer' }, { key: 'notifications' as const, icon: '🔔', label: 'Notifications' }, { key: 'diagnostics' as const, icon: '🩺', label: 'စနစ်စစ်ဆေးမှု' }];
+  const pendingCount = cloud.data?.pending ?? 0;
+  const connected = Boolean(cloud.data?.deviceId);
   return <section className="h-full space-y-5 overflow-y-auto pr-1 pb-10">
     <header className="border-b border-slate-200 pb-4"><h2 className="text-xl font-black text-slate-800 tracking-tight">ငွေကိုင်ဆက်တင်</h2><p className="text-xs text-slate-500 mt-1">ဤစက်အတွက် ဆက်တင်များ</p></header>
     <div className="flex flex-wrap gap-1.5 p-1 bg-slate-200/70 rounded-xl border border-slate-200/90 shadow-inner">{tabs.map((item) => <button key={item.key} type="button" onClick={() => setTab(item.key)} className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all ${tab === item.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/60'}`}><span>{item.icon}</span>{item.label}</button>)}</div>
     <div className="mt-4">
-      {tab === 'sync' ? <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-semibold text-slate-800">Cloud Sync</p><p className="text-xs text-slate-500 mt-1">{cloud.data?.shopName ?? 'မချိတ်ဆက်ရသေးပါ'} · {cloud.data?.status ?? 'မသိရသေး'} · {cloud.data?.pending ?? 0} ပို့ရန်ကျန်</p></div><button className="btn btn-sm btn-primary" disabled={retry.isPending || cloud.data?.status === 'signed_out'} onClick={() => retry.mutate()}>{retry.isPending ? 'Sync လုပ်နေသည်…' : 'ယခု Sync လုပ်မည်'}</button></div><div className="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold text-rose-800">ဤစက်ကို လုံခြုံစွာ ဖြုတ်မည်</p><p className="text-[11px] text-slate-500 mt-0.5">ဤစက်ကိုသာ Cloud မှဖြုတ်ပြီး စက်တွင်းဆိုင်ဒေတာကို ရှင်းပါမည်။ Cloud ဒေတာ မပျက်ပါ။</p></div><button className="btn btn-sm btn-outline btn-error" disabled={removeStation.isPending || (cloud.data?.pending ?? 0) > 0} onClick={() => { if ((cloud.data?.pending ?? 0) > 0) { notify('ဤစက်ကို မဖြုတ်မီ ပို့ရန်ကျန်ဒေတာအားလုံးကို Sync လုပ်ပါ'); return; } if (window.confirm('ဤစက်ကို ဆိုင်မှဖြုတ်မည်လား။ စက်တွင်းဆိုင်ဒေတာကို ရှင်းမည်ဖြစ်ပြီး Cloud ဒေတာနှင့် အခြားစက်များ မပျက်ပါ။')) removeStation.mutate(); }}>{removeStation.isPending ? 'ဖြုတ်နေသည်…' : 'ဤစက်ကို ဖြုတ်မည်'}</button></div></div> : null}
+      {tab === 'sync' ? <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-semibold text-slate-800">Cloud Sync</p><p className="text-xs text-slate-500 mt-1">{cloud.data?.shopName ?? 'မချိတ်ဆက်ရသေးပါ'} · {cloud.data?.status ?? 'မသိရသေး'} · {pendingCount} ပို့ရန်ကျန်</p></div><button className="btn btn-sm btn-primary" disabled={retry.isPending || cloud.data?.status === 'signed_out'} onClick={() => retry.mutate()}>{retry.isPending ? 'Sync လုပ်နေသည်…' : 'ယခု Sync လုပ်မည်'}</button></div><div className="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold text-rose-800">ဤစက်ရှိ ဒေတာရှင်းမည်</p><p className="text-[11px] text-slate-500 mt-0.5">Cloud ချိတ်ထားခြင်းမရှိလည်း စက်တွင်းဆိုင်ဒေတာကို ရှင်းနိုင်ပါသည်။ မသိမ်းရသေးသောဒေတာ ပြန်ယူ၍မရပါ။</p></div><button className="btn btn-sm btn-outline btn-error" disabled={removeStation.isPending} onClick={() => { setWipeConfirmText(''); setShowWipeModal(true); }}>{removeStation.isPending ? 'ရှင်းနေသည်…' : 'ဤစက်ဒေတာ ရှင်းမည်'}</button></div></div> : null}
       {tab === 'printer' ? <PrinterTab notify={notify} /> : null}
       {tab === 'notifications' ? <NotificationSettings notify={notify} /> : null}
       {tab === 'diagnostics' ? <DiagnosticsTab notify={notify} readOnly /> : null}
     </div>
+
+    {showWipeModal && (
+      <div className="modal modal-open z-[70]">
+        <div className="modal-box max-w-md p-6 space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-rose-100">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">🗑️</span>
+              <h3 className="font-bold text-base text-rose-700">ဤကွန်ပျူတာရှိ ဒေတာရှင်းမည်</h3>
+            </div>
+            <button type="button" className="btn btn-sm btn-circle btn-ghost" disabled={removeStation.isPending} onClick={() => setShowWipeModal(false)}>✕</button>
+          </div>
+
+          <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 space-y-1.5">
+            <p className="font-bold">ဤလုပ်ဆောင်ချက်ကို ပြန်ပြင်၍မရပါ။</p>
+            <p>{connected ? 'ဤကွန်ပျူတာရှိ ဒေတာကိုသာ ရှင်းပြီး Cloud မှဖြုတ်ပါမည်။ Cloud နှင့် အခြားစက်များရှိ ဒေတာ မပျက်ပါ။' : 'Cloud backup မရှိသောကြောင့် ဤကွန်ပျူတာရှိ ဆိုင်ဒေတာကို ရှင်းပြီးနောက် ပြန်လည်ရယူ၍ မရနိုင်ပါ။'}</p>
+            {pendingCount > 0 && <p className="font-semibold">ပို့ရန်ကျန် သို့မဟုတ် စက်တွင်းသာရှိသော ဒေတာ {pendingCount} ခု အပြီးပျက်သွားပါမည်။</p>}
+          </div>
+
+          <div className="form-control">
+            <label className="label py-1"><span className="label-text text-xs font-bold text-slate-700">အတည်ပြုရန် <span className="font-mono text-rose-700">CLEAR</span> ဟု ရိုက်ထည့်ပါ</span></label>
+            <input type="text" className={`input input-bordered input-sm font-mono tracking-widest ${wipeConfirmText.trim().toUpperCase() === 'CLEAR' ? 'input-error' : ''}`} placeholder="CLEAR" value={wipeConfirmText} onChange={(event) => setWipeConfirmText(event.target.value)} disabled={removeStation.isPending} autoFocus />
+          </div>
+
+          <div className="flex flex-wrap justify-end gap-2 pt-3 border-t border-slate-100">
+            {connected && pendingCount > 0 && <button type="button" className="btn btn-sm btn-outline" disabled={retry.isPending || removeStation.isPending} onClick={() => { setShowWipeModal(false); setWipeConfirmText(''); retry.mutate(); }}>Cloud သို့ အရင် Sync မည်</button>}
+            <button type="button" className="btn btn-sm btn-ghost" disabled={removeStation.isPending} onClick={() => { setShowWipeModal(false); setWipeConfirmText(''); }}>မလုပ်တော့ပါ</button>
+            <button type="button" className="btn btn-sm btn-error" disabled={removeStation.isPending || wipeConfirmText.trim().toUpperCase() !== 'CLEAR'} onClick={() => removeStation.mutate()}>{removeStation.isPending ? 'ရှင်းနေသည်…' : 'ဒေတာအားလုံး ရှင်းမည်'}</button>
+          </div>
+        </div>
+        <button type="button" className="modal-backdrop" disabled={removeStation.isPending} onClick={() => { setShowWipeModal(false); setWipeConfirmText(''); }}>close</button>
+      </div>
+    )}
   </section>;
 }
 
@@ -1779,6 +1825,20 @@ function DataAndAccountTab({ notify }: { notify: (message: string) => void }) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
   const [deleteShopName, setDeleteShopName] = useState("");
+  const [showWipeModal, setShowWipeModal] = useState(false);
+  const [wipeConfirmText, setWipeConfirmText] = useState("");
+
+  const wipeLocalData = useMutation({
+    mutationFn: () => window.storePos.cloud.removeLocalData(true),
+    onSuccess: () => {
+      setShowWipeModal(false);
+      setWipeConfirmText("");
+      void client.invalidateQueries();
+      notify("ဤကွန်ပျူတာရှိ ဆိုင်ဒေတာအားလုံးကို ရှင်းပြီးပါပြီ");
+      setTimeout(() => window.location.reload(), 500);
+    },
+    onError: (e: Error) => notify(e.message),
+  });
 
   const deleteAccount = useMutation({
     mutationFn: () =>
@@ -1798,6 +1858,7 @@ function DataAndAccountTab({ notify }: { notify: (message: string) => void }) {
 
   const shopDisplayName = cloudState.data?.shopName || shopProfile.data?.name || "YOUR SHOP";
   const pendingCount = cloudState.data?.pending ?? 0;
+  const connected = Boolean(cloudState.data?.deviceId);
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -1826,7 +1887,7 @@ function DataAndAccountTab({ notify }: { notify: (message: string) => void }) {
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-center gap-2">
               <span className="text-base">⚠️</span>
               <span>
-                မှတ်ချက် — စက်တွင်းဒေတာပြင်ဆင်ရန် ပို့ရန်ကျန်ဒေတာ ၀ ဖြစ်ရပါမည်။ လက်ရှိ {pendingCount} ခု ကျန်နေသည်။
+                Cloud မှ ပြန်လည်ရယူရန် ပို့ရန်ကျန်ဒေတာ ၀ ဖြစ်ရပါမည်။ စက်တွင်းဒေတာ ရှင်းရာတွင် မသိမ်းရသေးသော {pendingCount} ခုကို စွန့်ပစ်ရန် သီးခြားအတည်ပြုနိုင်ပါသည်။
               </span>
             </div>
           )}
@@ -1860,32 +1921,129 @@ function DataAndAccountTab({ notify }: { notify: (message: string) => void }) {
                 ဤစက်မှ ဆိုင်ဒေတာအားလုံး ရှင်းမည်
               </p>
               <p className="text-[11px] text-rose-600 mt-0.5">
-                ဤစက်ကို Cloud မှဖြုတ်ပြီး စက်တွင်းဆိုင်ဒေတာအားလုံးကို ရှင်းပါမည်။
+                {connected
+                  ? "ဤစက်ကို Cloud မှဖြုတ်ပြီး စက်တွင်းဆိုင်ဒေတာအားလုံးကို ရှင်းပါမည်။ Cloud ဒေတာ မပျက်ပါ။"
+                  : "Cloud မချိတ်ထားသော်လည်း ဤကွန်ပျူတာရှိ ဆိုင်ဒေတာအားလုံးကို ရှင်းနိုင်ပါသည်။"}
               </p>
             </div>
             <button
               type="button"
               className="btn btn-sm btn-outline btn-error"
-              disabled={storageAction.isPending || pendingCount > 0}
+              disabled={storageAction.isPending || wipeLocalData.isPending}
               onClick={() => {
-                if (pendingCount > 0) {
-                  alert("စက်တွင်းဒေတာမရှင်းမီ ပို့ရန်ကျန်ဒေတာအားလုံးကို Sync လုပ်ပါ။");
-                  return;
-                }
-                if (
-                  window.confirm(
-                    "သတိပေးချက် — ဤကွန်ပျူတာရှိ ဆိုင်ဒေတာအားလုံးကို ရှင်းပြီး Cloud မှ ဖြုတ်ပါမည်။ Cloud ဒေတာ မပျက်ပါ။\n\nဆက်လုပ်မည်လား။"
-                  )
-                ) {
-                  storageAction.mutate(() => window.storePos.cloud.removeLocalData());
-                }
+                setWipeConfirmText("");
+                setShowWipeModal(true);
               }}
             >
-              {storageAction.isPending ? "ဒေတာရှင်းနေသည်…" : "ဤစက်ဒေတာ ရှင်းမည်"}
+              {wipeLocalData.isPending ? "ဒေတာရှင်းနေသည်…" : "ဤစက်ဒေတာ ရှင်းမည်"}
             </button>
           </div>
         </div>
       </div>
+
+      {showWipeModal && (
+        <div className="modal modal-open z-[70]">
+          <div className="modal-box max-w-md p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-rose-100">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🗑️</span>
+                <h3 className="font-bold text-base text-rose-700">ဤကွန်ပျူတာရှိ ဒေတာရှင်းမည်</h3>
+              </div>
+              <button
+                type="button"
+                className="btn btn-sm btn-circle btn-ghost"
+                disabled={wipeLocalData.isPending}
+                onClick={() => setShowWipeModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 space-y-1.5">
+              <p className="font-bold">ဤလုပ်ဆောင်ချက်ကို ပြန်ပြင်၍မရပါ။</p>
+              <p>
+                {connected
+                  ? "ဤကွန်ပျူတာရှိ ဒေတာကိုသာ ရှင်းပြီး Cloud မှဖြုတ်ပါမည်။ Cloud နှင့် အခြားစက်များရှိ ဒေတာ မပျက်ပါ။"
+                  : "Cloud backup မရှိသောကြောင့် ဤကွန်ပျူတာရှိ ဆိုင်ဒေတာကို ရှင်းပြီးနောက် ပြန်လည်ရယူ၍ မရနိုင်ပါ။"}
+              </p>
+              {pendingCount > 0 && (
+                <p className="font-semibold">
+                  ပို့ရန်ကျန် သို့မဟုတ် စက်တွင်းသာရှိသော ဒေတာ {pendingCount} ခု အပြီးပျက်သွားပါမည်။
+                </p>
+              )}
+            </div>
+
+            <div className="form-control">
+              <label className="label py-1">
+                <span className="label-text text-xs font-bold text-slate-700">
+                  အတည်ပြုရန် <span className="font-mono text-rose-700">CLEAR</span> ဟု ရိုက်ထည့်ပါ
+                </span>
+              </label>
+              <input
+                type="text"
+                className={`input input-bordered input-sm font-mono tracking-widest ${
+                  wipeConfirmText.trim().toUpperCase() === "CLEAR" ? "input-error" : ""
+                }`}
+                placeholder="CLEAR"
+                value={wipeConfirmText}
+                onChange={(event) => setWipeConfirmText(event.target.value)}
+                disabled={wipeLocalData.isPending}
+                autoFocus
+              />
+            </div>
+
+            <div className="flex flex-wrap justify-end gap-2 pt-3 border-t border-slate-100">
+              {connected && pendingCount > 0 && (
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline"
+                  disabled={storageAction.isPending || wipeLocalData.isPending}
+                  onClick={() => {
+                    setShowWipeModal(false);
+                    setWipeConfirmText("");
+                    storageAction.mutate(() => window.storePos.cloud.syncNow());
+                  }}
+                >
+                  Cloud သို့ အရင် Sync မည်
+                </button>
+              )}
+              <button
+                type="button"
+                className="btn btn-sm btn-ghost"
+                disabled={wipeLocalData.isPending}
+                onClick={() => {
+                  setShowWipeModal(false);
+                  setWipeConfirmText("");
+                }}
+              >
+                မလုပ်တော့ပါ
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm btn-error"
+                disabled={
+                  wipeLocalData.isPending ||
+                  wipeConfirmText.trim().toUpperCase() !== "CLEAR"
+                }
+                onClick={() => wipeLocalData.mutate()}
+              >
+                {wipeLocalData.isPending ? "ရှင်းနေသည်…" : "ဒေတာအားလုံး ရှင်းမည်"}
+              </button>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="modal-backdrop"
+            disabled={wipeLocalData.isPending}
+            onClick={() => {
+              setShowWipeModal(false);
+              setWipeConfirmText("");
+            }}
+          >
+            close
+          </button>
+        </div>
+      )}
 
       {/* 2. Danger Zone: Cloud Account Deletion */}
       {capabilities.owner && cloudState.data?.status !== "signed_out" && (

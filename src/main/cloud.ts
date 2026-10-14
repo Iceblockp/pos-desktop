@@ -213,8 +213,8 @@ export class CloudService {
     this.db.setState('data.shopId', shopId);
     return this.syncNow();
   }
-  async removeLocalData(): Promise<CloudState> {
-    if (this.db.countDirty()) throw new Error('Sync all pending changes before removing local data');
+  async removeLocalData(force = false): Promise<CloudState> {
+    if (this.db.countDirty() && !force) throw new Error('Sync all pending changes before removing local data');
     await this.signOut();
     this.db.wipeShopData();
     return this.state();
@@ -243,6 +243,44 @@ export class CloudService {
   }
   submitSlip(input: { tier: 'offline_plus' | 'cloud_pro'; method: string; amount: number; reference: string; note?: string }): Promise<PaymentSlip> { return this.request('POST', '/billing/slips', input, true); }
   async listSlips(): Promise<PaymentSlip[]> { return (await this.request<{ slips: PaymentSlip[] }>('GET', '/billing/slips', undefined, true)).slips; }
+  async uploadProductImage(productId: string, image: Uint8Array): Promise<string> {
+    if (!image.length || image.length > 2 * 1024 * 1024) throw new Error('Product photo must be smaller than 2 MB');
+    const body = new ArrayBuffer(image.byteLength);
+    new Uint8Array(body).set(image);
+    const signed = await this.request<{ uploadUrl: string; imageUrl: string }>(
+      'POST',
+      '/media/product-images/upload-url',
+      { productId },
+      true,
+    );
+    let response: Response | null = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        response = await fetch(signed.uploadUrl, {
+          method: 'PUT',
+          signal: AbortSignal.timeout(30_000),
+          headers: {
+            'Content-Type': 'image/webp',
+            'Cache-Control': 'public, max-age=31536000, immutable',
+          },
+          body,
+        });
+        break;
+      } catch (error) {
+        const transient = error instanceof TypeError
+          || (error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name));
+        if (attempt === 0 && transient) continue;
+        if (transient) throw new Error('Product image upload connection failed');
+        throw error;
+      }
+    }
+    if (!response) throw new Error('Product image upload connection failed');
+    if (!response.ok) throw new Error(`Image upload failed (${response.status})`);
+    return signed.imageUrl;
+  }
+  async deleteProductImage(productId: string): Promise<void> {
+    await this.request('DELETE', `/media/product-images/${encodeURIComponent(productId)}`, undefined, true);
+  }
   private saveEntitlement(value: BillingStatus): void {
     this.db.setState('entitlement.tier', value.tier); this.db.setState('entitlement.premiumUntil', value.premiumUntil);
     if (this.session) { this.session.shop.tier = value.tier; this.session.shop.premiumUntil = value.premiumUntil; this.saveSession(this.session); }
