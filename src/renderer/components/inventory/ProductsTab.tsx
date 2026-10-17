@@ -28,6 +28,7 @@ interface ProductFormState {
   categoryId: string;
   supplierId: string;
   imageUrl: string | null;
+  initialStock: string;
 }
 
 class ProductImageError extends Error {}
@@ -82,6 +83,7 @@ export function ProductsTab({
     categoryId: "",
     supplierId: "",
     imageUrl: null,
+    initialStock: "",
   };
 
   const [form, setForm] = useState(emptyForm);
@@ -101,6 +103,12 @@ export function ProductsTab({
   const [imageRemoved, setImageRemoved] = useState(false);
   const [imageDialog, setImageDialog] = useState<{ title: string; message: string } | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const rapidBarcodeRef = useRef<HTMLInputElement>(null);
+  const rapidNameRef = useRef<HTMLInputElement>(null);
+  const saveAndContinueRef = useRef(false);
+  const [rapidOpen, setRapidOpen] = useState(false);
+  const [rapidAdvanced, setRapidAdvanced] = useState(false);
+  const [rapidAdded, setRapidAdded] = useState(0);
 
   const [viewMode, setViewMode] = useState<"table" | "cards">("table");
   const [selectedProductId, setSelectedProductId] = useState("");
@@ -318,6 +326,7 @@ export function ProductsTab({
         supplierId: form.supplierId || null,
         imageUrl: nextImageUrl,
         isActive: true,
+        quantity: form.id ? undefined : Number(form.initialStock || 0),
       });
 
       if (imageRemoved && form.id && form.imageUrl) {
@@ -355,11 +364,36 @@ export function ProductsTab({
       setImagePreviewUrl(null);
       setPendingImage(null);
       setImageRemoved(false);
-      setModal(null);
       void client.invalidateQueries({ queryKey: ["product-page"] });
       void client.invalidateQueries({ queryKey: ["product-summary"] });
       void client.invalidateQueries({ queryKey: ["cart-products"] });
       void client.invalidateQueries({ queryKey: ["product-tiers", product.id] });
+      if (rapidOpen) {
+        const defaults = {
+          categoryId: form.categoryId,
+          supplierId: form.supplierId,
+          unit: form.unit,
+          minStock: form.minStock,
+        };
+        localStorage.setItem("store-pos.rapid-product-defaults", JSON.stringify(defaults));
+      }
+      if (saveAndContinueRef.current && rapidOpen) {
+        const defaults = {
+          categoryId: form.categoryId,
+          supplierId: form.supplierId,
+          unit: form.unit,
+          minStock: form.minStock,
+        };
+        setRapidAdded((count) => count + 1);
+        setForm({ ...emptyForm, ...defaults });
+        saveAndContinueRef.current = false;
+        notify(`“${product.name}” သိမ်းပြီးပါပြီ — နောက်တစ်ခု ထည့်နိုင်ပါပြီ`);
+        requestAnimationFrame(() => rapidBarcodeRef.current?.focus());
+        return;
+      }
+      saveAndContinueRef.current = false;
+      setRapidOpen(false);
+      setModal(null);
       notify("ကုန်ပစ္စည်း သိမ်းပြီးပါပြီ");
     },
     onError: (error: Error) => {
@@ -425,6 +459,7 @@ export function ProductsTab({
   const shown = products.data?.items ?? [];
 
   const openProduct = (product?: Product) => {
+    saveAndContinueRef.current = false;
     setForm(
       product
         ? {
@@ -438,6 +473,7 @@ export function ProductsTab({
             categoryId: product.categoryId ?? "",
             supplierId: product.supplierId ?? "",
             imageUrl: product.imageUrl,
+            initialStock: "",
           }
         : emptyForm,
     );
@@ -462,6 +498,49 @@ export function ProductsTab({
     }
     setProductModalTab("general");
     setModal("product");
+  };
+
+  const openRapidAdd = () => {
+    saveAndContinueRef.current = false;
+    let defaults: Partial<ProductFormState> = {};
+    try {
+      defaults = JSON.parse(localStorage.getItem("store-pos.rapid-product-defaults") ?? "{}");
+    } catch {
+      defaults = {};
+    }
+    setForm({
+      ...emptyForm,
+      categoryId: typeof defaults.categoryId === "string" ? defaults.categoryId : "",
+      supplierId: typeof defaults.supplierId === "string" ? defaults.supplierId : "",
+      unit: typeof defaults.unit === "string" && defaults.unit ? defaults.unit : emptyForm.unit,
+      minStock: typeof defaults.minStock === "string" ? defaults.minStock : "",
+    });
+    setRapidAdded(0);
+    setRapidAdvanced(false);
+    setTierDrafts({});
+    if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+    setImagePreviewUrl(null);
+    setPendingImage(null);
+    setImageRemoved(false);
+    setRapidOpen(true);
+    requestAnimationFrame(() => rapidBarcodeRef.current?.focus());
+  };
+
+  const checkRapidBarcode = async () => {
+    const code = form.barcode.trim();
+    if (!code) {
+      rapidNameRef.current?.focus();
+      return;
+    }
+    const existing = await window.storePos.pos.findByBarcode(code);
+    if (existing) {
+      setImageDialog({
+        title: "ဤဘားကုဒ် ရှိပြီးသားဖြစ်သည်",
+        message: `“${existing.name}” ကုန်ပစ္စည်းတွင် ${code} ကို အသုံးပြုထားပါသည်။ ဘားကုဒ်ကို ပြင်ပြီး ထပ်စမ်းပါ။`,
+      });
+      return;
+    }
+    rapidNameRef.current?.focus();
   };
 
   const openFor = (product: Product, next: "stock" | "history") => {
@@ -633,6 +712,12 @@ export function ProductsTab({
             </div>
 
             {/* Add Product Button */}
+            <button
+              className="btn btn-outline btn-primary btn-sm shadow-sm"
+              onClick={openRapidAdd}
+            >
+              ⚡ အမြန်ထည့်မည်
+            </button>
             <button
               className="btn btn-primary btn-sm shadow-sm"
               onClick={() => openProduct()}
@@ -994,6 +1079,100 @@ export function ProductsTab({
         </div>
       </div>
 
+      {rapidOpen && (
+        <div className="modal modal-open">
+          <div className="modal-box max-w-2xl p-0 overflow-hidden">
+            <div className="flex items-center justify-between gap-4 border-b border-gray-100 px-5 py-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-bold text-gray-900">⚡ ကုန်ပစ္စည်း အမြန်ထည့်မည်</h3>
+                  {rapidAdded > 0 && <span className="badge badge-success badge-sm text-white">{rapidAdded} ခု ထည့်ပြီး</span>}
+                </div>
+                <p className="mt-0.5 text-xs text-gray-500">ဘားကုဒ်ဖတ်၍ အဓိကအချက်များ ဖြည့်ပြီး နောက်တစ်ခုကို ချက်ချင်းဆက်ထည့်ပါ</p>
+              </div>
+              <button type="button" className="btn btn-sm btn-circle btn-ghost" disabled={saveProduct.isPending} onClick={() => setRapidOpen(false)}>✕</button>
+            </div>
+
+            <form
+              className="space-y-4 px-5 py-4"
+              onSubmit={(event) => {
+                event.preventDefault();
+                saveAndContinueRef.current = true;
+                saveProduct.mutate();
+              }}
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="form-control">
+                  <label className="label py-1"><span className="label-text text-xs font-semibold">ဘားကုဒ် / SKU</span></label>
+                  <input
+                    ref={rapidBarcodeRef}
+                    value={form.barcode}
+                    onChange={(event) => setForm({ ...form, barcode: event.target.value })}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        void checkRapidBarcode();
+                      }
+                    }}
+                    onBlur={() => void checkRapidBarcode()}
+                    placeholder="ဖတ်ပါ သို့မဟုတ် ချန်ထားပါ"
+                    className="input input-bordered input-sm font-mono"
+                    autoFocus
+                  />
+                </div>
+                <div className="form-control">
+                  <label className="label py-1"><span className="label-text text-xs font-semibold">ကုန်ပစ္စည်းအမည် *</span></label>
+                  <input ref={rapidNameRef} required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="ဥပမာ — Speed 250ml" className="input input-bordered input-sm" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="form-control">
+                  <label className="label py-1"><span className="label-text text-xs font-semibold">ရောင်းဈေး *</span></label>
+                  <input required inputMode="decimal" value={form.price} onChange={(event) => setForm({ ...form, price: event.target.value })} placeholder="0" className="input input-bordered input-sm font-bold text-emerald-700" />
+                </div>
+                {owner && <div className="form-control">
+                  <label className="label py-1"><span className="label-text text-xs font-semibold">ဝယ်ဈေး</span></label>
+                  <input inputMode="decimal" value={form.cost} onChange={(event) => setForm({ ...form, cost: event.target.value })} placeholder="0" className="input input-bordered input-sm" />
+                </div>}
+                <div className="form-control">
+                  <label className="label py-1"><span className="label-text text-xs font-semibold">စတင်လက်ကျန်</span></label>
+                  <input inputMode="decimal" value={form.initialStock} onChange={(event) => setForm({ ...form, initialStock: event.target.value })} placeholder="0" className="input input-bordered input-sm" />
+                </div>
+                <div className="form-control">
+                  <label className="label py-1"><span className="label-text text-xs font-semibold">ယူနစ်</span></label>
+                  <input value={form.unit} onChange={(event) => setForm({ ...form, unit: event.target.value })} className="input input-bordered input-sm" />
+                </div>
+              </div>
+
+              <button type="button" className="flex items-center gap-2 text-xs font-semibold text-slate-600 hover:text-slate-900" onClick={() => setRapidAdvanced((shown) => !shown)}>
+                <span>{rapidAdvanced ? "▾" : "▸"}</span>
+                {rapidAdvanced ? "အပိုသတ်မှတ်ချက်များ ဖျောက်မည်" : "အမျိုးအစား၊ ပေးသွင်းသူနှင့် သတိပေးလက်ကျန်"}
+              </button>
+
+              {rapidAdvanced && <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <OptionPicker label="အမျိုးအစား" value={form.categoryId} options={[{ label: "မသတ်မှတ်", value: "" }, ...(categories.data?.map((item) => ({ label: item.name, value: item.id })) ?? [])]} onSelect={(value) => setForm({ ...form, categoryId: value })} placeholder="ရွေးချယ်ပါ" searchPlaceholder="ရှာရန်..." />
+                {owner && <OptionPicker label="ပေးသွင်းသူ" value={form.supplierId} options={[{ label: "မသတ်မှတ်", value: "" }, ...(suppliers.data?.map((item) => ({ label: item.name, value: item.id })) ?? [])]} onSelect={(value) => setForm({ ...form, supplierId: value })} placeholder="ရွေးချယ်ပါ" searchPlaceholder="ရှာရန်..." />}
+                <div className="form-control">
+                  <label className="label py-1"><span className="label-text text-xs font-semibold">လက်ကျန်နည်း သတိပေးမည့်အရေအတွက်</span></label>
+                  <input inputMode="decimal" value={form.minStock} onChange={(event) => setForm({ ...form, minStock: event.target.value })} placeholder="0" className="input input-bordered input-sm" />
+                </div>
+              </div>}
+
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4">
+                <p className="text-[11px] text-gray-500">အမျိုးအစား၊ ပေးသွင်းသူ၊ ယူနစ်နှင့် သတိပေးလက်ကျန်ကို နောက်ကုန်ပစ္စည်းအတွက် မှတ်ထားပါမည်။</p>
+                <div className="flex gap-2">
+                  <button type="button" className="btn btn-sm btn-ghost" disabled={saveProduct.isPending} onClick={() => setRapidOpen(false)}>ပိတ်မည်</button>
+                  <button type="button" className="btn btn-sm btn-outline btn-primary" disabled={saveProduct.isPending || !form.name.trim() || !form.price} onClick={() => { saveAndContinueRef.current = false; saveProduct.mutate(); }}>{saveProduct.isPending ? "သိမ်းနေသည်…" : "သိမ်းပြီး ပိတ်မည်"}</button>
+                  <button type="submit" className="btn btn-sm btn-primary" disabled={saveProduct.isPending || !form.name.trim() || !form.price}>{saveProduct.isPending ? "သိမ်းနေသည်…" : "သိမ်းပြီး နောက်တစ်ခု →"}</button>
+                </div>
+              </div>
+            </form>
+          </div>
+          <button type="button" className="modal-backdrop" disabled={saveProduct.isPending} onClick={() => setRapidOpen(false)}>close</button>
+        </div>
+      )}
+
       {/* Redesigned Structured Product Create/Edit Modal */}
       {modal === "product" && (
         <div className="modal modal-open">
@@ -1009,13 +1188,33 @@ export function ProductsTab({
                     : "ဆိုင်ကုန်ပစ္စည်းစာရင်းထဲသို့ ပစ္စည်းအသစ်ထည့်ပါ"}
                 </p>
               </div>
-              <button
-                type="button"
-                className="btn btn-sm btn-circle btn-ghost"
-                onClick={() => setModal(null)}
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-2">
+                {form.id && <button type="button" className="btn btn-xs btn-outline" onClick={() => {
+                  setForm({ ...form, id: "", barcode: "", imageUrl: null, initialStock: "" });
+                  setTierDrafts((current) => Object.fromEntries(
+                    Object.entries(current).map(([levelId, rows]) => [
+                      levelId,
+                      rows.map((row) => ({
+                        key: `${levelId}-${Date.now()}-${Math.random()}`,
+                        id: "",
+                        minQuantity: row.minQuantity,
+                        bulkPrice: row.bulkPrice,
+                      })),
+                    ]),
+                  ));
+                  setImagePreviewUrl(null);
+                  setPendingImage(null);
+                  setImageRemoved(false);
+                  notify("မိတ္တူအသစ်ဖြစ်ပါသည် — အမည် သို့မဟုတ် ဘားကုဒ်ကို ပြင်ပြီး သိမ်းပါ");
+                }}>မိတ္တူဖန်တီးမည်</button>}
+                <button
+                  type="button"
+                  className="btn btn-sm btn-circle btn-ghost"
+                  onClick={() => setModal(null)}
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
             {/* Modal Internal Tabs */}
